@@ -23,3 +23,10 @@ struct CharacteristicModel: Identifiable, Codable {
     let format: String
     let permissions: [String]
 }
+
+struct CharacteristicConfiguration: Codable, Equatable {
+    var mcpEnabled: Bool
+    var webhookEnabled: Bool
+
+    static let `default` = CharacteristicConfiguration(mcpEnabled: true, webhookEnabled: false)
+}

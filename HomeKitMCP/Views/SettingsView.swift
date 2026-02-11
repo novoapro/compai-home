@@ -5,6 +5,7 @@ struct SettingsView: View {
     @State private var webhookURL = ""
     @State private var showingSaveAlert = false
     @State private var hasEdited = false
+    @State private var showingResetConfirmation = false
 
     private var urlIsValid: Bool {
         webhookURL.isEmpty || viewModel.isValidURL(webhookURL)
@@ -17,8 +18,11 @@ struct SettingsView: View {
     var body: some View {
         Form {
             webhookSection
-            webhookStatusSection
+            if viewModel.webhookEnabled {
+                webhookStatusSection
+            }
             mcpServerSection
+            dataSection
             aboutSection
         }
         .formStyle(.grouped)
@@ -28,57 +32,71 @@ struct SettingsView: View {
         } message: {
             Text("Webhook URL has been saved.")
         }
+        .alert("Reset Device Configuration?", isPresented: $showingResetConfirmation) {
+            Button("Cancel", role: .cancel) { }
+            Button("Reset", role: .destructive) {
+                viewModel.resetDeviceConfiguration()
+            }
+        } message: {
+            Text("This will reset all MCP and webhook toggles to their defaults (MCP: on, Webhook: off).")
+        }
     }
 
     // MARK: - Sections
 
     private var webhookSection: some View {
         Section {
-            TextField("https://example.com/webhook", text: $webhookURL)
-                .textFieldStyle(.roundedBorder)
-                .keyboardType(.URL)
-                .autocapitalization(.none)
-                .disableAutocorrection(true)
-                .onAppear {
-                    webhookURL = viewModel.storage.webhookURL ?? ""
-                }
-                .onChange(of: webhookURL) { _ in
-                    hasEdited = true
-                }
+            Toggle("Enable Webhook Notifications", isOn: $viewModel.webhookEnabled)
 
-            if hasEdited && !webhookURL.isEmpty && !urlIsValid {
-                Label("Enter a valid HTTP or HTTPS URL", systemImage: "exclamationmark.triangle")
-                    .font(.caption)
-                    .foregroundColor(.orange)
-            }
-
-            HStack {
-                Button("Save") {
-                    viewModel.storage.webhookURL = webhookURL.isEmpty ? nil : webhookURL
-                    hasEdited = false
-                    showingSaveAlert = true
-                }
-                .disabled(!hasUnsavedChanges || (!webhookURL.isEmpty && !urlIsValid))
-
-                if !webhookURL.isEmpty && viewModel.storage.isWebhookConfigured() {
-                    Spacer()
-                    Button("Clear") {
-                        webhookURL = ""
-                        viewModel.storage.webhookURL = nil
-                        hasEdited = false
+            Group {
+                TextField("https://example.com/webhook", text: $webhookURL)
+                    .textFieldStyle(.roundedBorder)
+                    .keyboardType(.URL)
+                    .autocapitalization(.none)
+                    .disableAutocorrection(true)
+                    .onAppear {
+                        webhookURL = viewModel.storage.webhookURL ?? ""
                     }
-                    .foregroundColor(.red)
+                    .onChange(of: webhookURL) { _ in
+                        hasEdited = true
+                    }
+
+                if hasEdited && !webhookURL.isEmpty && !urlIsValid {
+                    Label("Enter a valid HTTP or HTTPS URL", systemImage: "exclamationmark.triangle")
+                        .font(.caption)
+                        .foregroundColor(.orange)
+                }
+
+                HStack {
+                    Button("Save") {
+                        viewModel.storage.webhookURL = webhookURL.isEmpty ? nil : webhookURL
+                        hasEdited = false
+                        showingSaveAlert = true
+                    }
+                    .disabled(!hasUnsavedChanges || (!webhookURL.isEmpty && !urlIsValid))
+
+                    if !webhookURL.isEmpty && viewModel.storage.isWebhookConfigured() {
+                        Spacer()
+                        Button("Clear") {
+                            webhookURL = ""
+                            viewModel.storage.webhookURL = nil
+                            hasEdited = false
+                        }
+                        .foregroundColor(.red)
+                    }
+                }
+
+                if viewModel.storage.isWebhookConfigured() {
+                    Label("Webhook configured", systemImage: "checkmark.circle.fill")
+                        .foregroundColor(.green)
                 }
             }
-
-            if viewModel.storage.isWebhookConfigured() {
-                Label("Webhook configured", systemImage: "checkmark.circle.fill")
-                    .foregroundColor(.green)
-            }
+            .disabled(!viewModel.webhookEnabled)
+            .opacity(viewModel.webhookEnabled ? 1 : 0.5)
         } header: {
             Text("Webhook Configuration")
         } footer: {
-            Text("State changes will be sent as HTTP POST requests with a JSON payload to this URL.")
+            Text("Configure which devices trigger webhooks in the Devices tab.")
         }
     }
 
@@ -142,6 +160,12 @@ struct SettingsView: View {
                 LabeledContent("Connected Clients", value: "\(viewModel.mcpConnectedClients)")
             }
 
+            if let error = viewModel.mcpServerError {
+                Label(error, systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption)
+                    .foregroundColor(.red)
+            }
+
             HStack {
                 Text("Port")
                 Spacer()
@@ -159,10 +183,22 @@ struct SettingsView: View {
             Text("MCP Server")
         } footer: {
             VStack(alignment: .leading, spacing: 4) {
-                Text("Streamable HTTP: http://127.0.0.1:\(viewModel.storage.mcpServerPort)/mcp")
-                Text("Legacy SSE: http://127.0.0.1:\(viewModel.storage.mcpServerPort)/sse")
+                Text(verbatim: "Streamable: http://\(viewModel.localIPAddress):\(viewModel.storage.mcpServerPort)/mcp")
+                Text(verbatim: "Legacy SSE: http://\(viewModel.localIPAddress):\(viewModel.storage.mcpServerPort)/sse")
             }
             .font(.caption)
+        }
+    }
+
+    private var dataSection: some View {
+        Section {
+            Button("Reset Device Configuration", role: .destructive) {
+                showingResetConfirmation = true
+            }
+        } header: {
+            Text("Data")
+        } footer: {
+            Text("Resets all per-device MCP visibility and webhook notification toggles to defaults.")
         }
     }
 

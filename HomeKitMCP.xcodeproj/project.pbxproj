@@ -19,6 +19,7 @@
 		5B1591BA359229D986B8FD63 /* MenuBarController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76A1CCA31A2168A2B8D12DD0 /* MenuBarController.swift */; };
 		5D5A27F1913660BBC8968F85 /* WebhookService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E00EF2581D4A9B75850FF25 /* WebhookService.swift */; };
 		5E6D895157FC47B4A75A4A28 /* DeviceRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 918FA14242FE41FBD8F7DF47 /* DeviceRow.swift */; };
+		604138D8F7B166CDADB33EE9 /* DeviceConfigurationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7760FE5637D902D59F614907 /* DeviceConfigurationService.swift */; };
 		604630A1BF390A991532363A /* AnyCodable.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8520B3C8169ADBD675E1136B /* AnyCodable.swift */; };
 		70400A91CBCC20604DAE70F8 /* SettingsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 522B39319B446E5696EF1A8E /* SettingsViewModel.swift */; };
 		71A6034172C43EA290A3DA1B /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40D3B40039E20BD2B504DCB /* SettingsView.swift */; };
@@ -26,13 +27,14 @@
 		9C2B2547888DD514D726B727 /* CharacteristicTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = F904B77E53F9A48675AE552B /* CharacteristicTypes.swift */; };
 		A3E3A82D4487055B80CD4EAA /* LogRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94E00E5E7805C7F145F187EA /* LogRow.swift */; };
 		A7845F42530D6DF692A39F6B /* MCPServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D45F1AC83543490E02AE688 /* MCPServer.swift */; };
+		AEE5C04596D85BB802F0FE8D /* PreviewData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77E7DB8F5E5A2E47859F9BE1 /* PreviewData.swift */; };
 		BF2EED1AD5FA32AB19D6FA7B /* LogViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0AFB57519945EDEE09EC3F8A /* LogViewModel.swift */; };
 		D6CF501ADBB5C51F6F6C5879 /* MCPModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12EE482294F3DD0089534DFF /* MCPModels.swift */; };
 		DDB9C4F7DAF16E5F1C638A4E /* DeviceListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47D0798E400ADEFA785DCB94 /* DeviceListView.swift */; };
 		E0BEDF233E070FDA10CE289C /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F75A1F84F7EC52BB4D7C7CC /* AppDelegate.swift */; };
 		F5A7A31EE689CC912FA08BE7 /* StateChangeLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 610207602B912E193EA7D16F /* StateChangeLog.swift */; };
 		F67157A5309BC6ED5DF42036 /* HomeKitViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA6598C98AB6126400BA1270 /* HomeKitViewModel.swift */; };
-		DE4A0B1C2D3E4F5A6B7C8D9E /* PreviewData.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA1B2C3D4E5F6A7B8C9D0E1F /* PreviewData.swift */; };
+		FE6AC26441EC3EDDCA92C523 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88A5A04A534224C9C7A8E939 /* SceneDelegate.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -59,7 +61,10 @@
 		610207602B912E193EA7D16F /* StateChangeLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StateChangeLog.swift; sourceTree = "<group>"; };
 		6E00EF2581D4A9B75850FF25 /* WebhookService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebhookService.swift; sourceTree = "<group>"; };
 		76A1CCA31A2168A2B8D12DD0 /* MenuBarController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarController.swift; sourceTree = "<group>"; };
+		7760FE5637D902D59F614907 /* DeviceConfigurationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceConfigurationService.swift; sourceTree = "<group>"; };
+		77E7DB8F5E5A2E47859F9BE1 /* PreviewData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviewData.swift; sourceTree = "<group>"; };
 		8520B3C8169ADBD675E1136B /* AnyCodable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnyCodable.swift; sourceTree = "<group>"; };
+		88A5A04A534224C9C7A8E939 /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
 		918FA14242FE41FBD8F7DF47 /* DeviceRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceRow.swift; sourceTree = "<group>"; };
 		94E00E5E7805C7F145F187EA /* LogRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LogRow.swift; sourceTree = "<group>"; };
 		99DEDCA340108084F34C2396 /* LoggingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoggingService.swift; sourceTree = "<group>"; };
@@ -74,7 +79,6 @@
 		D372045E98AE73E94DE06EBD /* MenuBarPlugin.bundle */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MenuBarPlugin.bundle; sourceTree = BUILT_PRODUCTS_DIR; };
 		F1D8F6B53E65AEF39587984F /* StorageService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorageService.swift; sourceTree = "<group>"; };
 		F904B77E53F9A48675AE552B /* CharacteristicTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CharacteristicTypes.swift; sourceTree = "<group>"; };
-		FA1B2C3D4E5F6A7B8C9D0E1F /* PreviewData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviewData.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -101,6 +105,7 @@
 		3680A7F4DD99DED4B1C222DE /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				7760FE5637D902D59F614907 /* DeviceConfigurationService.swift */,
 				CA8BFC87681E42A0EF8D3DAF /* HomeKitManager.swift */,
 				99DEDCA340108084F34C2396 /* LoggingService.swift */,
 				1D45F1AC83543490E02AE688 /* MCPServer.swift */,
@@ -116,6 +121,7 @@
 			children = (
 				5F75A1F84F7EC52BB4D7C7CC /* AppDelegate.swift */,
 				05C1DA868F037D1DE48C1FF5 /* HomeKitMCPApp.swift */,
+				88A5A04A534224C9C7A8E939 /* SceneDelegate.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -194,7 +200,7 @@
 			children = (
 				F904B77E53F9A48675AE552B /* CharacteristicTypes.swift */,
 				76A1CCA31A2168A2B8D12DD0 /* MenuBarController.swift */,
-				FA1B2C3D4E5F6A7B8C9D0E1F /* PreviewData.swift */,
+				77E7DB8F5E5A2E47859F9BE1 /* PreviewData.swift */,
 			);
 			path = Utilities;
 			sourceTree = "<group>";
@@ -327,6 +333,7 @@
 				604630A1BF390A991532363A /* AnyCodable.swift in Sources */,
 				E0BEDF233E070FDA10CE289C /* AppDelegate.swift in Sources */,
 				9C2B2547888DD514D726B727 /* CharacteristicTypes.swift in Sources */,
+				604138D8F7B166CDADB33EE9 /* DeviceConfigurationService.swift in Sources */,
 				DDB9C4F7DAF16E5F1C638A4E /* DeviceListView.swift in Sources */,
 				0AB5E46CEF3A8B68CC454E5E /* DeviceModel.swift in Sources */,
 				5E6D895157FC47B4A75A4A28 /* DeviceRow.swift in Sources */,
@@ -341,12 +348,13 @@
 				21CEF85B38EFE91E076A7B41 /* MCPRequestHandler.swift in Sources */,
 				A7845F42530D6DF692A39F6B /* MCPServer.swift in Sources */,
 				5B1591BA359229D986B8FD63 /* MenuBarController.swift in Sources */,
+				AEE5C04596D85BB802F0FE8D /* PreviewData.swift in Sources */,
+				FE6AC26441EC3EDDCA92C523 /* SceneDelegate.swift in Sources */,
 				71A6034172C43EA290A3DA1B /* SettingsView.swift in Sources */,
 				70400A91CBCC20604DAE70F8 /* SettingsViewModel.swift in Sources */,
 				F5A7A31EE689CC912FA08BE7 /* StateChangeLog.swift in Sources */,
 				2EE51A84CB777CDA945B4016 /* StorageService.swift in Sources */,
 				5D5A27F1913660BBC8968F85 /* WebhookService.swift in Sources */,
-				DE4A0B1C2D3E4F5A6B7C8D9E /* PreviewData.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -437,7 +445,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MARKETING_VERSION = 1.0.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.manpdev.HomeKitMCP.MenuBarPlugin;
+				PRODUCT_BUNDLE_IDENTIFIER = com.manuelcarlos.HomeKitMCP.MenuBarPlugin;
 				PRODUCT_NAME = MenuBarPlugin;
 				SDKROOT = macosx;
 				SKIP_INSTALL = YES;
@@ -458,7 +466,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MARKETING_VERSION = 1.0.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.manpdev.HomeKitMCP.MenuBarPlugin;
+				PRODUCT_BUNDLE_IDENTIFIER = com.manuelcarlos.HomeKitMCP.MenuBarPlugin;
 				PRODUCT_NAME = MenuBarPlugin;
 				SDKROOT = macosx;
 				SKIP_INSTALL = YES;
@@ -539,7 +547,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.manpdev.HomeKitMCP;
+				PRODUCT_BUNDLE_IDENTIFIER = com.manuelcarlos.HomeKitMCP;
 				PRODUCT_NAME = HomeKitMCP;
 				SDKROOT = iphoneos;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -568,7 +576,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.manpdev.HomeKitMCP;
+				PRODUCT_BUNDLE_IDENTIFIER = com.manuelcarlos.HomeKitMCP;
 				PRODUCT_NAME = HomeKitMCP;
 				SDKROOT = iphoneos;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";

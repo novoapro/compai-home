@@ -4,6 +4,7 @@ import Foundation
 class MCPRequestHandler {
     private let homeKitManager: HomeKitManager
     private let loggingService: LoggingService
+    private let configService: DeviceConfigurationService
 
     private static let encoder: JSONEncoder = {
         let encoder = JSONEncoder()
@@ -11,9 +12,10 @@ class MCPRequestHandler {
         return encoder
     }()
 
-    init(homeKitManager: HomeKitManager, loggingService: LoggingService) {
+    init(homeKitManager: HomeKitManager, loggingService: LoggingService, configService: DeviceConfigurationService) {
         self.homeKitManager = homeKitManager
         self.loggingService = loggingService
+        self.configService = configService
     }
 
     func handle(_ request: JSONRPCRequest) async -> JSONRPCResponse {
@@ -21,7 +23,6 @@ class MCPRequestHandler {
         case "initialize":
             return handleInitialize(id: request.id)
         case "notifications/initialized":
-            // This is a notification, no response needed — but if we get it as a request, acknowledge
             return JSONRPCResponse.success(id: request.id, result: AnyCodable([:] as [String: String]))
         case "ping":
             return JSONRPCResponse.success(id: request.id, result: AnyCodable([:] as [String: String]))
@@ -40,6 +41,43 @@ class MCPRequestHandler {
                 message: "Method not found: \(request.method)"
             )
         }
+    }
+
+    // MARK: - MCP Filtering
+
+    private func filterDevicesByConfig(_ devices: [DeviceModel]) async -> [DeviceModel] {
+        var result: [DeviceModel] = []
+        for device in devices {
+            var filteredServices: [ServiceModel] = []
+            for service in device.services {
+                let filteredChars = await service.characteristics.asyncFilter { char in
+                    await configService.isMCPEnabled(
+                        deviceId: device.id,
+                        serviceId: service.id,
+                        characteristicId: char.id
+                    )
+                }
+                if !filteredChars.isEmpty {
+                    filteredServices.append(ServiceModel(
+                        id: service.id,
+                        name: service.name,
+                        type: service.type,
+                        characteristics: filteredChars
+                    ))
+                }
+            }
+            if !filteredServices.isEmpty {
+                result.append(DeviceModel(
+                    id: device.id,
+                    name: device.name,
+                    roomName: device.roomName,
+                    categoryType: device.categoryType,
+                    services: filteredServices,
+                    isReachable: device.isReachable
+                ))
+            }
+        }
+        return result
     }
 
     // MARK: - Initialize
@@ -90,9 +128,9 @@ class MCPRequestHandler {
 
         switch uri {
         case "homekit://devices":
-            let devices = await MainActor.run { homeKitManager.getAllDevices() }
+            let allDevices = await MainActor.run { homeKitManager.getAllDevices() }
+            let devices = await filterDevicesByConfig(allDevices)
 
-            // Encode devices to JSON string for the resource content
             guard let jsonData = try? Self.encoder.encode(devices),
                   let jsonString = String(data: jsonData, encoding: .utf8) else {
                 return JSONRPCResponse.error(
@@ -265,11 +303,6 @@ class MCPRequestHandler {
         }
 
         do {
-            try await MainActor.run {
-                // updateDevice is async, but we need to call it from the main actor
-                // since HomeKitManager is on the main thread
-            }
-
             try await homeKitManager.updateDevice(id: deviceId, characteristicType: characteristicType, value: value)
 
             let displayName = CharacteristicTypes.displayName(
@@ -301,8 +334,10 @@ class MCPRequestHandler {
 
         var lines: [String] = []
         for group in groups {
+            let filteredDevices = await filterDevicesByConfig(group.devices)
+            if filteredDevices.isEmpty { continue }
             lines.append("## \(group.roomName)")
-            for device in group.devices {
+            for device in filteredDevices {
                 let status = device.isReachable ? "online" : "offline"
                 lines.append("- \(device.name) [\(status)] (id: \(device.id))")
                 for service in device.services {
@@ -359,7 +394,9 @@ class MCPRequestHandler {
             return JSONRPCResponse.success(id: id, result: AnyCodable(result))
         }
 
-        guard let jsonData = try? Self.encoder.encode(group.devices),
+        let filteredDevices = await filterDevicesByConfig(group.devices)
+
+        guard let jsonData = try? Self.encoder.encode(filteredDevices),
               let jsonString = String(data: jsonData, encoding: .utf8) else {
             let content: [[String: Any]] = [["type": "text", "text": "Failed to encode device data"]]
             let result: [String: Any] = ["content": content, "isError": true]
@@ -424,7 +461,20 @@ class MCPRequestHandler {
             return JSONRPCResponse.success(id: id, result: AnyCodable(result))
         }
 
-        guard let jsonData = try? Self.encoder.encode(device),
+        let filtered = await filterDevicesByConfig([device])
+
+        guard let filteredDevice = filtered.first else {
+            let content: [[String: Any]] = [
+                [
+                    "type": "text",
+                    "text": "Device not found: \(deviceId)"
+                ]
+            ]
+            let result: [String: Any] = ["content": content, "isError": true]
+            return JSONRPCResponse.success(id: id, result: AnyCodable(result))
+        }
+
+        guard let jsonData = try? Self.encoder.encode(filteredDevice),
               let jsonString = String(data: jsonData, encoding: .utf8) else {
             let content: [[String: Any]] = [
                 [
@@ -444,5 +494,19 @@ class MCPRequestHandler {
         ]
         let result: [String: Any] = ["content": content, "isError": false]
         return JSONRPCResponse.success(id: id, result: AnyCodable(result))
+    }
+}
+
+// MARK: - Async Array Filter
+
+private extension Array {
+    func asyncFilter(_ isIncluded: (Element) async -> Bool) async -> [Element] {
+        var result: [Element] = []
+        for element in self {
+            if await isIncluded(element) {
+                result.append(element)
+            }
+        }
+        return result
     }
 }

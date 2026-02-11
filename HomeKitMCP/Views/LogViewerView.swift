@@ -63,7 +63,9 @@ struct LogViewerView: View {
         return viewModel.logs.filter { log in
             log.deviceName.localizedCaseInsensitiveContains(query) ||
             CharacteristicTypes.displayName(for: log.characteristicType)
-                .localizedCaseInsensitiveContains(query)
+                .localizedCaseInsensitiveContains(query) ||
+            log.category.rawValue.localizedCaseInsensitiveContains(query) ||
+            (log.errorDetails?.localizedCaseInsensitiveContains(query) ?? false)
         }
     }
 

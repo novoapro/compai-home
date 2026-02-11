@@ -38,18 +38,27 @@ struct DeviceListView: View {
                     ForEach(viewModel.devicesByRoom, id: \.roomName) { group in
                         Section(header: Text(group.roomName)) {
                             ForEach(group.devices) { device in
-                                DeviceRow(device: device)
+                                DeviceRow(device: device, viewModel: viewModel)
                             }
                         }
                     }
                 }
+                .listStyle(.insetGrouped)
             }
         }
         .navigationTitle("HomeKit Devices")
         .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                Button(action: viewModel.refresh) {
-                    Image(systemName: "arrow.clockwise")
+            ToolbarItem(placement: .topBarTrailing) {
+                HStack(spacing: 8) {
+                    if viewModel.isReadingValues {
+                        ProgressView()
+                            .controlSize(.small)
+                    }
+                    else {
+                        Button(action: viewModel.refresh) {
+                            Image(systemName: "arrow.clockwise")
+                        }
+                    }
                 }
             }
         }

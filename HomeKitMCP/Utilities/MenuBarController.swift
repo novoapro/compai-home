@@ -81,18 +81,34 @@ class MenuBarController {
     }
 
     private func showMainWindow() {
-        // Try to find an existing connected window scene and bring it forward
-        if let windowScene = UIApplication.shared.connectedScenes
-            .compactMap({ $0 as? UIWindowScene })
-            .first {
-            // Scene still exists — just activate it
+        // First try to find a foreground or connected scene and activate it
+        let connectedScenes = UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+
+        if let existing = connectedScenes.first {
+            existing.windows.forEach { $0.makeKeyAndVisible() }
             UIApplication.shared.requestSceneSessionActivation(
-                windowScene.session, userActivity: nil, options: nil, errorHandler: nil
+                existing.session, userActivity: nil, options: nil, errorHandler: nil
             )
             return
         }
 
-        // No connected scenes — request a brand new one (pass nil for session)
+        // Check for any disconnected sessions we can reactivate
+        let allSessions = UIApplication.shared.openSessions
+        if let disconnected = allSessions.first(where: { $0.scene == nil }) {
+            UIApplication.shared.requestSceneSessionActivation(
+                disconnected, userActivity: nil, options: nil, errorHandler: { error in
+                    print("Scene reactivation error: \(error)")
+                    // Fallback: create a brand new session
+                    UIApplication.shared.requestSceneSessionActivation(
+                        nil, userActivity: nil, options: nil, errorHandler: nil
+                    )
+                }
+            )
+            return
+        }
+
+        // No sessions at all — create a new one
         UIApplication.shared.requestSceneSessionActivation(
             nil, userActivity: nil, options: nil, errorHandler: { error in
                 print("Scene activation error: \(error)")

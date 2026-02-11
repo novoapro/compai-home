@@ -4,6 +4,7 @@ import SwiftUI
 class StorageService: ObservableObject {
     @AppStorage("webhookURL") var webhookURL: String?
     @AppStorage("mcpServerPort") var mcpServerPort: Int = 3000
+    @AppStorage("webhookEnabled") var webhookEnabled: Bool = true
     @AppStorage("mcpServerEnabled") var mcpServerEnabled: Bool = true
 
     func isWebhookConfigured() -> Bool {

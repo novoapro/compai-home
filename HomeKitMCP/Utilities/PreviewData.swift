@@ -97,9 +97,10 @@ enum PreviewData {
     static var homeKitViewModel: HomeKitViewModel {
         let storage = StorageService()
         let loggingService = LoggingService()
-        let webhookService = WebhookService(storage: storage)
-        let manager = HomeKitManager(loggingService: loggingService, webhookService: webhookService)
-        let vm = HomeKitViewModel(homeKitManager: manager)
+        let configService = DeviceConfigurationService()
+        let webhookService = WebhookService(storage: storage, loggingService: loggingService)
+        let manager = HomeKitManager(loggingService: loggingService, webhookService: webhookService, configService: configService)
+        let vm = HomeKitViewModel(homeKitManager: manager, configService: configService)
         vm.devicesByRoom = devicesByRoom
         vm.isLoading = false
         return vm
@@ -114,10 +115,11 @@ enum PreviewData {
 
     static var settingsViewModel: SettingsViewModel {
         let storage = StorageService()
-        let webhookService = WebhookService(storage: storage)
         let loggingService = LoggingService()
-        let manager = HomeKitManager(loggingService: loggingService, webhookService: webhookService)
-        let mcpServer = MCPServer(homeKitManager: manager, loggingService: loggingService)
-        return SettingsViewModel(storage: storage, webhookService: webhookService, mcpServer: mcpServer)
+        let configService = DeviceConfigurationService()
+        let webhookService = WebhookService(storage: storage, loggingService: loggingService)
+        let manager = HomeKitManager(loggingService: loggingService, webhookService: webhookService, configService: configService)
+        let mcpServer = MCPServer(homeKitManager: manager, loggingService: loggingService, configService: configService)
+        return SettingsViewModel(storage: storage, webhookService: webhookService, mcpServer: mcpServer, configService: configService)
     }
 }

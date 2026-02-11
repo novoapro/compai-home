@@ -1,5 +1,11 @@
 import Foundation
 
+enum LogCategory: String, Codable {
+    case stateChange = "state_change"
+    case webhookError = "webhook_error"
+    case serverError = "server_error"
+}
+
 struct StateChangeLog: Identifiable, Codable {
     let id: UUID
     let timestamp: Date
@@ -8,6 +14,20 @@ struct StateChangeLog: Identifiable, Codable {
     let characteristicType: String
     let oldValue: AnyCodable?
     let newValue: AnyCodable?
+    var category: LogCategory
+    var errorDetails: String?
+
+    init(id: UUID, timestamp: Date, deviceId: String, deviceName: String, characteristicType: String, oldValue: AnyCodable?, newValue: AnyCodable?, category: LogCategory = .stateChange, errorDetails: String? = nil) {
+        self.id = id
+        self.timestamp = timestamp
+        self.deviceId = deviceId
+        self.deviceName = deviceName
+        self.characteristicType = characteristicType
+        self.oldValue = oldValue
+        self.newValue = newValue
+        self.category = category
+        self.errorDetails = errorDetails
+    }
 }
 
 struct StateChange {

@@ -6,9 +6,11 @@ import Combine
 class MCPServer: ObservableObject {
     @Published var isRunning = false
     @Published var connectedClients = 0
+    @Published var lastError: String?
 
     private var app: Application?
     private let homeKitManager: HomeKitManager
+    private let loggingService: LoggingService
     private let port: Int
     private let handler: MCPRequestHandler
 
@@ -28,46 +30,70 @@ class MCPServer: ObservableObject {
         return decoder
     }()
 
-    init(homeKitManager: HomeKitManager, loggingService: LoggingService = LoggingService(), port: Int = 3000) {
+    init(homeKitManager: HomeKitManager, loggingService: LoggingService, configService: DeviceConfigurationService, port: Int = 3000) {
         self.homeKitManager = homeKitManager
+        self.loggingService = loggingService
         self.port = port
-        self.handler = MCPRequestHandler(homeKitManager: homeKitManager, loggingService: loggingService)
+        self.handler = MCPRequestHandler(homeKitManager: homeKitManager, loggingService: loggingService, configService: configService)
     }
 
     func start() throws {
+        // Stop any existing instance first
+        if app != nil {
+            stopSync()
+        }
+
         let env = Environment(name: "production", arguments: ["serve"])
         let app = Application(env)
         app.http.server.configuration.hostname = "127.0.0.1"
         app.http.server.configuration.port = port
+        app.http.server.configuration.reuseAddress = true
         app.logger.logLevel = .warning
 
         configureRoutes(app)
         self.app = app
 
-        isRunning = true
-
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             do {
                 try app.start()
             } catch {
-                print("MCP Server failed to start: \(error)")
+                let message = "MCP Server failed to start on port \(self?.port ?? 0): \(error.localizedDescription)"
+                print(message)
+                self?.logServerError(message)
                 DispatchQueue.main.async {
                     self?.isRunning = false
+                    self?.lastError = message
+                }
+            }
+        }
+
+        // Give Vapor a moment to bind, then verify
+        DispatchQueue.global().asyncAfter(deadline: .now() + 0.5) { [weak self] in
+            guard let self else { return }
+            let running = self.app != nil
+            DispatchQueue.main.async {
+                self.isRunning = running
+                if running {
+                    self.lastError = nil
                 }
             }
         }
     }
 
     func stop() {
-        app?.shutdown()
-        app = nil
-        lock.lock()
-        sseConnections.removeAll()
-        lock.unlock()
+        stopSync()
         DispatchQueue.main.async {
             self.isRunning = false
             self.connectedClients = 0
         }
+    }
+
+    private func stopSync() {
+        lock.lock()
+        sseConnections.removeAll()
+        lock.unlock()
+        app?.shutdown()
+        app = nil
     }
 
     // MARK: - Route Configuration
@@ -246,6 +272,23 @@ class MCPServer: ObservableObject {
         lock.unlock()
         DispatchQueue.main.async {
             self.connectedClients = count
+        }
+    }
+
+    private func logServerError(_ message: String) {
+        Task {
+            let entry = StateChangeLog(
+                id: UUID(),
+                timestamp: Date(),
+                deviceId: "system",
+                deviceName: "MCP Server",
+                characteristicType: "server",
+                oldValue: nil,
+                newValue: nil,
+                category: .serverError,
+                errorDetails: message
+            )
+            await loggingService.logEntry(entry)
         }
     }
 }

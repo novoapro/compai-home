@@ -54,6 +54,17 @@ actor LoggingService {
         debouncedSave()
     }
 
+    func logEntry(_ entry: StateChangeLog) {
+        logs.insert(entry, at: 0)
+
+        if logs.count > maxLogs {
+            logs = Array(logs.prefix(maxLogs))
+        }
+
+        logsSubject.send(logs)
+        debouncedSave()
+    }
+
     func getLogs() -> [StateChangeLog] {
         return logs
     }

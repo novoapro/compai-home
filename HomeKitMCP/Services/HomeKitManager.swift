@@ -7,15 +7,21 @@ class HomeKitManager: NSObject, ObservableObject {
     @Published var allAccessories: [HMAccessory] = []
     @Published var authorizationStatus: HMHomeManagerAuthorizationStatus = .determined
     @Published var isReady = false
+    @Published var isReadingValues = false
 
     private let homeManager = HMHomeManager()
     private let loggingService: LoggingService
     private let webhookService: WebhookService
+    let configService: DeviceConfigurationService
     private var cancellables = Set<AnyCancellable>()
 
-    init(loggingService: LoggingService, webhookService: WebhookService) {
+    /// Coalesces rapid objectWillChange signals during bulk reads.
+    private var uiUpdateWorkItem: DispatchWorkItem?
+
+    init(loggingService: LoggingService, webhookService: WebhookService, configService: DeviceConfigurationService) {
         self.loggingService = loggingService
         self.webhookService = webhookService
+        self.configService = configService
         super.init()
         homeManager.delegate = self
     }
@@ -80,6 +86,17 @@ class HomeKitManager: NSObject, ObservableObject {
         return getAllDevices().first { $0.id == id }
     }
 
+    /// Coalesced UI update — waits for a brief quiet period before sending objectWillChange.
+    /// This prevents hundreds of individual updates from each characteristic read.
+    private func scheduleUIUpdate() {
+        uiUpdateWorkItem?.cancel()
+        let workItem = DispatchWorkItem { [weak self] in
+            self?.objectWillChange.send()
+        }
+        uiUpdateWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15, execute: workItem)
+    }
+
     private func characteristicPermissions(_ characteristic: HMCharacteristic) -> [String] {
         var perms: [String] = []
         if characteristic.properties.contains(HMCharacteristicPropertyReadable) { perms.append("read") }
@@ -108,17 +125,54 @@ class HomeKitManager: NSObject, ObservableObject {
     }
 
     /// Read current values for all readable characteristics on all accessories.
+    /// Uses a concurrent counter to track completion and coalesces UI updates.
     private func readAllCharacteristicValues() {
+        var totalReads = 0
+        var completedReads = 0
+        let lock = NSLock()
+
+        // Count how many reads we need
+        for accessory in allAccessories where accessory.isReachable {
+            for service in accessory.services {
+                for characteristic in service.characteristics {
+                    if characteristic.properties.contains(HMCharacteristicPropertyReadable) {
+                        totalReads += 1
+                    }
+                }
+            }
+        }
+
+        guard totalReads > 0 else {
+            isReadingValues = false
+            isReady = true
+            return
+        }
+
+        isReadingValues = true
+        // Show device list immediately with stale/nil values while reads happen
+        isReady = true
+
         for accessory in allAccessories where accessory.isReachable {
             for service in accessory.services {
                 for characteristic in service.characteristics {
                     if characteristic.properties.contains(HMCharacteristicPropertyReadable) {
                         characteristic.readValue { [weak self] error in
+                            guard let self else { return }
                             if let error = error {
                                 print("Failed to read \(characteristic.characteristicType) on \(accessory.name): \(error)")
-                            } else {
+                            }
+
+                            lock.lock()
+                            completedReads += 1
+                            let allDone = completedReads >= totalReads
+                            lock.unlock()
+
+                            // Coalesce UI updates — don't fire for every single read
+                            self.scheduleUIUpdate()
+
+                            if allDone {
                                 DispatchQueue.main.async {
-                                    self?.objectWillChange.send()
+                                    self.isReadingValues = false
                                 }
                             }
                         }
@@ -135,7 +189,6 @@ class HomeKitManager: NSObject, ObservableObject {
         }
         registerForNotifications()
         readAllCharacteristicValues()
-        isReady = true
     }
 }
 
@@ -211,8 +264,12 @@ extension HomeKitManager: HMHomeDelegate {
 // MARK: - HMAccessoryDelegate
 extension HomeKitManager: HMAccessoryDelegate {
     func accessory(_ accessory: HMAccessory, service: HMService, didUpdateValueFor characteristic: HMCharacteristic) {
+        let deviceId = accessory.uniqueIdentifier.uuidString
+        let serviceId = service.uniqueIdentifier.uuidString
+        let charId = characteristic.uniqueIdentifier.uuidString
+
         let change = StateChange(
-            deviceId: accessory.uniqueIdentifier.uuidString,
+            deviceId: deviceId,
             deviceName: accessory.name,
             characteristicType: characteristic.characteristicType,
             oldValue: nil,
@@ -220,8 +277,18 @@ extension HomeKitManager: HMAccessoryDelegate {
         )
 
         Task {
+            // Always log state changes
             await loggingService.log(change)
-            await webhookService.sendStateChange(change)
+
+            // Only send webhook if characteristic has webhook enabled
+            let webhookEnabled = await configService.isWebhookEnabled(
+                deviceId: deviceId,
+                serviceId: serviceId,
+                characteristicId: charId
+            )
+            if webhookEnabled {
+                await webhookService.sendStateChange(change)
+            }
         }
 
         DispatchQueue.main.async {

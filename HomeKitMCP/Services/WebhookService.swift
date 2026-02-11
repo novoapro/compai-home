@@ -3,6 +3,7 @@ import Combine
 
 actor WebhookService {
     private let storage: StorageService
+    private let loggingService: LoggingService
     private let maxRetries = 3
 
     /// Observable status published on the main actor for UI consumption.
@@ -14,13 +15,15 @@ actor WebhookService {
         return encoder
     }()
 
-    init(storage: StorageService) {
+    init(storage: StorageService, loggingService: LoggingService) {
         self.storage = storage
+        self.loggingService = loggingService
     }
 
     func sendStateChange(_ change: StateChange) async {
-        let urlString = await MainActor.run { storage.webhookURL }
-        guard let urlString, !urlString.isEmpty, let url = URL(string: urlString) else { return }
+        let (urlString, webhookEnabled) = await MainActor.run { (storage.webhookURL, storage.webhookEnabled) }
+        guard webhookEnabled,
+              let urlString, !urlString.isEmpty, let url = URL(string: urlString) else { return }
 
         let displayName = CharacteristicTypes.displayName(for: change.characteristicType)
 
@@ -34,7 +37,7 @@ actor WebhookService {
             newValue: change.newValue.map { AnyCodable($0) }
         )
 
-        await send(to: url, payload: payload)
+        await send(to: url, payload: payload, deviceName: change.deviceName)
     }
 
     /// Send a test webhook to verify the configured URL works.
@@ -59,7 +62,7 @@ actor WebhookService {
         return await sendOnce(to: url, payload: payload)
     }
 
-    private func send(to url: URL, payload: WebhookPayload, attempt: Int = 1) async {
+    private func send(to url: URL, payload: WebhookPayload, attempt: Int = 1, deviceName: String) async {
         statusSubject.send(.sending)
 
         do {
@@ -76,9 +79,23 @@ actor WebhookService {
             if attempt < maxRetries {
                 let delay = pow(2.0, Double(attempt))
                 try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
-                await send(to: url, payload: payload, attempt: attempt + 1)
+                await send(to: url, payload: payload, attempt: attempt + 1, deviceName: deviceName)
             } else {
-                statusSubject.send(.lastFailure(date: Date(), error: error.localizedDescription))
+                let errorDesc = error.localizedDescription
+                statusSubject.send(.lastFailure(date: Date(), error: errorDesc))
+
+                let logEntry = StateChangeLog(
+                    id: UUID(),
+                    timestamp: Date(),
+                    deviceId: payload.deviceId,
+                    deviceName: deviceName,
+                    characteristicType: payload.characteristicType,
+                    oldValue: payload.oldValue,
+                    newValue: payload.newValue,
+                    category: .webhookError,
+                    errorDetails: "Webhook failed after \(maxRetries) retries to \(url.absoluteString): \(errorDesc)"
+                )
+                await loggingService.logEntry(logEntry)
             }
         }
     }

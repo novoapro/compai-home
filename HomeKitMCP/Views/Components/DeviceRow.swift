@@ -2,9 +2,35 @@ import SwiftUI
 
 struct DeviceRow: View {
     let device: DeviceModel
+    @ObservedObject var viewModel: HomeKitViewModel
+    @State private var isExpanded = false
+    @State private var configs: [String: CharacteristicConfiguration] = [:]
+
+    private var displayCharacteristics: [(service: ServiceModel, char: CharacteristicModel)] {
+        device.services.flatMap { service in
+            service.characteristics
+                .filter { shouldDisplay($0) }
+                .map { (service: service, char: $0) }
+        }
+    }
+
+    private let columns = [
+        GridItem(.flexible(minimum: 120), spacing: 10),
+        GridItem(.flexible(minimum: 120), spacing: 10),
+        GridItem(.flexible(minimum: 120), spacing: 10),
+        GridItem(.flexible(minimum: 120), spacing: 10)
+    ]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        DisclosureGroup(isExpanded: $isExpanded) {
+            LazyVGrid(columns: columns, alignment: .leading, spacing: 10) {
+                ForEach(displayCharacteristics, id: \.char.id) { item in
+                    characteristicTile(service: item.service, char: item.char)
+                }
+            }
+            .padding(.top, 8)
+            .padding(.bottom, 4)
+        } label: {
             HStack {
                 Image(systemName: deviceIcon)
                     .foregroundColor(.accentColor)
@@ -15,31 +41,95 @@ struct DeviceRow: View {
                     .fill(device.isReachable ? Color.green : Color.red)
                     .frame(width: 8, height: 8)
             }
-
-            ForEach(device.services) { service in
-                ForEach(service.characteristics.filter { shouldDisplay($0) }) { char in
-                    HStack {
-                        Text(CharacteristicTypes.displayName(for: char.type))
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        Spacer()
-                        if let value = char.value {
-                            Text(CharacteristicTypes.formatValue(value.value, characteristicType: char.type))
-                                .font(.caption)
-                                .fontWeight(.medium)
-                        } else {
-                            Text("--")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                    }
-                }
-            }
         }
         .padding(.vertical, 4)
+        .task {
+            await loadConfigs()
+        }
     }
 
-    /// Filter out characteristics that aren't useful to display (e.g. Name, configured status).
+    private func characteristicTile(service: ServiceModel, char: CharacteristicModel) -> some View {
+        let key = configKey(deviceId: device.id, serviceId: service.id, charId: char.id)
+        let config = configs[key] ?? .default
+
+        return VStack(alignment: .leading, spacing: 4) {
+            HStack{
+                Text(CharacteristicTypes.displayName(for: char.type))
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .lineLimit(1)
+
+                if let value = char.value {
+                    Text(CharacteristicTypes.formatValue(value.value, characteristicType: char.type))
+                        .font(.callout)
+                        .fontWeight(.semibold)
+                        .lineLimit(1)
+                } else {
+                    Text("--")
+                        .font(.callout)
+                        .foregroundColor(.secondary)
+                }
+            }
+
+            Divider()
+
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 8) {
+                    Toggle(isOn: Binding(
+                        get: { config.mcpEnabled },
+                        set: { newValue in
+                            var updated = config
+                            updated.mcpEnabled = newValue
+                            configs[key] = updated
+                            viewModel.setConfig(deviceId: device.id, serviceId: service.id, characteristicId: char.id, config: updated)
+                        }
+                    )) { EmptyView() }
+                    .toggleStyle(.switch)
+                    .controlSize(.mini)
+                    .labelsHidden()
+                    Text("MCP")
+                }
+
+                HStack(spacing: 8) {
+                    Toggle(isOn: Binding(
+                        get: { config.webhookEnabled },
+                        set: { newValue in
+                            var updated = config
+                            updated.webhookEnabled = newValue
+                            configs[key] = updated
+                            viewModel.setConfig(deviceId: device.id, serviceId: service.id, characteristicId: char.id, config: updated)
+                        }
+                    )) { EmptyView() }
+                    .toggleStyle(.switch)
+                    .controlSize(.mini)
+                    .labelsHidden()
+                    Text("Webhook")
+                }
+            }
+            .padding(.top, 4)
+            .font(.caption2)
+            .foregroundColor(.secondary)
+        }
+        .padding(12)
+        .border(.gray)
+        .frame(maxWidth: .infinity, minHeight: 110, alignment: .leading)
+        .background(Color(.secondarySystemGroupedBackground))
+    }
+
+    private func configKey(deviceId: String, serviceId: String, charId: String) -> String {
+        "\(deviceId):\(serviceId):\(charId)"
+    }
+
+    private func loadConfigs() async {
+        for service in device.services {
+            for char in service.characteristics {
+                let key = configKey(deviceId: device.id, serviceId: service.id, charId: char.id)
+                let config = await viewModel.getConfig(deviceId: device.id, serviceId: service.id, characteristicId: char.id)
+                configs[key] = config
+            }
+        }
+    }
+
     private func shouldDisplay(_ char: CharacteristicModel) -> Bool {
         let hidden = ["Name", "Is Configured", "Status Active"]
         let displayName = CharacteristicTypes.displayName(for: char.type)
@@ -82,7 +172,7 @@ struct DeviceRow: View {
 
 #Preview {
     List {
-        DeviceRow(device: PreviewData.sampleDevices[0])
-        DeviceRow(device: PreviewData.sampleDevices[2])
+        DeviceRow(device: PreviewData.sampleDevices[0], viewModel: PreviewData.homeKitViewModel)
+        DeviceRow(device: PreviewData.sampleDevices[2], viewModel: PreviewData.homeKitViewModel)
     }
 }

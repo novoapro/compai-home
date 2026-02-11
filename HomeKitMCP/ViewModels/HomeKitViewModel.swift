@@ -5,11 +5,16 @@ import Combine
 class HomeKitViewModel: ObservableObject {
     @Published var devicesByRoom: [(roomName: String, devices: [DeviceModel])] = []
     @Published var isLoading = true
+    @Published var isReadingValues = false
     @Published var authorizationStatus: HMHomeManagerAuthorizationStatus = .determined
     @Published var errorMessage: String?
 
     private let homeKitManager: HomeKitManager
+    let configService: DeviceConfigurationService
     private var cancellables = Set<AnyCancellable>()
+
+    /// Debounces rapid refresh triggers to avoid redundant UI rebuilds.
+    private var refreshWorkItem: DispatchWorkItem?
 
     var isAuthorized: Bool {
         authorizationStatus == .authorized
@@ -19,8 +24,9 @@ class HomeKitViewModel: ObservableObject {
         devicesByRoom.reduce(0) { $0 + $1.devices.count }
     }
 
-    init(homeKitManager: HomeKitManager) {
+    init(homeKitManager: HomeKitManager, configService: DeviceConfigurationService) {
         self.homeKitManager = homeKitManager
+        self.configService = configService
 
         homeKitManager.$isReady
             .receive(on: DispatchQueue.main)
@@ -30,6 +36,10 @@ class HomeKitViewModel: ObservableObject {
                 }
             }
             .store(in: &cancellables)
+
+        homeKitManager.$isReadingValues
+            .receive(on: DispatchQueue.main)
+            .assign(to: &$isReadingValues)
 
         homeKitManager.$authorizationStatus
             .receive(on: DispatchQueue.main)
@@ -42,7 +52,7 @@ class HomeKitViewModel: ObservableObject {
         homeKitManager.objectWillChange
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
-                self?.refresh()
+                self?.debouncedRefresh()
             }
             .store(in: &cancellables)
     }
@@ -50,6 +60,38 @@ class HomeKitViewModel: ObservableObject {
     func refresh() {
         devicesByRoom = homeKitManager.getDevicesGroupedByRoom()
         isLoading = false
+    }
+
+    /// Debounced version of refresh — coalesces multiple rapid triggers into one.
+    private func debouncedRefresh() {
+        refreshWorkItem?.cancel()
+        let workItem = DispatchWorkItem { [weak self] in
+            self?.refresh()
+        }
+        refreshWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1, execute: workItem)
+    }
+
+    func getConfig(deviceId: String, serviceId: String, characteristicId: String) async -> CharacteristicConfiguration {
+        await configService.getConfig(deviceId: deviceId, serviceId: serviceId, characteristicId: characteristicId)
+    }
+
+    func setConfig(deviceId: String, serviceId: String, characteristicId: String, config: CharacteristicConfiguration) {
+        Task {
+            await configService.setConfig(deviceId: deviceId, serviceId: serviceId, characteristicId: characteristicId, config: config)
+            await MainActor.run {
+                objectWillChange.send()
+            }
+        }
+    }
+
+    func resetConfiguration() {
+        Task {
+            await configService.resetAll()
+            await MainActor.run {
+                objectWillChange.send()
+            }
+        }
     }
 
     private func updateErrorForStatus(_ status: HMHomeManagerAuthorizationStatus) {
