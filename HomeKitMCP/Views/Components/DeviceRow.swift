@@ -49,7 +49,7 @@ struct DeviceRow: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
+        VStack {
             // Header
             HStack(spacing: Theme.Spacing.medium) {
                 // Icon Container
@@ -160,7 +160,7 @@ struct DeviceRow: View {
             RoundedRectangle(cornerRadius: Theme.CornerRadius.large)
                 .stroke(Color.primary.opacity(0.05), lineWidth: 1)
         )
-        .padding(.vertical, 4)
+        .padding(Theme.Spacing.medium)
         .task {
             await loadConfigs()
         }

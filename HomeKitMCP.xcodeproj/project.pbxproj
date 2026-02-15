@@ -21,6 +21,7 @@
 		5E6D895157FC47B4A75A4A28 /* DeviceRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 918FA14242FE41FBD8F7DF47 /* DeviceRow.swift */; };
 		604138D8F7B166CDADB33EE9 /* DeviceConfigurationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7760FE5637D902D59F614907 /* DeviceConfigurationService.swift */; };
 		604630A1BF390A991532363A /* AnyCodable.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8520B3C8169ADBD675E1136B /* AnyCodable.swift */; };
+		647BF6072F419E3500344F45 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 647BF6062F419E3500344F45 /* Theme.swift */; };
 		70400A91CBCC20604DAE70F8 /* SettingsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 522B39319B446E5696EF1A8E /* SettingsViewModel.swift */; };
 		71A6034172C43EA290A3DA1B /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40D3B40039E20BD2B504DCB /* SettingsView.swift */; };
 		97DAC0FF8E443C2BE91E9C0E /* HomeKitMCPApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05C1DA868F037D1DE48C1FF5 /* HomeKitMCPApp.swift */; };
@@ -59,6 +60,7 @@
 		522B39319B446E5696EF1A8E /* SettingsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsViewModel.swift; sourceTree = "<group>"; };
 		5F75A1F84F7EC52BB4D7C7CC /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		610207602B912E193EA7D16F /* StateChangeLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StateChangeLog.swift; sourceTree = "<group>"; };
+		647BF6062F419E3500344F45 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		6E00EF2581D4A9B75850FF25 /* WebhookService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebhookService.swift; sourceTree = "<group>"; };
 		76A1CCA31A2168A2B8D12DD0 /* MenuBarController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarController.swift; sourceTree = "<group>"; };
 		7760FE5637D902D59F614907 /* DeviceConfigurationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceConfigurationService.swift; sourceTree = "<group>"; };
@@ -198,6 +200,7 @@
 		A9B0FCADA61E4A9BE003F07F /* Utilities */ = {
 			isa = PBXGroup;
 			children = (
+				647BF6062F419E3500344F45 /* Theme.swift */,
 				F904B77E53F9A48675AE552B /* CharacteristicTypes.swift */,
 				76A1CCA31A2168A2B8D12DD0 /* MenuBarController.swift */,
 				77E7DB8F5E5A2E47859F9BE1 /* PreviewData.swift */,
@@ -344,6 +347,7 @@
 				D6CF501ADBB5C51F6F6C5879 /* MCPModels.swift in Sources */,
 				21CEF85B38EFE91E076A7B41 /* MCPRequestHandler.swift in Sources */,
 				A7845F42530D6DF692A39F6B /* MCPServer.swift in Sources */,
+				647BF6072F419E3500344F45 /* Theme.swift in Sources */,
 				5B1591BA359229D986B8FD63 /* MenuBarController.swift in Sources */,
 				AEE5C04596D85BB802F0FE8D /* PreviewData.swift in Sources */,
 				FE6AC26441EC3EDDCA92C523 /* SceneDelegate.swift in Sources */,

@@ -58,7 +58,7 @@ struct DeviceListView: View {
                 .listStyle(.plain)
                 .background(Theme.mainBackground)
                 .scrollContentBackground(.hidden)
-                .searchable(text: $viewModel.searchText, prompt: "Search devices")
+                .searchable(text: $viewModel.searchText, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search devices")
                 .refreshable {
                     viewModel.refresh()
                 }

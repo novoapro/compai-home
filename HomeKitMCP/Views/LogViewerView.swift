@@ -44,10 +44,10 @@ struct LogViewerView: View {
         }
         .scrollContentBackground(.hidden)
         .background(Theme.mainBackground)
-        .searchable(text: $viewModel.searchText, prompt: "Search by device or characteristic")
+        .searchable(text: $viewModel.searchText, placement: .navigationBarDrawer, prompt: "Search by device or characteristic")
         .navigationTitle("Logs (\(viewModel.filteredLogCount))")
         .toolbar {
-            ToolbarItem(placement: .primaryAction) {
+            ToolbarItem(placement: .secondaryAction) {
                 Button("Clear All") {
                     showingClearConfirmation = true
                 }
