@@ -57,7 +57,8 @@ struct SettingsView: View {
 
             Group {
                 TextField("https://example.com/webhook", text: $webhookURL)
-                    .textFieldStyle(.roundedBorder)
+                    .textFieldStyle(.plain)
+                    .foregroundColor(Theme.Tint.secondary) // Typed text color
                     .keyboardType(.URL)
                     .autocapitalization(.none)
                     .disableAutocorrection(true)
