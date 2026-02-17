@@ -57,14 +57,31 @@ class LogViewModel: ObservableObject {
         selectedCategory != .all || selectedDevice != nil || selectedService != nil
     }
 
-    /// Unique device names found in the current logs.
+    /// Unique device names found in the current logs, filtered by selected category.
     var availableDevices: [String] {
-        Array(Set(rawLogs.map(\.deviceName))).sorted()
+        let filtered = rawLogs.filter { log in
+            if let categories = selectedCategory.logCategories {
+                return categories.contains(log.category)
+            }
+            return true
+        }
+        return Array(Set(filtered.map(\.deviceName))).sorted()
     }
 
-    /// Unique service names found in the current logs.
+    /// Unique service names found in the current logs, filtered by selected category and device.
     var availableServices: [String] {
-        Array(Set(rawLogs.compactMap(\.serviceName))).sorted()
+        let filtered = rawLogs.filter { log in
+            // Filter by category
+            if let categories = selectedCategory.logCategories {
+                guard categories.contains(log.category) else { return false }
+            }
+            // Filter by device
+            if let device = selectedDevice {
+                guard log.deviceName == device else { return false }
+            }
+            return true
+        }
+        return Array(Set(filtered.compactMap(\.serviceName))).sorted()
     }
 
     private let loggingService: LoggingService
@@ -92,16 +109,31 @@ class LogViewModel: ObservableObject {
             .store(in: &cancellables)
 
         // Listen to filter changes
+        // Listen to filter changes
         $selectedCategory
             .dropFirst()
-            .sink { [weak self] _ in self?.updateView() }
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                // Reset child filters when category changes to prevent invalid states
+                self?.selectedDevice = nil
+                self?.selectedService = nil
+                self?.updateView()
+            }
             .store(in: &cancellables)
+        
         $selectedDevice
             .dropFirst()
-            .sink { [weak self] _ in self?.updateView() }
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                // Reset service filter when device changes
+                self?.selectedService = nil
+                self?.updateView()
+            }
             .store(in: &cancellables)
+
         $selectedService
             .dropFirst()
+            .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in self?.updateView() }
             .store(in: &cancellables)
 

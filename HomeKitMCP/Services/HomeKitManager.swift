@@ -30,10 +30,19 @@ class HomeKitManager: NSObject, ObservableObject {
         return allAccessories.compactMap { accessory in
             let services = accessory.services.compactMap { service -> ServiceModel? in
                 guard service.serviceType != HMServiceTypeAccessoryInformation else { return nil }
-                let characteristics = service.characteristics.map { char in
-                    CharacteristicModel(
+                // Filter out unknown/unsupported services
+                guard ServiceTypes.isSupported(service.serviceType) else { return nil }
+                let characteristics = service.characteristics.compactMap { char -> CharacteristicModel? in
+                    let type = char.characteristicType
+                    let displayName = CharacteristicTypes.displayName(for: type)
+                    
+                // Filter out unknown/unsupported characteristics.
+                // This ensures we only expose characteristics defined in CharacteristicTypes.
+                guard CharacteristicTypes.isSupported(char.characteristicType) else { return nil }
+
+                    return CharacteristicModel(
                         id: char.uniqueIdentifier.uuidString,
-                        type: char.characteristicType,
+                        type: type,
                         value: char.value.map { AnyCodable($0) },
                         format: char.metadata?.format ?? "unknown",
                         permissions: characteristicPermissions(char)
@@ -125,7 +134,12 @@ class HomeKitManager: NSObject, ObservableObject {
             for accessory in home.accessories {
                 accessory.delegate = self
                 for service in accessory.services {
+                    // Filter out unknown/unsupported services
+                    guard ServiceTypes.isSupported(service.serviceType) else { continue }
                     for characteristic in service.characteristics {
+                        // Filter out unknown characteristics
+                        guard CharacteristicTypes.isSupported(characteristic.characteristicType) else { continue }
+
                         if characteristic.properties.contains(HMCharacteristicPropertySupportsEventNotification) {
                             characteristic.enableNotification(true) { error in
                                 if let error = error {
@@ -149,7 +163,12 @@ class HomeKitManager: NSObject, ObservableObject {
         // Count how many reads we need
         for accessory in allAccessories where accessory.isReachable {
             for service in accessory.services {
+                // Filter out unknown/unsupported services
+                guard ServiceTypes.isSupported(service.serviceType) else { continue }
                 for characteristic in service.characteristics {
+                    // Filter out unknown characteristics
+                    guard CharacteristicTypes.isSupported(characteristic.characteristicType) else { continue }
+
                     if characteristic.properties.contains(HMCharacteristicPropertyReadable) {
                         totalReads += 1
                     }
@@ -169,7 +188,12 @@ class HomeKitManager: NSObject, ObservableObject {
 
         for accessory in allAccessories where accessory.isReachable {
             for service in accessory.services {
+                // Filter out unknown/unsupported services
+                guard ServiceTypes.isSupported(service.serviceType) else { continue }
                 for characteristic in service.characteristics {
+                    // Filter out unknown characteristics
+                    guard CharacteristicTypes.isSupported(characteristic.characteristicType) else { continue }
+
                     if characteristic.properties.contains(HMCharacteristicPropertyReadable) {
                         characteristic.readValue { [weak self] error in
                             guard let self else { return }
@@ -281,8 +305,15 @@ extension HomeKitManager: HMAccessoryDelegate {
     func accessory(_ accessory: HMAccessory, service: HMService, didUpdateValueFor characteristic: HMCharacteristic) {
         let deviceId = accessory.uniqueIdentifier.uuidString
         let serviceId = service.uniqueIdentifier.uuidString
+        
+        // Filter out unknown/unsupported services
+        guard ServiceTypes.isSupported(service.serviceType) else { return }
+        
         let charId = characteristic.uniqueIdentifier.uuidString
         let serviceName = ServiceTypes.displayName(for: service.serviceType)
+        
+        // Filter out unknown/unsupported characteristics
+        guard CharacteristicTypes.isSupported(characteristic.characteristicType) else { return }
 
         Task {
             // Check configuration for this specific characteristic

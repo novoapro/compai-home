@@ -4,9 +4,9 @@ struct Theme {
     // MARK: - Colors
     
     struct Text {
-        static let primary = Color.dynamic(light: "#121212ff", dark: "#ffdc5eff")
-        static let secondary = Color.dynamic(light: "#121212d3", dark: "#ffdc5ebc")
-        static let tertiary = Color.dynamic(light: "#121212a0", dark: "#ffdc5ebc")
+        static let primary = Color.dynamic(light: "#121212ff", dark: "#ffb95eff")
+        static let secondary = Color.dynamic(light: "#121212d3", dark: "#ffb95ed0")
+        static let tertiary = Color.dynamic(light: "#121212a0", dark: "#ffb95ea8")
     }
     
     struct Tint {
