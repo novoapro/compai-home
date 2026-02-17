@@ -60,4 +60,15 @@ enum ServiceTypes {
     static func serviceType(forName name: String) -> String? {
         return reverseMapping[name.lowercased()]
     }
+
+    static func isSupported(_ type: String) -> Bool {
+        // Strict allowlist: only services with a mapped friendly name are supported.
+        if mapping[type] != nil { return true }
+        
+        // Check case-insensitive
+        if mapping[type.uppercased()] != nil { return true }
+        if mapping[type.lowercased()] != nil { return true }
+        
+        return false
+    }
 }

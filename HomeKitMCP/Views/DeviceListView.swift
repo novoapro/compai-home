@@ -22,6 +22,7 @@ struct DeviceListView: View {
                         .multilineTextAlignment(.center)
                 }
                 .padding()
+                .background(Theme.mainBackground)
             } else if viewModel.isLoading && viewModel.totalDeviceCount == 0 {
                 ProgressView("Discovering devices...")
             } else if viewModel.totalDeviceCount == 0 {
@@ -39,6 +40,7 @@ struct DeviceListView: View {
                         .multilineTextAlignment(.center)
                 }
                 .padding()
+                .background(Theme.mainBackground)
             } else {
                 VStack(spacing: 0) {
                     // Filter bar
@@ -59,19 +61,42 @@ struct DeviceListView: View {
                                         .foregroundColor(Theme.Text.secondary)
                                     Spacer()
                                 }
-                                .background(Theme.mainBackground)
+                                .padding(.top, 5)
+                                .padding(.bottom, 5)
+                                .padding(.horizontal, 20) // Align with inset row content
+                                .background(Theme.mainBackground.opacity(0.95)) // Slightly translucent sticky header
                                 .textCase(nil)
+                                .listRowInsets(EdgeInsets()) // Remove default header padding/insets
                             ) {
-                                ForEach(group.devices) { device in
-                                    DeviceRow(device: device, viewModel: viewModel)
-                                        .listRowInsets(EdgeInsets())
-                                        .listRowSeparator(.hidden)
+                                ForEach(Array(group.devices.enumerated()), id: \.element.id) { index, device in
+                                    let isFirst = index == 0
+                                    let isLast = index == group.devices.count - 1
+                                    
+                                    VStack(spacing: 0) {
+                                        DeviceRow(device: device, viewModel: viewModel)
+                                            .padding(.vertical, 12)
+                                            .padding(.horizontal, 16)
+                                    }
+                                    .background(Theme.contentBackground)
+                                    .clipShape(
+                                        .rect(
+                                            topLeadingRadius: isFirst ? 12 : 0,
+                                            bottomLeadingRadius: isLast ? 12 : 0,
+                                            bottomTrailingRadius: isLast ? 12 : 0,
+                                            topTrailingRadius: isFirst ? 12 : 0
+                                        )
+                                    )
+                                    .padding(.horizontal, 16)
+                                    .listRowInsets(EdgeInsets())
+                                    .listRowSeparator(.hidden)
+                                    .listRowBackground(Color.clear)
                                 }
                             }
                         }
                     }
-                    .listStyle(.insetGrouped)
+                    .listStyle(.plain)
                     .scrollContentBackground(.hidden)
+                    .background(Theme.mainBackground)
                 }
                 .searchable(text: $viewModel.searchText, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search devices")
                 .refreshable {
