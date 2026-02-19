@@ -1,6 +1,6 @@
+import Combine
 import Foundation
 import HomeKit
-import Combine
 
 enum TriStateFilter: String, CaseIterable {
     case all = "All"
@@ -22,7 +22,8 @@ class HomeKitViewModel: ObservableObject {
     @Published var mcpFilter: TriStateFilter = .all
     @Published var webhookFilter: TriStateFilter = .all
 
-    // Device-level config cache: deviceId -> (externalAccessEnabled: Bool, webhookEnabled: Bool)
+    @Published var isUpdating = false
+    /// Device-level config cache: deviceId -> (externalAccessEnabled: Bool, webhookEnabled: Bool)
     @Published private(set) var deviceConfigCache: [String: (externalAccessEnabled: Bool, webhookEnabled: Bool)] = [:]
 
     private let homeKitManager: HomeKitManager
@@ -61,11 +62,14 @@ class HomeKitViewModel: ObservableObject {
             $selectedServiceTypes
         )
         .combineLatest($mcpFilter, $webhookFilter, $deviceConfigCache)
+        .handleEvents(receiveOutput: { [weak self] _ in
+            self?.isUpdating = true
+        })
         .debounce(for: .milliseconds(200), scheduler: DispatchQueue.main) // Debounce UI updates
         .receive(on: DispatchQueue.global(qos: .userInitiated)) // Process on background thread
-        .map { (inputs, mcpFilter, webhookFilter, configCache) -> [(roomName: String, devices: [DeviceModel])] in
+        .map { inputs, mcpFilter, webhookFilter, configCache -> [(roomName: String, devices: [DeviceModel])] in
             let (devicesByRoom, searchText, selectedRooms, selectedServiceTypes) = inputs
-            
+
             var groups = devicesByRoom
 
             // Filter by room
@@ -77,7 +81,7 @@ class HomeKitViewModel: ObservableObject {
             return groups.compactMap { group in
                 let filteredDevices = group.devices.filter { device in
                     // Search filter
-                    if !searchText.isEmpty && !device.name.localizedCaseInsensitiveContains(searchText) {
+                    if !searchText.isEmpty, !device.name.localizedCaseInsensitiveContains(searchText) {
                         return false
                     }
 
@@ -93,16 +97,16 @@ class HomeKitViewModel: ObservableObject {
                     if mcpFilter != .all {
                         let cache = configCache[device.id]
                         let hasExternal = cache?.externalAccessEnabled ?? true // default is enabled
-                        if mcpFilter == .enabled && !hasExternal { return false }
-                        if mcpFilter == .disabled && hasExternal { return false }
+                        if mcpFilter == .enabled, !hasExternal { return false }
+                        if mcpFilter == .disabled, hasExternal { return false }
                     }
 
                     // Webhook filter
                     if webhookFilter != .all {
                         let cache = configCache[device.id]
                         let hasWebhook = cache?.webhookEnabled ?? false // default is webhook disabled
-                        if webhookFilter == .enabled && !hasWebhook { return false }
-                        if webhookFilter == .disabled && hasWebhook { return false }
+                        if webhookFilter == .enabled, !hasWebhook { return false }
+                        if webhookFilter == .disabled, hasWebhook { return false }
                     }
 
                     return true
@@ -113,7 +117,11 @@ class HomeKitViewModel: ObservableObject {
             }
         }
         .receive(on: DispatchQueue.main) // Update UI on main thread
-        .assign(to: &$filteredDevicesByRoom)
+        .sink { [weak self] results in
+            self?.filteredDevicesByRoom = results
+            self?.isUpdating = false
+        }
+        .store(in: &cancellables)
 
         homeKitManager.$isReady
             .receive(on: DispatchQueue.main)
@@ -286,7 +294,7 @@ class HomeKitViewModel: ObservableObject {
     private func updateErrorForStatus(_ status: HMHomeManagerAuthorizationStatus) {
         if status == .restricted {
             errorMessage = "HomeKit access is restricted on this device."
-        } else if !status.contains(.authorized) && homeKitManager.isReady {
+        } else if !status.contains(.authorized), homeKitManager.isReady {
             errorMessage = "HomeKit access was denied. Grant access in System Settings > Privacy & Security > HomeKit."
         } else {
             errorMessage = nil
