@@ -54,9 +54,6 @@ struct DeviceListView: View {
                     filterBar
                         .padding(.horizontal)
                         .padding(.vertical, 8)
-
-
-
                     List {
                         ForEach(viewModel.filteredDevicesByRoom, id: \.roomName) { group in
                             Section(header:
@@ -81,7 +78,7 @@ struct DeviceListView: View {
                                 ForEach(Array(group.devices.enumerated()), id: \.element.id) { index, device in
                                     let isFirst = index == 0
                                     let isLast = index == group.devices.count - 1
-                                    
+
                                     VStack(spacing: 0) {
                                         DeviceRow(device: device, viewModel: viewModel)
                                             .padding(.vertical, 12)
@@ -115,6 +112,14 @@ struct DeviceListView: View {
             }
         }
         .navigationTitle("HomeKit Devices (\(filteredDeviceCount))")
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                if viewModel.isLoading || viewModel.isUpdating {
+                    ProgressView()
+                        .controlSize(.small)
+                }
+            }
+        }
         .background(Theme.mainBackground)
         .alert("Confirm Bulk Action", isPresented: $showBulkConfirm) {
             Button("Apply", role: .destructive) {
@@ -130,8 +135,6 @@ struct DeviceListView: View {
     }
 
     // MARK: - Bulk Action Bar
-
-
 
     private func bulkButton(label: String, icon: String, color: Color, action: @escaping () -> Void) -> some View {
         Button(action: action) {
@@ -162,71 +165,65 @@ struct DeviceListView: View {
     }
 
     // MARK: - Filter Bar
-    
+
     private var filterBar: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 12) {
-                // Room filter
-                roomFilterChip
+        HStack(spacing: 12) {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 12) {
+                    // Room filter
+                    roomFilterChip
 
-                // Service type filter
-                serviceTypeFilterChip
+                    // Service type filter
+                    serviceTypeFilterChip
 
-                // EXT filter
-                extFilterChip
+                    // EXT filter
+                    extFilterChip
 
-                // Webhook filter
-                webhookFilterChip
-                
-                // Bulk Actions & Clear (Only when filtered)
-                if viewModel.hasActiveFilters {
-                    // Clear all
-                    Button {
-                        withAnimation(.easeInOut(duration: 0.2)) {
-                            viewModel.clearFilters()
+                    // Webhook filter
+                    webhookFilterChip
+
+                    // Clear button
+                    if viewModel.hasActiveFilters {
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                viewModel.clearFilters()
+                            }
+                        } label: {
+                            Label("Clear", systemImage: "xmark.circle.fill")
+                                .font(.caption)
+                                .foregroundColor(Theme.Status.error)
                         }
-                    } label: {
-                        Label("Clear", systemImage: "xmark.circle.fill")
-                            .font(.caption)
-                            .foregroundColor(Theme.Status.error)
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
-                    
-                    // Separator for visual distinction
-                    Spacer()
-                    
-                    HStack{
-                        // Bulk EXT Toggle
-                        let allExtEnabled = viewModel.filteredDevicesByRoom.flatMap(\.devices).allSatisfy { viewModel.isExternalAccessEnabled(for: $0) }
-                        
-                        
-                        
-                        MiniToggle(isOn: Binding(
-                            get: { allExtEnabled },
-                            set: { newValue in
-                                confirmBulkAction(message: newValue ? "Enable EXT for \(filteredDeviceCount) devices?" : "Disable EXT for \(filteredDeviceCount) devices?") {
-                                    viewModel.setBulkConfig(externalAccessEnabled: newValue)
-                                }
+                }
+            }
+
+            // Always show CTAs if devices exist
+            if viewModel.filteredDevicesByRoom.count > 0 {
+                Spacer()
+                HStack {
+                    // EXT Toggle
+                    let allExtEnabled = viewModel.filteredDevicesByRoom.flatMap(\.devices).allSatisfy { viewModel.isExternalAccessEnabled(for: $0) }
+
+                    MiniToggle(isOn: Binding(
+                        get: { allExtEnabled },
+                        set: { newValue in
+                            confirmBulkAction(message: newValue ? "Enable EXT for \(filteredDeviceCount) devices?" : "Disable EXT for \(filteredDeviceCount) devices?") {
+                                viewModel.setBulkConfig(externalAccessEnabled: newValue)
                             }
-                        ), label: "Bulk EXT")
-                        
-                        // Bulk Webhook Toggle
-                        let allHookEnabled = viewModel.filteredDevicesByRoom.flatMap(\.devices).allSatisfy { viewModel.isWebhookEnabled(for: $0) }
-                        MiniToggle(isOn: Binding(
-                            get: { allHookEnabled },
-                            set: { newValue in
-                                confirmBulkAction(message: newValue ? "Enable Webhooks for \(filteredDeviceCount) devices?" : "Disable Webhooks for \(filteredDeviceCount) devices?") {
-                                    viewModel.setBulkConfig(webhookEnabled: newValue)
-                                }
+                        }
+                    ), label: "EXT")
+
+                    // Webhook Toggle
+                    let allHookEnabled = viewModel.filteredDevicesByRoom.flatMap(\.devices).allSatisfy { viewModel.isWebhookEnabled(for: $0) }
+                    MiniToggle(isOn: Binding(
+                        get: { allHookEnabled },
+                        set: { newValue in
+                            confirmBulkAction(message: newValue ? "Enable Webhooks for \(filteredDeviceCount) devices?" : "Disable Webhooks for \(filteredDeviceCount) devices?") {
+                                viewModel.setBulkConfig(webhookEnabled: newValue)
                             }
-                        ), label: "Bulk Hook")
-                    }
-                    .padding(4)
-                    .background(
-                        Capsule()
-                            .fill(Theme.Tint.main.opacity(0.15))
-                    )
-                    
+                        }
+                    ), label: "Hook")
                 }
             }
         }
@@ -431,16 +428,16 @@ struct DeviceListView: View {
                 } else {
                     Color.clear.frame(width: 12, height: 10)
                 }
-                
+
                 if let icon = icon {
                     Image(systemName: icon)
                         .font(.body)
                         .foregroundColor(Theme.Text.secondary)
                 }
-                
+
                 Text(title)
                     .foregroundColor(Theme.Text.primary)
-                
+
                 Spacer()
             }
             .padding(.vertical, 6)
@@ -460,14 +457,14 @@ struct DeviceListView: View {
 struct FilterDropdown<Label: View, Content: View>: View {
     let label: () -> Label
     let content: () -> Content
-    
+
     @State private var isPresented = false
-    
+
     init(@ViewBuilder label: @escaping () -> Label, @ViewBuilder content: @escaping () -> Content) {
         self.label = label
         self.content = content
     }
-    
+
     var body: some View {
         Button {
             isPresented.toggle()
@@ -480,10 +477,10 @@ struct FilterDropdown<Label: View, Content: View>: View {
                 content()
             }
             // Removed default padding to allow rows to touch edges
-             // .padding(.vertical, 8) 
+            // .padding(.vertical, 8)
             .background(Theme.contentBackground)
             // Ensure a minimum width for usability, but allow it to grow
-            .frame(minWidth: 200) 
+            .frame(minWidth: 200)
         }
     }
 }
