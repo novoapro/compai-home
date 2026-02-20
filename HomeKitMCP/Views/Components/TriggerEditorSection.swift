@@ -66,6 +66,13 @@ struct TriggerEditorSection: View {
                     )
                 }
             }
+
+            Button(role: .destructive) {
+                triggers.remove(at: index)
+            } label: {
+                Label("Remove Trigger", systemImage: "trash")
+                    .font(.subheadline)
+            }
         } label: {
             triggerLabel(triggers[index])
         }

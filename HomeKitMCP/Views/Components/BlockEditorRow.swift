@@ -5,10 +5,20 @@ struct BlockEditorRow: View {
     let devices: [DeviceModel]
     let allowNesting: Bool
     let onEditNestedBlocks: ((String, [BlockDraft]) -> Void)?
+    let onDelete: (() -> Void)?
 
     var body: some View {
         DisclosureGroup {
             blockContent
+
+            if let onDelete {
+                Button(role: .destructive) {
+                    onDelete()
+                } label: {
+                    Label("Remove Block", systemImage: "trash")
+                        .font(.subheadline)
+                }
+            }
         } label: {
             blockLabel
         }

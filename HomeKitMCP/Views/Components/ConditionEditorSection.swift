@@ -45,6 +45,13 @@ struct ConditionEditorSection: View {
                 devices: devices,
                 deviceId: conditions[index].deviceId
             )
+
+            Button(role: .destructive) {
+                conditions.remove(at: index)
+            } label: {
+                Label("Remove Condition", systemImage: "trash")
+                    .font(.subheadline)
+            }
         } label: {
             conditionLabel(conditions[index])
         }
