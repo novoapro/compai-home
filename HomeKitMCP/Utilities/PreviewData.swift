@@ -204,6 +204,6 @@ enum PreviewData {
             loggingService: loggingService,
             executionLogService: workflowLogService
         )
-        return WorkflowViewModel(storageService: workflowStorage, executionLogService: workflowLogService, workflowEngine: engine)
+        return WorkflowViewModel(storageService: workflowStorage, executionLogService: workflowLogService, workflowEngine: engine, homeKitManager: manager)
     }
 }
