@@ -34,7 +34,6 @@ struct BlockEditorSection: View {
                 )
             }
             .onDelete { blocks.remove(atOffsets: $0) }
-            .onMove { blocks.move(fromOffsets: $0, toOffset: $1) }
 
             Button {
                 showingBlockTypePicker = true
@@ -60,12 +59,7 @@ struct BlockEditorSection: View {
                 Button("Cancel", role: .cancel) { }
             }
         } header: {
-            HStack {
-                Text("Blocks (\(blocks.count))")
-                Spacer()
-                EditButton()
-                    .font(.caption)
-            }
+            Text("Blocks (\(blocks.count))")
         }
         .listRowBackground(Theme.contentBackground)
     }
