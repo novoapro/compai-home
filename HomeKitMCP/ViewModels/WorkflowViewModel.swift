@@ -9,7 +9,10 @@ class WorkflowViewModel: ObservableObject {
     private let storageService: WorkflowStorageService
     private let executionLogService: WorkflowExecutionLogService
     private let workflowEngine: WorkflowEngine
+    let homeKitManager: HomeKitManager
     private var cancellables = Set<AnyCancellable>()
+
+    var devices: [DeviceModel] { homeKitManager.cachedDevices }
 
     var filteredWorkflows: [Workflow] {
         guard !searchText.isEmpty else { return workflows }
@@ -25,10 +28,11 @@ class WorkflowViewModel: ObservableObject {
         workflows.filter(\.isEnabled).count
     }
 
-    init(storageService: WorkflowStorageService, executionLogService: WorkflowExecutionLogService, workflowEngine: WorkflowEngine) {
+    init(storageService: WorkflowStorageService, executionLogService: WorkflowExecutionLogService, workflowEngine: WorkflowEngine, homeKitManager: HomeKitManager) {
         self.storageService = storageService
         self.executionLogService = executionLogService
         self.workflowEngine = workflowEngine
+        self.homeKitManager = homeKitManager
 
         // Subscribe to workflow changes
         storageService.workflowsSubject
@@ -81,5 +85,20 @@ class WorkflowViewModel: ObservableObject {
 
     func executionLogs(for workflowId: UUID) -> [WorkflowExecutionLog] {
         executionLogs.filter { $0.workflowId == workflowId }
+    }
+
+    func createWorkflow(from draft: WorkflowDraft) {
+        Task {
+            let workflow = draft.toWorkflow(existingMetadata: nil, createdAt: nil)
+            await storageService.createWorkflow(workflow)
+        }
+    }
+
+    func updateWorkflow(id: UUID, from draft: WorkflowDraft) {
+        Task {
+            guard let existing = await storageService.getWorkflow(id: id) else { return }
+            let workflow = draft.toWorkflow(existingMetadata: existing.metadata, createdAt: existing.createdAt)
+            await storageService.updateWorkflow(id: id) { $0 = workflow }
+        }
     }
 }

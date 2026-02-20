@@ -3,11 +3,14 @@ import SwiftUI
 struct WorkflowDetailView: View {
     let workflow: Workflow
     let executionLogs: [WorkflowExecutionLog]
+    let devices: [DeviceModel]
     let onToggle: () -> Void
     let onDelete: () -> Void
     let onTrigger: () -> Void
+    let onUpdate: (WorkflowDraft) -> Void
 
     @State private var showingDeleteConfirmation = false
+    @State private var showingEditor = false
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -27,6 +30,18 @@ struct WorkflowDetailView: View {
         .scrollContentBackground(.hidden)
         .background(Theme.mainBackground)
         .navigationTitle(workflow.name)
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button("Edit") { showingEditor = true }
+            }
+        }
+        .sheet(isPresented: $showingEditor) {
+            WorkflowEditorView(
+                mode: .edit(workflow),
+                devices: devices,
+                onSave: { draft in onUpdate(draft) }
+            )
+        }
         .alert("Delete Workflow?", isPresented: $showingDeleteConfirmation) {
             Button("Cancel", role: .cancel) { }
             Button("Delete", role: .destructive) {
