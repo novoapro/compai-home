@@ -21,6 +21,10 @@ struct WorkflowEditorView: View {
     @State private var showingValidationAlert = false
     @State private var validationErrors: [String] = []
 
+    /// Nested block sheet state lives here — at a stable level that
+    /// does NOT re-render when individual blocks change inside the form.
+    @State private var nestedEditState: NestedEditState?
+
     init(mode: Mode, devices: [DeviceModel], onSave: @escaping (WorkflowDraft) -> Void) {
         self.mode = mode
         self.devices = devices
@@ -28,7 +32,7 @@ struct WorkflowEditorView: View {
         switch mode {
         case .create:
             _draft = State(initialValue: .empty())
-        case .edit(let workflow):
+        case let .edit(workflow):
             _draft = State(initialValue: WorkflowDraft(from: workflow))
         }
     }
@@ -39,7 +43,13 @@ struct WorkflowEditorView: View {
                 detailsSection
                 TriggerEditorSection(triggers: $draft.triggers, devices: devices)
                 ConditionEditorSection(conditions: $draft.conditions, devices: devices)
-                BlockEditorSection(blocks: $draft.blocks, devices: devices)
+                BlockEditorSection(
+                    blocks: $draft.blocks,
+                    devices: devices,
+                    onRequestNestedEdit: { state in
+                        nestedEditState = state
+                    }
+                )
             }
             .formStyle(.grouped)
             .scrollContentBackground(.hidden)
@@ -59,14 +69,21 @@ struct WorkflowEditorView: View {
             }
             .alert("Discard Changes?", isPresented: $showingDiscardAlert) {
                 Button("Discard", role: .destructive) { dismiss() }
-                Button("Keep Editing", role: .cancel) { }
+                Button("Keep Editing", role: .cancel) {}
             } message: {
                 Text("Your unsaved changes will be lost.")
             }
             .alert("Cannot Save", isPresented: $showingValidationAlert) {
-                Button("OK", role: .cancel) { }
+                Button("OK", role: .cancel) {}
             } message: {
                 Text(validationErrors.joined(separator: "\n"))
+            }
+            .sheet(item: $nestedEditState) { state in
+                NestedBlockEditorSheet(
+                    title: BlockEditorSection.nestedSheetTitle(for: state, blocks: draft.blocks),
+                    blocks: BlockEditorSection.nestedBlocksBinding(for: state, blocks: $draft.blocks),
+                    devices: devices
+                )
             }
         }
     }
@@ -79,6 +96,18 @@ struct WorkflowEditorView: View {
                 .tint(Theme.Tint.main)
             Toggle("Continue on Error", isOn: $draft.continueOnError)
                 .tint(Theme.Tint.main)
+
+            Picker("Concurrent Execution", selection: $draft.retriggerPolicy) {
+                ForEach(ConcurrentExecutionPolicy.allCases) { policy in
+                    VStack(alignment: .leading) {
+                        Text(policy.displayName)
+                        Text(policy.description)
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                    .tag(policy)
+                }
+            }
         } header: {
             Text("Details")
         }

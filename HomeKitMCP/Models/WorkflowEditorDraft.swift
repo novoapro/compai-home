@@ -12,7 +12,9 @@ enum TriggerConditionType: String, CaseIterable, Identifiable {
     case greaterThanOrEqual
     case lessThanOrEqual
 
-    var id: String { rawValue }
+    var id: String {
+        rawValue
+    }
 
     var displayName: String {
         switch self {
@@ -40,7 +42,9 @@ enum ComparisonType: String, CaseIterable, Identifiable {
     case greaterThanOrEqual
     case lessThanOrEqual
 
-    var id: String { rawValue }
+    var id: String {
+        rawValue
+    }
 
     var displayName: String {
         switch self {
@@ -54,6 +58,32 @@ enum ComparisonType: String, CaseIterable, Identifiable {
     }
 }
 
+enum TriggerDraftType: String, CaseIterable, Identifiable {
+    case deviceStateChange
+    case schedule
+    case webhook
+
+    var id: String {
+        rawValue
+    }
+
+    var displayName: String {
+        switch self {
+        case .deviceStateChange: return "Device State Change"
+        case .schedule: return "Schedule"
+        case .webhook: return "Webhook"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .deviceStateChange: return "bolt.fill"
+        case .schedule: return "clock.fill"
+        case .webhook: return "arrow.down.circle.fill"
+        }
+    }
+}
+
 // MARK: - Top-Level Workflow Draft
 
 struct WorkflowDraft {
@@ -62,6 +92,7 @@ struct WorkflowDraft {
     var description: String
     var isEnabled: Bool
     var continueOnError: Bool
+    var retriggerPolicy: ConcurrentExecutionPolicy
     var triggers: [TriggerDraft]
     var conditions: [ConditionDraft]
     var blocks: [BlockDraft]
@@ -73,6 +104,7 @@ struct WorkflowDraft {
             description: "",
             isEnabled: true,
             continueOnError: false,
+            retriggerPolicy: .ignoreNew,
             triggers: [],
             conditions: [],
             blocks: []
@@ -85,24 +117,250 @@ struct WorkflowDraft {
 struct TriggerDraft: Identifiable {
     let id: UUID
     var name: String = ""
-    var deviceId: String
+    var triggerType: TriggerDraftType = .deviceStateChange
+
+    // Device state change fields
+    var deviceId: String = ""
     var serviceId: String?
-    var characteristicType: String
-    var conditionType: TriggerConditionType
-    var conditionValue: String
-    var conditionFromValue: String
+    var characteristicType: String = ""
+    var conditionType: TriggerConditionType = .changed
+    var conditionValue: String = ""
+    var conditionFromValue: String = ""
+
+    // Schedule fields
+    var scheduleType: ScheduleDraftType = .daily
+    var scheduleHour: Int = 8
+    var scheduleMinute: Int = 0
+    var scheduleDays: Set<ScheduleWeekday> = []
+    var scheduleDate: Date = .init()
+    var scheduleIntervalAmount: Int = 1
+    var scheduleIntervalUnit: ScheduleIntervalUnit = .hours
+
+    /// Webhook fields
+    var webhookToken: String = UUID().uuidString
 
     static func empty() -> TriggerDraft {
-        TriggerDraft(
-            id: UUID(),
-            name: "",
-            deviceId: "",
-            serviceId: nil,
-            characteristicType: "",
-            conditionType: .changed,
-            conditionValue: "",
-            conditionFromValue: ""
-        )
+        TriggerDraft(id: UUID())
+    }
+
+    static func emptySchedule() -> TriggerDraft {
+        TriggerDraft(id: UUID(), triggerType: .schedule)
+    }
+
+    static func emptyWebhook() -> TriggerDraft {
+        TriggerDraft(id: UUID(), triggerType: .webhook)
+    }
+}
+
+enum ScheduleDraftType: String, CaseIterable, Identifiable {
+    case once
+    case daily
+    case weekly
+    case interval
+
+    var id: String {
+        rawValue
+    }
+
+    var displayName: String {
+        switch self {
+        case .once: return "Once"
+        case .daily: return "Daily"
+        case .weekly: return "Weekly"
+        case .interval: return "Interval"
+        }
+    }
+}
+
+enum ScheduleIntervalUnit: String, CaseIterable, Identifiable {
+    case minutes
+    case hours
+
+    var id: String {
+        rawValue
+    }
+
+    var displayName: String {
+        switch self {
+        case .minutes: return "Minutes"
+        case .hours: return "Hours"
+        }
+    }
+}
+
+// MARK: - Auto-Name Generation
+
+extension TriggerDraft {
+    func autoName(devices: [DeviceModel]) -> String {
+        switch triggerType {
+        case .deviceStateChange:
+            guard !deviceId.isEmpty else { return "New Trigger" }
+            let device = devices.first(where: { $0.id == deviceId })
+            let room = device?.roomName ?? ""
+            let devName = device?.name ?? "Unknown"
+            let charName = characteristicType.isEmpty ? "" : CharacteristicTypes.displayName(for: characteristicType)
+            let condDesc = conditionType == .changed ? "Changed" : "\(conditionType.displayName) \(conditionValue)"
+            let parts = [room, devName, charName, condDesc].filter { !$0.isEmpty }
+            return parts.joined(separator: " ")
+        case .schedule:
+            return scheduleAutoName
+        case .webhook:
+            return "Webhook Trigger"
+        }
+    }
+
+    private var scheduleAutoName: String {
+        let timeStr = String(format: "%d:%02d", scheduleHour, scheduleMinute)
+        switch scheduleType {
+        case .once:
+            let formatter = DateFormatter()
+            formatter.dateStyle = .medium
+            formatter.timeStyle = .short
+            return "Once at \(formatter.string(from: scheduleDate))"
+        case .daily:
+            return "Daily at \(timeStr)"
+        case .weekly:
+            if scheduleDays.isEmpty {
+                return "Weekly at \(timeStr)"
+            }
+            let dayNames = scheduleDays.sorted().map(\.displayName).joined(separator: ", ")
+            return "\(dayNames) at \(timeStr)"
+        case .interval:
+            return "Every \(scheduleIntervalAmount) \(scheduleIntervalUnit.displayName.lowercased())"
+        }
+    }
+}
+
+extension ConditionDraft {
+    func autoName(devices: [DeviceModel]) -> String {
+        guard !deviceId.isEmpty else { return "New Condition" }
+        let device = devices.first(where: { $0.id == deviceId })
+        let room = device?.roomName ?? ""
+        let devName = device?.name ?? "Unknown"
+        let charName = characteristicType.isEmpty ? "" : CharacteristicTypes.displayName(for: characteristicType)
+        let comp = "\(comparisonType.displayName) \(comparisonValue)"
+        let parts = [room, devName, charName, comp].filter { !$0.isEmpty }
+        return parts.joined(separator: " ")
+    }
+}
+
+extension BlockDraft {
+    func autoName(devices: [DeviceModel]) -> String {
+        switch blockType {
+        case let .controlDevice(d):
+            return d.autoName(devices: devices)
+        case let .webhook(d):
+            return d.autoName()
+        case let .log(d):
+            return d.autoName()
+        case let .delay(d):
+            return d.autoName()
+        case let .waitForState(d):
+            return d.autoName(devices: devices)
+        case let .conditional(d):
+            return d.autoName(devices: devices)
+        case let .repeatBlock(d):
+            return d.autoName()
+        case let .repeatWhile(d):
+            return d.autoName(devices: devices)
+        case let .group(d):
+            return d.autoName()
+        }
+    }
+
+    /// Returns the user-set name or the auto-generated name
+    func displayName(devices: [DeviceModel]) -> String {
+        let explicitName: String = {
+            switch blockType {
+            case let .controlDevice(d): return d.name
+            case let .webhook(d): return d.name
+            case let .log(d): return d.name
+            case let .delay(d): return d.name
+            case let .waitForState(d): return d.name
+            case let .conditional(d): return d.name
+            case let .repeatBlock(d): return d.name
+            case let .repeatWhile(d): return d.name
+            case let .group(d): return d.name
+            }
+        }()
+        return explicitName.isEmpty ? autoName(devices: devices) : explicitName
+    }
+}
+
+private extension ControlDeviceDraft {
+    func autoName(devices: [DeviceModel]) -> String {
+        guard !deviceId.isEmpty else { return "Control Device" }
+        let device = devices.first(where: { $0.id == deviceId })
+        let devName = device?.name ?? "Unknown"
+        let charName = characteristicType.isEmpty ? "" : CharacteristicTypes.displayName(for: characteristicType)
+        if charName.isEmpty { return "Set \(devName)" }
+        let valStr = value.isEmpty ? "" : "= \(value)"
+        return "Set \(devName) \(charName) \(valStr)".trimmingCharacters(in: .whitespaces)
+    }
+}
+
+private extension WebhookDraft {
+    func autoName() -> String {
+        guard !url.isEmpty else { return "Webhook" }
+        if let urlObj = URL(string: url), let host = urlObj.host {
+            return "\(method) \(host)"
+        }
+        return "\(method) \(url.prefix(30))"
+    }
+}
+
+private extension LogDraft {
+    func autoName() -> String {
+        guard !message.isEmpty else { return "Log Message" }
+        return "Log: \(String(message.prefix(30)))"
+    }
+}
+
+private extension DelayDraft {
+    func autoName() -> String {
+        return "Delay \(seconds)s"
+    }
+}
+
+private extension WaitForStateDraft {
+    func autoName(devices: [DeviceModel]) -> String {
+        guard !deviceId.isEmpty else { return "Wait for State" }
+        let device = devices.first(where: { $0.id == deviceId })
+        let devName = device?.name ?? "Unknown"
+        let charName = characteristicType.isEmpty ? "" : CharacteristicTypes.displayName(for: characteristicType)
+        return "Wait \(devName) \(charName) \(comparisonType.displayName) \(comparisonValue)".trimmingCharacters(in: .whitespaces)
+    }
+}
+
+private extension ConditionalDraft {
+    func autoName(devices: [DeviceModel]) -> String {
+        guard !conditionDeviceId.isEmpty else { return "If/Else" }
+        let device = devices.first(where: { $0.id == conditionDeviceId })
+        let devName = device?.name ?? "Unknown"
+        let charName = conditionCharacteristicType.isEmpty ? "" : CharacteristicTypes.displayName(for: conditionCharacteristicType)
+        return "If \(devName) \(charName) \(comparisonType.displayName) \(comparisonValue)".trimmingCharacters(in: .whitespaces)
+    }
+}
+
+private extension RepeatDraft {
+    func autoName() -> String {
+        return "Repeat \(count)×"
+    }
+}
+
+private extension RepeatWhileDraft {
+    func autoName(devices: [DeviceModel]) -> String {
+        guard !conditionDeviceId.isEmpty else { return "Repeat While" }
+        let device = devices.first(where: { $0.id == conditionDeviceId })
+        let devName = device?.name ?? "Unknown"
+        let charName = conditionCharacteristicType.isEmpty ? "" : CharacteristicTypes.displayName(for: conditionCharacteristicType)
+        return "While \(devName) \(charName) \(comparisonType.displayName) \(comparisonValue)".trimmingCharacters(in: .whitespaces)
+    }
+}
+
+private extension GroupDraft {
+    func autoName() -> String {
+        return label.isEmpty ? "Group" : label
     }
 }
 
@@ -110,6 +368,7 @@ struct TriggerDraft: Identifiable {
 
 struct ConditionDraft: Identifiable {
     let id: UUID
+    var name: String = ""
     var deviceId: String
     var serviceId: String?
     var characteristicType: String
@@ -119,6 +378,7 @@ struct ConditionDraft: Identifiable {
     static func empty() -> ConditionDraft {
         ConditionDraft(
             id: UUID(),
+            name: "",
             deviceId: "",
             serviceId: nil,
             characteristicType: "",
@@ -137,27 +397,35 @@ struct BlockDraft: Identifiable {
     static func newControlDevice() -> BlockDraft {
         BlockDraft(id: UUID(), blockType: .controlDevice(ControlDeviceDraft()))
     }
+
     static func newWebhook() -> BlockDraft {
         BlockDraft(id: UUID(), blockType: .webhook(WebhookDraft()))
     }
+
     static func newLog() -> BlockDraft {
         BlockDraft(id: UUID(), blockType: .log(LogDraft()))
     }
+
     static func newDelay() -> BlockDraft {
         BlockDraft(id: UUID(), blockType: .delay(DelayDraft()))
     }
+
     static func newWaitForState() -> BlockDraft {
         BlockDraft(id: UUID(), blockType: .waitForState(WaitForStateDraft()))
     }
+
     static func newConditional() -> BlockDraft {
         BlockDraft(id: UUID(), blockType: .conditional(ConditionalDraft()))
     }
+
     static func newRepeat() -> BlockDraft {
         BlockDraft(id: UUID(), blockType: .repeatBlock(RepeatDraft()))
     }
+
     static func newRepeatWhile() -> BlockDraft {
         BlockDraft(id: UUID(), blockType: .repeatWhile(RepeatWhileDraft()))
     }
+
     static func newGroup() -> BlockDraft {
         BlockDraft(id: UUID(), blockType: .group(GroupDraft()))
     }
@@ -307,11 +575,20 @@ extension WorkflowDraft {
             errors.append("At least one trigger is required")
         }
         for (i, trigger) in triggers.enumerated() {
-            if trigger.deviceId.isEmpty {
-                errors.append("Trigger \(i + 1): select a device")
-            }
-            if trigger.characteristicType.isEmpty {
-                errors.append("Trigger \(i + 1): select a characteristic")
+            switch trigger.triggerType {
+            case .deviceStateChange:
+                if trigger.deviceId.isEmpty {
+                    errors.append("Trigger \(i + 1): select a device")
+                }
+                if trigger.characteristicType.isEmpty {
+                    errors.append("Trigger \(i + 1): select a characteristic")
+                }
+            case .schedule:
+                if trigger.scheduleType == .weekly && trigger.scheduleDays.isEmpty {
+                    errors.append("Trigger \(i + 1): select at least one day")
+                }
+            case .webhook:
+                break // Token is auto-generated
             }
         }
         if blocks.isEmpty {
@@ -325,29 +602,64 @@ extension WorkflowDraft {
 
 extension WorkflowDraft {
     init(from workflow: Workflow) {
-        self.id = workflow.id
-        self.name = workflow.name
-        self.description = workflow.description ?? ""
-        self.isEnabled = workflow.isEnabled
-        self.continueOnError = workflow.continueOnError
-        self.triggers = workflow.triggers.compactMap { Self.convertTrigger($0) }
-        self.conditions = (workflow.conditions ?? []).compactMap { Self.convertCondition($0) }
-        self.blocks = workflow.blocks.map { Self.convertBlock($0) }
+        id = workflow.id
+        name = workflow.name
+        description = workflow.description ?? ""
+        isEnabled = workflow.isEnabled
+        continueOnError = workflow.continueOnError
+        retriggerPolicy = workflow.retriggerPolicy
+        triggers = workflow.triggers.compactMap { Self.convertTrigger($0) }
+        conditions = (workflow.conditions ?? []).compactMap { Self.convertCondition($0) }
+        blocks = workflow.blocks.map { Self.convertBlock($0) }
     }
 
     private static func convertTrigger(_ trigger: WorkflowTrigger) -> TriggerDraft? {
         switch trigger {
-        case .deviceStateChange(let t):
+        case let .deviceStateChange(t):
             let (condType, condValue, condFrom) = convertTriggerCondition(t.condition)
             return TriggerDraft(
                 id: UUID(),
                 name: t.name ?? "",
+                triggerType: .deviceStateChange,
                 deviceId: t.deviceId,
                 serviceId: t.serviceId,
                 characteristicType: t.characteristicType,
                 conditionType: condType,
                 conditionValue: condValue,
                 conditionFromValue: condFrom
+            )
+        case let .schedule(t):
+            var draft = TriggerDraft(id: UUID(), name: t.name ?? "", triggerType: .schedule)
+            switch t.scheduleType {
+            case let .once(date):
+                draft.scheduleType = .once
+                draft.scheduleDate = date
+            case let .daily(time):
+                draft.scheduleType = .daily
+                draft.scheduleHour = time.hour
+                draft.scheduleMinute = time.minute
+            case let .weekly(time, days):
+                draft.scheduleType = .weekly
+                draft.scheduleHour = time.hour
+                draft.scheduleMinute = time.minute
+                draft.scheduleDays = days
+            case let .interval(seconds):
+                draft.scheduleType = .interval
+                if seconds >= 3600, seconds.truncatingRemainder(dividingBy: 3600) == 0 {
+                    draft.scheduleIntervalAmount = Int(seconds / 3600)
+                    draft.scheduleIntervalUnit = .hours
+                } else {
+                    draft.scheduleIntervalAmount = Int(seconds / 60)
+                    draft.scheduleIntervalUnit = .minutes
+                }
+            }
+            return draft
+        case let .webhook(t):
+            return TriggerDraft(
+                id: UUID(),
+                name: t.name ?? "",
+                triggerType: .webhook,
+                webhookToken: t.token
             )
         case .compound:
             // Compound triggers not editable in the UI editor
@@ -359,26 +671,26 @@ extension WorkflowDraft {
         switch condition {
         case .changed:
             return (.changed, "", "")
-        case .equals(let v):
+        case let .equals(v):
             return (.equals, stringFromAny(v.value), "")
-        case .notEquals(let v):
+        case let .notEquals(v):
             return (.notEquals, stringFromAny(v.value), "")
-        case .transitioned(let from, let to):
+        case let .transitioned(from, to):
             return (.transitioned, stringFromAny(to.value), from.map { stringFromAny($0.value) } ?? "")
-        case .greaterThan(let v):
+        case let .greaterThan(v):
             return (.greaterThan, String(v), "")
-        case .lessThan(let v):
+        case let .lessThan(v):
             return (.lessThan, String(v), "")
-        case .greaterThanOrEqual(let v):
+        case let .greaterThanOrEqual(v):
             return (.greaterThanOrEqual, String(v), "")
-        case .lessThanOrEqual(let v):
+        case let .lessThanOrEqual(v):
             return (.lessThanOrEqual, String(v), "")
         }
     }
 
     private static func convertCondition(_ condition: WorkflowCondition) -> ConditionDraft? {
         switch condition {
-        case .deviceState(let c):
+        case let .deviceState(c):
             let (compType, compValue) = convertComparison(c.comparison)
             return ConditionDraft(
                 id: UUID(),
@@ -396,27 +708,27 @@ extension WorkflowDraft {
 
     private static func convertComparison(_ comparison: ComparisonOperator) -> (ComparisonType, String) {
         switch comparison {
-        case .equals(let v): return (.equals, stringFromAny(v.value))
-        case .notEquals(let v): return (.notEquals, stringFromAny(v.value))
-        case .greaterThan(let v): return (.greaterThan, String(v))
-        case .lessThan(let v): return (.lessThan, String(v))
-        case .greaterThanOrEqual(let v): return (.greaterThanOrEqual, String(v))
-        case .lessThanOrEqual(let v): return (.lessThanOrEqual, String(v))
+        case let .equals(v): return (.equals, stringFromAny(v.value))
+        case let .notEquals(v): return (.notEquals, stringFromAny(v.value))
+        case let .greaterThan(v): return (.greaterThan, String(v))
+        case let .lessThan(v): return (.lessThan, String(v))
+        case let .greaterThanOrEqual(v): return (.greaterThanOrEqual, String(v))
+        case let .lessThanOrEqual(v): return (.lessThanOrEqual, String(v))
         }
     }
 
     static func convertBlock(_ block: WorkflowBlock) -> BlockDraft {
         switch block {
-        case .action(let action):
+        case let .action(action):
             return convertAction(action)
-        case .flowControl(let fc):
+        case let .flowControl(fc):
             return convertFlowControl(fc)
         }
     }
 
     private static func convertAction(_ action: WorkflowAction) -> BlockDraft {
         switch action {
-        case .controlDevice(let a):
+        case let .controlDevice(a):
             return BlockDraft(id: UUID(), blockType: .controlDevice(ControlDeviceDraft(
                 name: a.name ?? "",
                 deviceId: a.deviceId,
@@ -424,23 +736,23 @@ extension WorkflowDraft {
                 characteristicType: a.characteristicType,
                 value: stringFromAny(a.value.value)
             )))
-        case .webhook(let a):
+        case let .webhook(a):
             return BlockDraft(id: UUID(), blockType: .webhook(WebhookDraft(
                 name: a.name ?? "",
                 url: a.url,
                 method: a.method,
                 body: a.body.map { stringFromAny($0.value) } ?? ""
             )))
-        case .log(let a):
+        case let .log(a):
             return BlockDraft(id: UUID(), blockType: .log(LogDraft(name: a.name ?? "", message: a.message)))
         }
     }
 
     private static func convertFlowControl(_ fc: FlowControlBlock) -> BlockDraft {
         switch fc {
-        case .delay(let b):
+        case let .delay(b):
             return BlockDraft(id: UUID(), blockType: .delay(DelayDraft(name: b.name ?? "", seconds: b.seconds)))
-        case .waitForState(let b):
+        case let .waitForState(b):
             let (compType, compValue) = convertComparison(b.condition)
             return BlockDraft(id: UUID(), blockType: .waitForState(WaitForStateDraft(
                 name: b.name ?? "",
@@ -451,7 +763,7 @@ extension WorkflowDraft {
                 comparisonValue: compValue,
                 timeoutSeconds: b.timeoutSeconds
             )))
-        case .conditional(let b):
+        case let .conditional(b):
             let (devId, svcId, charType, compType, compValue) = extractDeviceCondition(b.condition)
             return BlockDraft(id: UUID(), blockType: .conditional(ConditionalDraft(
                 name: b.name ?? "",
@@ -463,14 +775,14 @@ extension WorkflowDraft {
                 thenBlocks: b.thenBlocks.map { convertBlock($0) },
                 elseBlocks: (b.elseBlocks ?? []).map { convertBlock($0) }
             )))
-        case .repeat(let b):
+        case let .repeat(b):
             return BlockDraft(id: UUID(), blockType: .repeatBlock(RepeatDraft(
                 name: b.name ?? "",
                 count: b.count,
                 delayBetweenSeconds: b.delayBetweenSeconds ?? 0,
                 blocks: b.blocks.map { convertBlock($0) }
             )))
-        case .repeatWhile(let b):
+        case let .repeatWhile(b):
             let (devId, svcId, charType, compType, compValue) = extractDeviceCondition(b.condition)
             return BlockDraft(id: UUID(), blockType: .repeatWhile(RepeatWhileDraft(
                 name: b.name ?? "",
@@ -483,7 +795,7 @@ extension WorkflowDraft {
                 delayBetweenSeconds: b.delayBetweenSeconds ?? 0,
                 blocks: b.blocks.map { convertBlock($0) }
             )))
-        case .group(let b):
+        case let .group(b):
             return BlockDraft(id: UUID(), blockType: .group(GroupDraft(
                 name: b.name ?? "",
                 label: b.label ?? "",
@@ -494,7 +806,7 @@ extension WorkflowDraft {
 
     private static func extractDeviceCondition(_ condition: WorkflowCondition) -> (String, String?, String, ComparisonType, String) {
         switch condition {
-        case .deviceState(let c):
+        case let .deviceState(c):
             let (compType, compValue) = convertComparison(c.comparison)
             return (c.deviceId, c.serviceId, c.characteristicType, compType, compValue)
         default:
@@ -516,6 +828,7 @@ extension WorkflowDraft {
             conditions: conditions.isEmpty ? nil : conditions.map { $0.toCondition() },
             blocks: blocks.map { $0.toBlock() },
             continueOnError: continueOnError,
+            retriggerPolicy: retriggerPolicy,
             metadata: existingMetadata ?? .empty,
             createdAt: createdAt ?? Date(),
             updatedAt: Date()
@@ -525,34 +838,60 @@ extension WorkflowDraft {
 
 extension TriggerDraft {
     func toTrigger() -> WorkflowTrigger {
-        .deviceStateChange(DeviceStateTrigger(
-            deviceId: deviceId,
-            serviceId: serviceId,
-            characteristicType: characteristicType,
-            condition: toTriggerCondition(),
-            name: name.isEmpty ? nil : name
-        ))
+        switch triggerType {
+        case .deviceStateChange:
+            return .deviceStateChange(DeviceStateTrigger(
+                deviceId: deviceId,
+                serviceId: serviceId,
+                characteristicType: characteristicType,
+                condition: toTriggerCondition(),
+                name: name.isEmpty ? nil : name
+            ))
+        case .schedule:
+            return .schedule(ScheduleTrigger(
+                scheduleType: toScheduleType(),
+                name: name.isEmpty ? nil : name
+            ))
+        case .webhook:
+            return .webhook(WebhookTrigger(
+                token: webhookToken,
+                name: name.isEmpty ? nil : name
+            ))
+        }
+    }
+
+    private func toScheduleType() -> ScheduleType {
+        switch scheduleType {
+        case .once:
+            return .once(date: scheduleDate)
+        case .daily:
+            return .daily(time: ScheduleTime(hour: scheduleHour, minute: scheduleMinute))
+        case .weekly:
+            return .weekly(
+                time: ScheduleTime(hour: scheduleHour, minute: scheduleMinute),
+                days: scheduleDays
+            )
+        case .interval:
+            let seconds = switch scheduleIntervalUnit {
+            case .minutes: TimeInterval(scheduleIntervalAmount * 60)
+            case .hours: TimeInterval(scheduleIntervalAmount * 3600)
+            }
+            return .interval(seconds: seconds)
+        }
     }
 
     private func toTriggerCondition() -> TriggerCondition {
         switch conditionType {
-        case .changed:
-            return .changed
-        case .equals:
-            return .equals(parseValue(conditionValue))
-        case .notEquals:
-            return .notEquals(parseValue(conditionValue))
+        case .changed: return .changed
+        case .equals: return .equals(parseValue(conditionValue))
+        case .notEquals: return .notEquals(parseValue(conditionValue))
         case .transitioned:
             let from = conditionFromValue.isEmpty ? nil : parseValue(conditionFromValue)
             return .transitioned(from: from, to: parseValue(conditionValue))
-        case .greaterThan:
-            return .greaterThan(Double(conditionValue) ?? 0)
-        case .lessThan:
-            return .lessThan(Double(conditionValue) ?? 0)
-        case .greaterThanOrEqual:
-            return .greaterThanOrEqual(Double(conditionValue) ?? 0)
-        case .lessThanOrEqual:
-            return .lessThanOrEqual(Double(conditionValue) ?? 0)
+        case .greaterThan: return .greaterThan(Double(conditionValue) ?? 0)
+        case .lessThan: return .lessThan(Double(conditionValue) ?? 0)
+        case .greaterThanOrEqual: return .greaterThanOrEqual(Double(conditionValue) ?? 0)
+        case .lessThanOrEqual: return .lessThanOrEqual(Double(conditionValue) ?? 0)
         }
     }
 }
@@ -588,7 +927,7 @@ extension ComparisonType {
 extension BlockDraft {
     func toBlock() -> WorkflowBlock {
         switch blockType {
-        case .controlDevice(let d):
+        case let .controlDevice(d):
             return .action(.controlDevice(ControlDeviceAction(
                 deviceId: d.deviceId,
                 serviceId: d.serviceId,
@@ -596,7 +935,7 @@ extension BlockDraft {
                 value: parseValue(d.value),
                 name: d.name.isEmpty ? nil : d.name
             )))
-        case .webhook(let d):
+        case let .webhook(d):
             return .action(.webhook(WebhookActionConfig(
                 url: d.url,
                 method: d.method,
@@ -604,11 +943,11 @@ extension BlockDraft {
                 body: d.body.isEmpty ? nil : AnyCodable(d.body),
                 name: d.name.isEmpty ? nil : d.name
             )))
-        case .log(let d):
+        case let .log(d):
             return .action(.log(LogAction(message: d.message, name: d.name.isEmpty ? nil : d.name)))
-        case .delay(let d):
+        case let .delay(d):
             return .flowControl(.delay(DelayBlock(seconds: d.seconds, name: d.name.isEmpty ? nil : d.name)))
-        case .waitForState(let d):
+        case let .waitForState(d):
             return .flowControl(.waitForState(WaitForStateBlock(
                 deviceId: d.deviceId,
                 serviceId: d.serviceId,
@@ -617,7 +956,7 @@ extension BlockDraft {
                 timeoutSeconds: d.timeoutSeconds,
                 name: d.name.isEmpty ? nil : d.name
             )))
-        case .conditional(let d):
+        case let .conditional(d):
             return .flowControl(.conditional(ConditionalBlock(
                 condition: .deviceState(DeviceStateCondition(
                     deviceId: d.conditionDeviceId,
@@ -629,14 +968,14 @@ extension BlockDraft {
                 elseBlocks: d.elseBlocks.isEmpty ? nil : d.elseBlocks.map { $0.toBlock() },
                 name: d.name.isEmpty ? nil : d.name
             )))
-        case .repeatBlock(let d):
+        case let .repeatBlock(d):
             return .flowControl(.repeat(RepeatBlock(
                 count: d.count,
                 blocks: d.blocks.map { $0.toBlock() },
                 delayBetweenSeconds: d.delayBetweenSeconds > 0 ? d.delayBetweenSeconds : nil,
                 name: d.name.isEmpty ? nil : d.name
             )))
-        case .repeatWhile(let d):
+        case let .repeatWhile(d):
             return .flowControl(.repeatWhile(RepeatWhileBlock(
                 condition: .deviceState(DeviceStateCondition(
                     deviceId: d.conditionDeviceId,
@@ -649,7 +988,7 @@ extension BlockDraft {
                 delayBetweenSeconds: d.delayBetweenSeconds > 0 ? d.delayBetweenSeconds : nil,
                 name: d.name.isEmpty ? nil : d.name
             )))
-        case .group(let d):
+        case let .group(d):
             return .flowControl(.group(GroupBlock(
                 label: d.label.isEmpty ? nil : d.label,
                 blocks: d.blocks.map { $0.toBlock() },

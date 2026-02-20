@@ -1,5 +1,32 @@
 import Foundation
 
+// MARK: - Concurrent Execution Policy
+
+enum ConcurrentExecutionPolicy: String, Codable, CaseIterable, Identifiable {
+    /// Ignore the new trigger while the workflow is already running.
+    case ignoreNew
+    /// Cancel the running execution and start fresh from the new trigger.
+    case cancelAndRestart
+
+    var id: String {
+        rawValue
+    }
+
+    var displayName: String {
+        switch self {
+        case .ignoreNew: return "Ignore New Trigger"
+        case .cancelAndRestart: return "Cancel & Restart"
+        }
+    }
+
+    var description: String {
+        switch self {
+        case .ignoreNew: return "New triggers are ignored while the workflow is running."
+        case .cancelAndRestart: return "The running execution is cancelled and restarted with the new trigger."
+        }
+    }
+}
+
 // MARK: - Workflow (Top-Level)
 
 struct Workflow: Identifiable, Codable {
@@ -11,6 +38,7 @@ struct Workflow: Identifiable, Codable {
     var conditions: [WorkflowCondition]?
     var blocks: [WorkflowBlock]
     var continueOnError: Bool
+    var retriggerPolicy: ConcurrentExecutionPolicy
     var metadata: WorkflowMetadata
     let createdAt: Date
     var updatedAt: Date
@@ -24,6 +52,7 @@ struct Workflow: Identifiable, Codable {
         conditions: [WorkflowCondition]? = nil,
         blocks: [WorkflowBlock],
         continueOnError: Bool = false,
+        retriggerPolicy: ConcurrentExecutionPolicy = .ignoreNew,
         metadata: WorkflowMetadata = .empty,
         createdAt: Date = Date(),
         updatedAt: Date = Date()
@@ -36,9 +65,32 @@ struct Workflow: Identifiable, Codable {
         self.conditions = conditions
         self.blocks = blocks
         self.continueOnError = continueOnError
+        self.retriggerPolicy = retriggerPolicy
         self.metadata = metadata
         self.createdAt = createdAt
         self.updatedAt = updatedAt
+    }
+
+    /// Custom Codable to handle backward compatibility (missing retriggerPolicy defaults to .ignoreNew)
+    private enum CodingKeys: String, CodingKey {
+        case id, name, description, isEnabled, triggers, conditions, blocks
+        case continueOnError, retriggerPolicy, metadata, createdAt, updatedAt
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        description = try container.decodeIfPresent(String.self, forKey: .description)
+        isEnabled = try container.decode(Bool.self, forKey: .isEnabled)
+        triggers = try container.decode([WorkflowTrigger].self, forKey: .triggers)
+        conditions = try container.decodeIfPresent([WorkflowCondition].self, forKey: .conditions)
+        blocks = try container.decode([WorkflowBlock].self, forKey: .blocks)
+        continueOnError = try container.decode(Bool.self, forKey: .continueOnError)
+        retriggerPolicy = try container.decodeIfPresent(ConcurrentExecutionPolicy.self, forKey: .retriggerPolicy) ?? .ignoreNew
+        metadata = try container.decode(WorkflowMetadata.self, forKey: .metadata)
+        createdAt = try container.decode(Date.self, forKey: .createdAt)
+        updatedAt = try container.decode(Date.self, forKey: .updatedAt)
     }
 }
 
@@ -78,19 +130,19 @@ indirect enum WorkflowBlock: Codable {
         let kind = try container.decode(BlockKind.self, forKey: .block)
         switch kind {
         case .action:
-            self = .action(try WorkflowAction(from: decoder))
+            self = try .action(WorkflowAction(from: decoder))
         case .flowControl:
-            self = .flowControl(try FlowControlBlock(from: decoder))
+            self = try .flowControl(FlowControlBlock(from: decoder))
         }
     }
 
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         switch self {
-        case .action(let action):
+        case let .action(action):
             try container.encode(BlockKind.action, forKey: .block)
             try action.encode(to: encoder)
-        case .flowControl(let flowControl):
+        case let .flowControl(flowControl):
             try container.encode(BlockKind.flowControl, forKey: .block)
             try flowControl.encode(to: encoder)
         }
@@ -123,24 +175,24 @@ enum WorkflowAction: Codable {
         let name = try container.decodeIfPresent(String.self, forKey: .name)
         switch type {
         case .controlDevice:
-            self = .controlDevice(ControlDeviceAction(
-                deviceId: try container.decode(String.self, forKey: .deviceId),
-                serviceId: try container.decodeIfPresent(String.self, forKey: .serviceId),
-                characteristicType: try container.decode(String.self, forKey: .characteristicType),
-                value: try container.decode(AnyCodable.self, forKey: .value),
+            self = try .controlDevice(ControlDeviceAction(
+                deviceId: container.decode(String.self, forKey: .deviceId),
+                serviceId: container.decodeIfPresent(String.self, forKey: .serviceId),
+                characteristicType: container.decode(String.self, forKey: .characteristicType),
+                value: container.decode(AnyCodable.self, forKey: .value),
                 name: name
             ))
         case .webhook:
-            self = .webhook(WebhookActionConfig(
-                url: try container.decode(String.self, forKey: .url),
-                method: try container.decode(String.self, forKey: .method),
-                headers: try container.decodeIfPresent([String: String].self, forKey: .headers),
-                body: try container.decodeIfPresent(AnyCodable.self, forKey: .body),
+            self = try .webhook(WebhookActionConfig(
+                url: container.decode(String.self, forKey: .url),
+                method: container.decode(String.self, forKey: .method),
+                headers: container.decodeIfPresent([String: String].self, forKey: .headers),
+                body: container.decodeIfPresent(AnyCodable.self, forKey: .body),
                 name: name
             ))
         case .log:
-            self = .log(LogAction(
-                message: try container.decode(String.self, forKey: .message),
+            self = try .log(LogAction(
+                message: container.decode(String.self, forKey: .message),
                 name: name
             ))
         }
@@ -149,21 +201,21 @@ enum WorkflowAction: Codable {
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         switch self {
-        case .controlDevice(let action):
+        case let .controlDevice(action):
             try container.encode(ActionType.controlDevice, forKey: .type)
             try container.encodeIfPresent(action.name, forKey: .name)
             try container.encode(action.deviceId, forKey: .deviceId)
             try container.encodeIfPresent(action.serviceId, forKey: .serviceId)
             try container.encode(action.characteristicType, forKey: .characteristicType)
             try container.encode(action.value, forKey: .value)
-        case .webhook(let action):
+        case let .webhook(action):
             try container.encode(ActionType.webhook, forKey: .type)
             try container.encodeIfPresent(action.name, forKey: .name)
             try container.encode(action.url, forKey: .url)
             try container.encode(action.method, forKey: .method)
             try container.encodeIfPresent(action.headers, forKey: .headers)
             try container.encodeIfPresent(action.body, forKey: .body)
-        case .log(let action):
+        case let .log(action):
             try container.encode(ActionType.log, forKey: .type)
             try container.encodeIfPresent(action.name, forKey: .name)
             try container.encode(action.message, forKey: .message)
@@ -256,45 +308,45 @@ enum FlowControlBlock: Codable {
         let name = try container.decodeIfPresent(String.self, forKey: .name)
         switch type {
         case .delay:
-            self = .delay(DelayBlock(
-                seconds: try container.decode(Double.self, forKey: .seconds),
+            self = try .delay(DelayBlock(
+                seconds: container.decode(Double.self, forKey: .seconds),
                 name: name
             ))
         case .waitForState:
-            self = .waitForState(WaitForStateBlock(
-                deviceId: try container.decode(String.self, forKey: .deviceId),
-                serviceId: try container.decodeIfPresent(String.self, forKey: .serviceId),
-                characteristicType: try container.decode(String.self, forKey: .characteristicType),
-                condition: try container.decode(ComparisonOperator.self, forKey: .condition),
-                timeoutSeconds: try container.decode(Double.self, forKey: .timeoutSeconds),
+            self = try .waitForState(WaitForStateBlock(
+                deviceId: container.decode(String.self, forKey: .deviceId),
+                serviceId: container.decodeIfPresent(String.self, forKey: .serviceId),
+                characteristicType: container.decode(String.self, forKey: .characteristicType),
+                condition: container.decode(ComparisonOperator.self, forKey: .condition),
+                timeoutSeconds: container.decode(Double.self, forKey: .timeoutSeconds),
                 name: name
             ))
         case .conditional:
-            self = .conditional(ConditionalBlock(
-                condition: try container.decode(WorkflowCondition.self, forKey: .condition),
-                thenBlocks: try container.decode([WorkflowBlock].self, forKey: .thenBlocks),
-                elseBlocks: try container.decodeIfPresent([WorkflowBlock].self, forKey: .elseBlocks),
+            self = try .conditional(ConditionalBlock(
+                condition: container.decode(WorkflowCondition.self, forKey: .condition),
+                thenBlocks: container.decode([WorkflowBlock].self, forKey: .thenBlocks),
+                elseBlocks: container.decodeIfPresent([WorkflowBlock].self, forKey: .elseBlocks),
                 name: name
             ))
         case .repeat:
-            self = .repeat(RepeatBlock(
-                count: try container.decode(Int.self, forKey: .count),
-                blocks: try container.decode([WorkflowBlock].self, forKey: .blocks),
-                delayBetweenSeconds: try container.decodeIfPresent(Double.self, forKey: .delayBetweenSeconds),
+            self = try .repeat(RepeatBlock(
+                count: container.decode(Int.self, forKey: .count),
+                blocks: container.decode([WorkflowBlock].self, forKey: .blocks),
+                delayBetweenSeconds: container.decodeIfPresent(Double.self, forKey: .delayBetweenSeconds),
                 name: name
             ))
         case .repeatWhile:
-            self = .repeatWhile(RepeatWhileBlock(
-                condition: try container.decode(WorkflowCondition.self, forKey: .condition),
-                blocks: try container.decode([WorkflowBlock].self, forKey: .blocks),
-                maxIterations: try container.decodeIfPresent(Int.self, forKey: .maxIterations) ?? 100,
-                delayBetweenSeconds: try container.decodeIfPresent(Double.self, forKey: .delayBetweenSeconds),
+            self = try .repeatWhile(RepeatWhileBlock(
+                condition: container.decode(WorkflowCondition.self, forKey: .condition),
+                blocks: container.decode([WorkflowBlock].self, forKey: .blocks),
+                maxIterations: container.decodeIfPresent(Int.self, forKey: .maxIterations) ?? 100,
+                delayBetweenSeconds: container.decodeIfPresent(Double.self, forKey: .delayBetweenSeconds),
                 name: name
             ))
         case .group:
-            self = .group(GroupBlock(
-                label: try container.decodeIfPresent(String.self, forKey: .label),
-                blocks: try container.decode([WorkflowBlock].self, forKey: .blocks),
+            self = try .group(GroupBlock(
+                label: container.decodeIfPresent(String.self, forKey: .label),
+                blocks: container.decode([WorkflowBlock].self, forKey: .blocks),
                 name: name
             ))
         }
@@ -303,11 +355,11 @@ enum FlowControlBlock: Codable {
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         switch self {
-        case .delay(let block):
+        case let .delay(block):
             try container.encode(FlowControlType.delay, forKey: .type)
             try container.encodeIfPresent(block.name, forKey: .name)
             try container.encode(block.seconds, forKey: .seconds)
-        case .waitForState(let block):
+        case let .waitForState(block):
             try container.encode(FlowControlType.waitForState, forKey: .type)
             try container.encodeIfPresent(block.name, forKey: .name)
             try container.encode(block.deviceId, forKey: .deviceId)
@@ -315,26 +367,26 @@ enum FlowControlBlock: Codable {
             try container.encode(block.characteristicType, forKey: .characteristicType)
             try container.encode(block.condition, forKey: .condition)
             try container.encode(block.timeoutSeconds, forKey: .timeoutSeconds)
-        case .conditional(let block):
+        case let .conditional(block):
             try container.encode(FlowControlType.conditional, forKey: .type)
             try container.encodeIfPresent(block.name, forKey: .name)
             try container.encode(block.condition, forKey: .condition)
             try container.encode(block.thenBlocks, forKey: .thenBlocks)
             try container.encodeIfPresent(block.elseBlocks, forKey: .elseBlocks)
-        case .repeat(let block):
+        case let .repeat(block):
             try container.encode(FlowControlType.repeat, forKey: .type)
             try container.encodeIfPresent(block.name, forKey: .name)
             try container.encode(block.count, forKey: .count)
             try container.encode(block.blocks, forKey: .blocks)
             try container.encodeIfPresent(block.delayBetweenSeconds, forKey: .delayBetweenSeconds)
-        case .repeatWhile(let block):
+        case let .repeatWhile(block):
             try container.encode(FlowControlType.repeatWhile, forKey: .type)
             try container.encodeIfPresent(block.name, forKey: .name)
             try container.encode(block.condition, forKey: .condition)
             try container.encode(block.blocks, forKey: .blocks)
             try container.encode(block.maxIterations, forKey: .maxIterations)
             try container.encodeIfPresent(block.delayBetweenSeconds, forKey: .delayBetweenSeconds)
-        case .group(let block):
+        case let .group(block):
             try container.encode(FlowControlType.group, forKey: .type)
             try container.encodeIfPresent(block.name, forKey: .name)
             try container.encodeIfPresent(block.label, forKey: .label)
@@ -443,10 +495,14 @@ struct GroupBlock {
 indirect enum WorkflowTrigger: Codable {
     case deviceStateChange(DeviceStateTrigger)
     case compound(CompoundTrigger)
+    case schedule(ScheduleTrigger)
+    case webhook(WebhookTrigger)
 
     private enum TriggerType: String, Codable {
         case deviceStateChange
         case compound
+        case schedule
+        case webhook
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -454,6 +510,7 @@ indirect enum WorkflowTrigger: Codable {
         case deviceId, serviceId, characteristicType, condition
         case logicOperator = "operator"
         case triggers
+        case scheduleType, token
     }
 
     init(from decoder: Decoder) throws {
@@ -462,17 +519,27 @@ indirect enum WorkflowTrigger: Codable {
         let name = try container.decodeIfPresent(String.self, forKey: .name)
         switch type {
         case .deviceStateChange:
-            self = .deviceStateChange(DeviceStateTrigger(
-                deviceId: try container.decode(String.self, forKey: .deviceId),
-                serviceId: try container.decodeIfPresent(String.self, forKey: .serviceId),
-                characteristicType: try container.decode(String.self, forKey: .characteristicType),
-                condition: try container.decode(TriggerCondition.self, forKey: .condition),
+            self = try .deviceStateChange(DeviceStateTrigger(
+                deviceId: container.decode(String.self, forKey: .deviceId),
+                serviceId: container.decodeIfPresent(String.self, forKey: .serviceId),
+                characteristicType: container.decode(String.self, forKey: .characteristicType),
+                condition: container.decode(TriggerCondition.self, forKey: .condition),
                 name: name
             ))
         case .compound:
-            self = .compound(CompoundTrigger(
-                logicOperator: try container.decode(LogicOperator.self, forKey: .logicOperator),
-                triggers: try container.decode([WorkflowTrigger].self, forKey: .triggers),
+            self = try .compound(CompoundTrigger(
+                logicOperator: container.decode(LogicOperator.self, forKey: .logicOperator),
+                triggers: container.decode([WorkflowTrigger].self, forKey: .triggers),
+                name: name
+            ))
+        case .schedule:
+            self = try .schedule(ScheduleTrigger(
+                scheduleType: container.decode(ScheduleType.self, forKey: .scheduleType),
+                name: name
+            ))
+        case .webhook:
+            self = try .webhook(WebhookTrigger(
+                token: container.decode(String.self, forKey: .token),
                 name: name
             ))
         }
@@ -481,18 +548,26 @@ indirect enum WorkflowTrigger: Codable {
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         switch self {
-        case .deviceStateChange(let trigger):
+        case let .deviceStateChange(trigger):
             try container.encode(TriggerType.deviceStateChange, forKey: .type)
             try container.encodeIfPresent(trigger.name, forKey: .name)
             try container.encode(trigger.deviceId, forKey: .deviceId)
             try container.encodeIfPresent(trigger.serviceId, forKey: .serviceId)
             try container.encode(trigger.characteristicType, forKey: .characteristicType)
             try container.encode(trigger.condition, forKey: .condition)
-        case .compound(let trigger):
+        case let .compound(trigger):
             try container.encode(TriggerType.compound, forKey: .type)
             try container.encodeIfPresent(trigger.name, forKey: .name)
             try container.encode(trigger.logicOperator, forKey: .logicOperator)
             try container.encode(trigger.triggers, forKey: .triggers)
+        case let .schedule(trigger):
+            try container.encode(TriggerType.schedule, forKey: .type)
+            try container.encodeIfPresent(trigger.name, forKey: .name)
+            try container.encode(trigger.scheduleType, forKey: .scheduleType)
+        case let .webhook(trigger):
+            try container.encode(TriggerType.webhook, forKey: .type)
+            try container.encodeIfPresent(trigger.name, forKey: .name)
+            try container.encode(trigger.token, forKey: .token)
         }
     }
 }
@@ -521,6 +596,115 @@ struct CompoundTrigger {
     init(logicOperator: LogicOperator, triggers: [WorkflowTrigger], name: String? = nil) {
         self.logicOperator = logicOperator
         self.triggers = triggers
+        self.name = name
+    }
+}
+
+struct ScheduleTrigger {
+    let scheduleType: ScheduleType
+    let name: String?
+
+    init(scheduleType: ScheduleType, name: String? = nil) {
+        self.scheduleType = scheduleType
+        self.name = name
+    }
+}
+
+enum ScheduleType: Codable {
+    case once(date: Date)
+    case daily(time: ScheduleTime)
+    case weekly(time: ScheduleTime, days: Set<ScheduleWeekday>)
+    case interval(seconds: TimeInterval)
+
+    private enum TypeKey: String, Codable {
+        case once, daily, weekly, interval
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case type, date, time, days, seconds
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let type = try container.decode(TypeKey.self, forKey: .type)
+        switch type {
+        case .once:
+            self = try .once(date: container.decode(Date.self, forKey: .date))
+        case .daily:
+            self = try .daily(time: container.decode(ScheduleTime.self, forKey: .time))
+        case .weekly:
+            self = try .weekly(
+                time: container.decode(ScheduleTime.self, forKey: .time),
+                days: container.decode(Set<ScheduleWeekday>.self, forKey: .days)
+            )
+        case .interval:
+            self = try .interval(seconds: container.decode(TimeInterval.self, forKey: .seconds))
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        switch self {
+        case let .once(date):
+            try container.encode(TypeKey.once, forKey: .type)
+            try container.encode(date, forKey: .date)
+        case let .daily(time):
+            try container.encode(TypeKey.daily, forKey: .type)
+            try container.encode(time, forKey: .time)
+        case let .weekly(time, days):
+            try container.encode(TypeKey.weekly, forKey: .type)
+            try container.encode(time, forKey: .time)
+            try container.encode(days, forKey: .days)
+        case let .interval(seconds):
+            try container.encode(TypeKey.interval, forKey: .type)
+            try container.encode(seconds, forKey: .seconds)
+        }
+    }
+}
+
+struct ScheduleTime: Codable, Equatable {
+    let hour: Int
+    let minute: Int
+}
+
+enum ScheduleWeekday: Int, Codable, CaseIterable, Comparable {
+    case sunday = 1, monday, tuesday, wednesday, thursday, friday, saturday
+
+    var displayName: String {
+        switch self {
+        case .sunday: return "Sun"
+        case .monday: return "Mon"
+        case .tuesday: return "Tue"
+        case .wednesday: return "Wed"
+        case .thursday: return "Thu"
+        case .friday: return "Fri"
+        case .saturday: return "Sat"
+        }
+    }
+
+    var fullName: String {
+        switch self {
+        case .sunday: return "Sunday"
+        case .monday: return "Monday"
+        case .tuesday: return "Tuesday"
+        case .wednesday: return "Wednesday"
+        case .thursday: return "Thursday"
+        case .friday: return "Friday"
+        case .saturday: return "Saturday"
+        }
+    }
+
+    static func < (lhs: ScheduleWeekday, rhs: ScheduleWeekday) -> Bool {
+        lhs.rawValue < rhs.rawValue
+    }
+}
+
+struct WebhookTrigger {
+    let token: String
+    let name: String?
+
+    init(token: String = UUID().uuidString, name: String? = nil) {
+        self.token = token
         self.name = name
     }
 }
@@ -564,22 +748,22 @@ enum TriggerCondition: Codable {
         case .changed:
             self = .changed
         case .equals:
-            self = .equals(try container.decode(AnyCodable.self, forKey: .value))
+            self = try .equals(container.decode(AnyCodable.self, forKey: .value))
         case .notEquals:
-            self = .notEquals(try container.decode(AnyCodable.self, forKey: .value))
+            self = try .notEquals(container.decode(AnyCodable.self, forKey: .value))
         case .transitioned:
-            self = .transitioned(
-                from: try container.decodeIfPresent(AnyCodable.self, forKey: .from),
-                to: try container.decode(AnyCodable.self, forKey: .to)
+            self = try .transitioned(
+                from: container.decodeIfPresent(AnyCodable.self, forKey: .from),
+                to: container.decode(AnyCodable.self, forKey: .to)
             )
         case .greaterThan:
-            self = .greaterThan(try container.decode(Double.self, forKey: .value))
+            self = try .greaterThan(container.decode(Double.self, forKey: .value))
         case .lessThan:
-            self = .lessThan(try container.decode(Double.self, forKey: .value))
+            self = try .lessThan(container.decode(Double.self, forKey: .value))
         case .greaterThanOrEqual:
-            self = .greaterThanOrEqual(try container.decode(Double.self, forKey: .value))
+            self = try .greaterThanOrEqual(container.decode(Double.self, forKey: .value))
         case .lessThanOrEqual:
-            self = .lessThanOrEqual(try container.decode(Double.self, forKey: .value))
+            self = try .lessThanOrEqual(container.decode(Double.self, forKey: .value))
         }
     }
 
@@ -588,26 +772,26 @@ enum TriggerCondition: Codable {
         switch self {
         case .changed:
             try container.encode(ConditionType.changed, forKey: .type)
-        case .equals(let value):
+        case let .equals(value):
             try container.encode(ConditionType.equals, forKey: .type)
             try container.encode(value, forKey: .value)
-        case .notEquals(let value):
+        case let .notEquals(value):
             try container.encode(ConditionType.notEquals, forKey: .type)
             try container.encode(value, forKey: .value)
-        case .transitioned(let from, let to):
+        case let .transitioned(from, to):
             try container.encode(ConditionType.transitioned, forKey: .type)
             try container.encodeIfPresent(from, forKey: .from)
             try container.encode(to, forKey: .to)
-        case .greaterThan(let value):
+        case let .greaterThan(value):
             try container.encode(ConditionType.greaterThan, forKey: .type)
             try container.encode(value, forKey: .value)
-        case .lessThan(let value):
+        case let .lessThan(value):
             try container.encode(ConditionType.lessThan, forKey: .type)
             try container.encode(value, forKey: .value)
-        case .greaterThanOrEqual(let value):
+        case let .greaterThanOrEqual(value):
             try container.encode(ConditionType.greaterThanOrEqual, forKey: .type)
             try container.encode(value, forKey: .value)
-        case .lessThanOrEqual(let value):
+        case let .lessThanOrEqual(value):
             try container.encode(ConditionType.lessThanOrEqual, forKey: .type)
             try container.encode(value, forKey: .value)
         }
@@ -639,37 +823,37 @@ indirect enum WorkflowCondition: Codable {
         let type = try container.decode(ConditionType.self, forKey: .type)
         switch type {
         case .deviceState:
-            self = .deviceState(DeviceStateCondition(
-                deviceId: try container.decode(String.self, forKey: .deviceId),
-                serviceId: try container.decodeIfPresent(String.self, forKey: .serviceId),
-                characteristicType: try container.decode(String.self, forKey: .characteristicType),
-                comparison: try container.decode(ComparisonOperator.self, forKey: .comparison)
+            self = try .deviceState(DeviceStateCondition(
+                deviceId: container.decode(String.self, forKey: .deviceId),
+                serviceId: container.decodeIfPresent(String.self, forKey: .serviceId),
+                characteristicType: container.decode(String.self, forKey: .characteristicType),
+                comparison: container.decode(ComparisonOperator.self, forKey: .comparison)
             ))
         case .and:
-            self = .and(try container.decode([WorkflowCondition].self, forKey: .conditions))
+            self = try .and(container.decode([WorkflowCondition].self, forKey: .conditions))
         case .or:
-            self = .or(try container.decode([WorkflowCondition].self, forKey: .conditions))
+            self = try .or(container.decode([WorkflowCondition].self, forKey: .conditions))
         case .not:
-            self = .not(try container.decode(WorkflowCondition.self, forKey: .condition))
+            self = try .not(container.decode(WorkflowCondition.self, forKey: .condition))
         }
     }
 
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         switch self {
-        case .deviceState(let cond):
+        case let .deviceState(cond):
             try container.encode(ConditionType.deviceState, forKey: .type)
             try container.encode(cond.deviceId, forKey: .deviceId)
             try container.encodeIfPresent(cond.serviceId, forKey: .serviceId)
             try container.encode(cond.characteristicType, forKey: .characteristicType)
             try container.encode(cond.comparison, forKey: .comparison)
-        case .and(let conditions):
+        case let .and(conditions):
             try container.encode(ConditionType.and, forKey: .type)
             try container.encode(conditions, forKey: .conditions)
-        case .or(let conditions):
+        case let .or(conditions):
             try container.encode(ConditionType.or, forKey: .type)
             try container.encode(conditions, forKey: .conditions)
-        case .not(let condition):
+        case let .not(condition):
             try container.encode(ConditionType.not, forKey: .type)
             try container.encode(condition, forKey: .condition)
         }
@@ -711,39 +895,39 @@ enum ComparisonOperator: Codable {
         let type = try container.decode(OperatorType.self, forKey: .type)
         switch type {
         case .equals:
-            self = .equals(try container.decode(AnyCodable.self, forKey: .value))
+            self = try .equals(container.decode(AnyCodable.self, forKey: .value))
         case .notEquals:
-            self = .notEquals(try container.decode(AnyCodable.self, forKey: .value))
+            self = try .notEquals(container.decode(AnyCodable.self, forKey: .value))
         case .greaterThan:
-            self = .greaterThan(try container.decode(Double.self, forKey: .value))
+            self = try .greaterThan(container.decode(Double.self, forKey: .value))
         case .lessThan:
-            self = .lessThan(try container.decode(Double.self, forKey: .value))
+            self = try .lessThan(container.decode(Double.self, forKey: .value))
         case .greaterThanOrEqual:
-            self = .greaterThanOrEqual(try container.decode(Double.self, forKey: .value))
+            self = try .greaterThanOrEqual(container.decode(Double.self, forKey: .value))
         case .lessThanOrEqual:
-            self = .lessThanOrEqual(try container.decode(Double.self, forKey: .value))
+            self = try .lessThanOrEqual(container.decode(Double.self, forKey: .value))
         }
     }
 
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         switch self {
-        case .equals(let value):
+        case let .equals(value):
             try container.encode(OperatorType.equals, forKey: .type)
             try container.encode(value, forKey: .value)
-        case .notEquals(let value):
+        case let .notEquals(value):
             try container.encode(OperatorType.notEquals, forKey: .type)
             try container.encode(value, forKey: .value)
-        case .greaterThan(let value):
+        case let .greaterThan(value):
             try container.encode(OperatorType.greaterThan, forKey: .type)
             try container.encode(value, forKey: .value)
-        case .lessThan(let value):
+        case let .lessThan(value):
             try container.encode(OperatorType.lessThan, forKey: .type)
             try container.encode(value, forKey: .value)
-        case .greaterThanOrEqual(let value):
+        case let .greaterThanOrEqual(value):
             try container.encode(OperatorType.greaterThanOrEqual, forKey: .type)
             try container.encode(value, forKey: .value)
-        case .lessThanOrEqual(let value):
+        case let .lessThanOrEqual(value):
             try container.encode(OperatorType.lessThanOrEqual, forKey: .type)
             try container.encode(value, forKey: .value)
         }
@@ -801,12 +985,13 @@ struct WorkflowExecutionLog: Identifiable, Codable {
 }
 
 struct TriggerEvent: Codable {
-    let deviceId: String
-    let deviceName: String
+    let deviceId: String?
+    let deviceName: String?
     let serviceId: String?
-    let characteristicType: String
+    let characteristicType: String?
     let oldValue: AnyCodable?
     let newValue: AnyCodable?
+    let triggerDescription: String?
 }
 
 struct ConditionResult: Codable {
@@ -814,7 +999,8 @@ struct ConditionResult: Codable {
     let passed: Bool
 }
 
-struct BlockResult: Codable {
+struct BlockResult: Identifiable, Codable {
+    let id: UUID
     let blockIndex: Int
     let blockKind: String
     let blockType: String
@@ -827,6 +1013,7 @@ struct BlockResult: Codable {
     var nestedResults: [BlockResult]?
 
     init(
+        id: UUID = UUID(),
         blockIndex: Int,
         blockKind: String,
         blockType: String,
@@ -838,6 +1025,7 @@ struct BlockResult: Codable {
         errorMessage: String? = nil,
         nestedResults: [BlockResult]? = nil
     ) {
+        self.id = id
         self.blockIndex = blockIndex
         self.blockKind = blockKind
         self.blockType = blockType
@@ -857,4 +1045,5 @@ enum ExecutionStatus: String, Codable {
     case failure
     case skipped
     case conditionNotMet
+    case cancelled
 }

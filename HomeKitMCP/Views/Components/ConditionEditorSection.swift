@@ -6,8 +6,8 @@ struct ConditionEditorSection: View {
 
     var body: some View {
         Section {
-            ForEach(Array(conditions.indices), id: \.self) { index in
-                conditionRow(index: index)
+            ForEach($conditions) { $condition in
+                conditionRow(condition: $condition)
             }
             .onDelete { conditions.remove(atOffsets: $0) }
 
@@ -24,36 +24,38 @@ struct ConditionEditorSection: View {
         .listRowBackground(Theme.contentBackground)
     }
 
-    private func conditionRow(index: Int) -> some View {
+    private func conditionRow(condition: Binding<ConditionDraft>) -> some View {
         DisclosureGroup {
+            TextField("Custom Name (optional)", text: condition.name)
+
             DeviceCharacteristicPicker(
                 devices: devices,
-                selectedDeviceId: $conditions[index].deviceId,
-                selectedServiceId: $conditions[index].serviceId,
-                selectedCharacteristicType: $conditions[index].characteristicType
+                selectedDeviceId: condition.deviceId,
+                selectedServiceId: condition.serviceId,
+                selectedCharacteristicType: condition.characteristicType
             )
 
-            Picker("Comparison", selection: $conditions[index].comparisonType) {
+            Picker("Comparison", selection: condition.comparisonType) {
                 ForEach(ComparisonType.allCases) { type in
                     Text(type.displayName).tag(type)
                 }
             }
 
             ValueEditor(
-                value: $conditions[index].comparisonValue,
-                characteristicType: conditions[index].characteristicType,
+                value: condition.comparisonValue,
+                characteristicType: condition.wrappedValue.characteristicType,
                 devices: devices,
-                deviceId: conditions[index].deviceId
+                deviceId: condition.wrappedValue.deviceId
             )
 
             Button(role: .destructive) {
-                conditions.remove(at: index)
+                conditions.removeAll(where: { $0.id == condition.wrappedValue.id })
             } label: {
                 Label("Remove Condition", systemImage: "trash")
                     .font(.subheadline)
             }
         } label: {
-            conditionLabel(conditions[index])
+            conditionLabel(condition.wrappedValue)
         }
     }
 
@@ -62,15 +64,8 @@ struct ConditionEditorSection: View {
             Image(systemName: "shield.fill")
                 .font(.caption)
                 .foregroundColor(.indigo)
-            if condition.deviceId.isEmpty {
-                Text("New Condition")
-                    .foregroundColor(Theme.Text.secondary)
-            } else {
-                let deviceName = devices.first(where: { $0.id == condition.deviceId })?.name ?? "Unknown"
-                let charName = condition.characteristicType.isEmpty ? "..." : CharacteristicTypes.displayName(for: condition.characteristicType)
-                Text("\(deviceName) › \(charName)")
-                    .lineLimit(1)
-            }
+            Text(condition.name.isEmpty ? condition.autoName(devices: devices) : condition.name)
+                .lineLimit(1)
         }
     }
 }

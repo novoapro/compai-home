@@ -11,7 +11,6 @@ enum LogCategoryFilter: String, CaseIterable, Identifiable {
     case restCall = "REST Call"
     case serverError = "Server Error"
     case workflowExecution = "Workflow"
-    case workflowError = "Workflow Error"
 
     var id: String { rawValue }
 
@@ -26,7 +25,6 @@ enum LogCategoryFilter: String, CaseIterable, Identifiable {
         case .restCall: return [.restCall]
         case .serverError: return [.serverError]
         case .workflowExecution: return [.workflowExecution]
-        case .workflowError: return [.workflowError]
         }
     }
 
@@ -40,14 +38,40 @@ enum LogCategoryFilter: String, CaseIterable, Identifiable {
         case .restCall: return "globe"
         case .serverError: return "xmark.octagon.fill"
         case .workflowExecution: return "bolt.circle.fill"
-        case .workflowError: return "bolt.trianglebadge.exclamationmark"
+        }
+    }
+}
+
+/// Unified log type for both device state change logs and workflow execution logs
+enum UnifiedLog: Identifiable {
+    case stateChange(StateChangeLog)
+    case workflowExecution(WorkflowExecutionLog)
+
+    var id: AnyHashable {
+        switch self {
+        case .stateChange(let log): return log.id
+        case .workflowExecution(let log): return log.id
+        }
+    }
+
+    var timestamp: Date {
+        switch self {
+        case .stateChange(let log): return log.timestamp
+        case .workflowExecution(let log): return log.triggeredAt
+        }
+    }
+
+    var category: LogCategoryFilter {
+        switch self {
+        case .stateChange(_): return .stateChange
+        case .workflowExecution(_): return .workflowExecution
         }
     }
 }
 
 class LogViewModel: ObservableObject {
     // Publish grouped logs directly to the view to avoid main thread computation
-    @Published var groupedLogs: [(date: String, label: String, logs: [StateChangeLog])] = []
+    @Published var groupedLogs: [(date: String, label: String, logs: [UnifiedLog])] = []
     @Published var searchText = ""
     @Published var filteredLogCount = 0
 
@@ -57,18 +81,24 @@ class LogViewModel: ObservableObject {
     @Published var selectedServices: Set<String> = []
 
     // We keep the raw logs here but don't publish them to avoid unnecessary view updates
-    private var rawLogs: [StateChangeLog] = []
+    private var rawStateChangeLogs: [StateChangeLog] = []
+    private var rawWorkflowExecutionLogs: [WorkflowExecutionLog] = []
 
-    var hasLogs: Bool { !rawLogs.isEmpty }
-    var totalLogCount: Int { rawLogs.count }
+    var hasLogs: Bool { !rawStateChangeLogs.isEmpty || !rawWorkflowExecutionLogs.isEmpty }
+    var totalLogCount: Int { rawStateChangeLogs.count + rawWorkflowExecutionLogs.count }
 
     var hasActiveFilters: Bool {
         !selectedCategories.isEmpty || !selectedDevices.isEmpty || !selectedServices.isEmpty
     }
 
-    /// Unique device names found in the current logs, filtered by selected category.
+    /// Returns the latest version of a workflow execution log by ID, for live detail views.
+    func workflowExecutionLog(id: UUID) -> WorkflowExecutionLog? {
+        rawWorkflowExecutionLogs.first(where: { $0.id == id })
+    }
+
+    /// Unique device names found in the current device logs, filtered by selected category.
     var availableDevices: [String] {
-        let filtered = rawLogs.filter { log in
+        let filtered = rawStateChangeLogs.filter { log in
             if !selectedCategories.isEmpty {
                 let allowedCategories = selectedCategories.flatMap { $0.logCategories ?? [] }
                 return allowedCategories.contains(log.category)
@@ -78,9 +108,9 @@ class LogViewModel: ObservableObject {
         return Array(Set(filtered.map(\.deviceName))).sorted()
     }
 
-    /// Unique service names found in the current logs, filtered by selected category and device.
+    /// Unique service names found in the current device logs, filtered by selected category and device.
     var availableServices: [String] {
-        let filtered = rawLogs.filter { log in
+        let filtered = rawStateChangeLogs.filter { log in
             // Filter by category
             if !selectedCategories.isEmpty {
                 let allowedCategories = selectedCategories.flatMap { $0.logCategories ?? [] }
@@ -96,23 +126,35 @@ class LogViewModel: ObservableObject {
     }
 
     private let loggingService: LoggingService
+    private let executionLogService: WorkflowExecutionLogService
     private let storage: StorageService
     private var cancellables = Set<AnyCancellable>()
-    private var filterTask: Task<Void, Never>?
 
     var detailedLogsEnabled: Bool {
         storage.readDetailedLogsEnabled()
     }
 
-    init(loggingService: LoggingService, storage: StorageService) {
+    init(loggingService: LoggingService, executionLogService: WorkflowExecutionLogService, storage: StorageService) {
         self.loggingService = loggingService
+        self.executionLogService = executionLogService
         self.storage = storage
 
-        // Listen to service updates
+        // Listen to device state change log updates
         loggingService.logsSubject
-            .receive(on: DispatchQueue.main) // Receive on main to update local state safely
+            .receive(on: DispatchQueue.main)
             .sink { [weak self] logs in
-                self?.rawLogs = logs
+                self?.rawStateChangeLogs = logs
+                self?.updateView()
+            }
+            .store(in: &cancellables)
+
+        // Listen to workflow execution log updates
+        // Throttle to ensure rapid updates (e.g., during block execution) don't cancel each other,
+        // while still guaranteeing the latest state is always delivered.
+        executionLogService.logsSubject
+            .throttle(for: .milliseconds(250), scheduler: DispatchQueue.main, latest: true)
+            .sink { [weak self] logs in
+                self?.rawWorkflowExecutionLogs = logs
                 self?.updateView()
             }
             .store(in: &cancellables)
@@ -132,7 +174,7 @@ class LogViewModel: ObservableObject {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in self?.updateView() }
             .store(in: &cancellables)
-        
+
         $selectedDevices
             .dropFirst()
             .receive(on: DispatchQueue.main)
@@ -147,78 +189,109 @@ class LogViewModel: ObservableObject {
 
         // Initial fetch
         Task {
-            let existing = await loggingService.getLogs()
+            let existingDeviceLogs = await loggingService.getLogs()
+            let existingExecutionLogs = await executionLogService.getLogs()
             await MainActor.run {
-                self.rawLogs = existing
+                self.rawStateChangeLogs = existingDeviceLogs
+                self.rawWorkflowExecutionLogs = existingExecutionLogs
                 self.updateView()
             }
         }
     }
 
     private func updateView() {
-        let logs = self.rawLogs
-        let query = self.searchText
-        let categories = self.selectedCategories
-        let devices = self.selectedDevices
-        let services = self.selectedServices
+        // Convert device logs to unified format
+        let unifiedDeviceLogs = rawStateChangeLogs.map { UnifiedLog.stateChange($0) }
+        // Convert workflow logs to unified format
+        let unifiedWorkflowLogs = rawWorkflowExecutionLogs.map { UnifiedLog.workflowExecution($0) }
+        // Combine all logs
+        let allLogs = unifiedDeviceLogs + unifiedWorkflowLogs
 
-        // Cancel any in-flight filter task to avoid out-of-order results
-        filterTask?.cancel()
-        filterTask = Task.detached(priority: .userInitiated) {
-            let filtered = Self.filterLogs(logs, with: query, categories: categories, devices: devices, services: services)
-            guard !Task.isCancelled else { return }
-            let grouped = Self.groupLogs(filtered)
-            guard !Task.isCancelled else { return }
-            let count = filtered.count
+        let filtered = Self.filterLogs(allLogs, with: searchText, categories: selectedCategories, devices: selectedDevices, services: selectedServices)
+        let grouped = Self.groupLogs(filtered)
 
-            await MainActor.run {
-                self.groupedLogs = grouped
-                self.filteredLogCount = count
-            }
-        }
+        self.groupedLogs = grouped
+        self.filteredLogCount = filtered.count
     }
 
     private static func filterLogs(
-        _ logs: [StateChangeLog],
+        _ logs: [UnifiedLog],
         with query: String,
         categories: Set<LogCategoryFilter>,
         devices: Set<String>,
         services: Set<String>
-    ) -> [StateChangeLog] {
+    ) -> [UnifiedLog] {
         var result = logs
+
+        // Exclude workflowExecution and workflowError from StateChangeLog (we show them separately as WorkflowExecutionLog)
+        result = result.filter { log in
+            switch log {
+            case .stateChange(let stateLog):
+                return stateLog.category != .workflowExecution && stateLog.category != .workflowError
+            case .workflowExecution(_):
+                return true
+            }
+        }
 
         // Category filter
         if !categories.isEmpty {
-            let allowedLogCategories = categories.flatMap { $0.logCategories ?? [] }
-            if !allowedLogCategories.isEmpty {
-                result = result.filter { allowedLogCategories.contains($0.category) }
+            result = result.filter { log in
+                switch log {
+                case .stateChange(let stateLog):
+                    let allowedCategories = categories.flatMap { $0.logCategories ?? [] }
+                    return allowedCategories.contains(stateLog.category)
+                case .workflowExecution(_):
+                    return categories.contains(.workflowExecution)
+                }
             }
         }
 
         // Device filter
         if !devices.isEmpty {
-            result = result.filter { devices.contains($0.deviceName) }
+            result = result.filter { log in
+                switch log {
+                case .stateChange(let stateLog):
+                    return devices.contains(stateLog.deviceName)
+                case .workflowExecution(_):
+                    return false // Workflow logs don't have device filtering
+                }
+            }
         }
 
         // Service filter
         if !services.isEmpty {
-            result = result.filter { $0.serviceName != nil && services.contains($0.serviceName!) }
+            result = result.filter { log in
+                switch log {
+                case .stateChange(let stateLog):
+                    return stateLog.serviceName != nil && services.contains(stateLog.serviceName!)
+                case .workflowExecution(_):
+                    return false // Workflow logs don't have service filtering
+                }
+            }
         }
 
         // Text search
         guard !query.isEmpty else { return result }
         let lowerQuery = query.localizedLowercase
         return result.filter { log in
-            log.deviceName.localizedCaseInsensitiveContains(lowerQuery) ||
-            CharacteristicTypes.displayName(for: log.characteristicType)
-                .localizedCaseInsensitiveContains(lowerQuery) ||
-            log.category.rawValue.localizedCaseInsensitiveContains(lowerQuery) ||
-            (log.serviceName?.localizedCaseInsensitiveContains(lowerQuery) ?? false) ||
-            (log.errorDetails?.localizedCaseInsensitiveContains(lowerQuery) ?? false)
+            switch log {
+            case .stateChange(let stateLog):
+                return stateLog.deviceName.localizedCaseInsensitiveContains(lowerQuery) ||
+                    CharacteristicTypes.displayName(for: stateLog.characteristicType)
+                        .localizedCaseInsensitiveContains(lowerQuery) ||
+                    stateLog.category.rawValue.localizedCaseInsensitiveContains(lowerQuery) ||
+                    (stateLog.serviceName?.localizedCaseInsensitiveContains(lowerQuery) ?? false) ||
+                    (stateLog.errorDetails?.localizedCaseInsensitiveContains(lowerQuery) ?? false)
+            case .workflowExecution(let workflowLog):
+                return workflowLog.workflowName.localizedCaseInsensitiveContains(lowerQuery) ||
+                    (workflowLog.triggerEvent?.deviceName?.localizedCaseInsensitiveContains(lowerQuery) ?? false) ||
+                    (workflowLog.triggerEvent?.triggerDescription?.localizedCaseInsensitiveContains(lowerQuery) ?? false) ||
+                    (workflowLog.errorMessage?.localizedCaseInsensitiveContains(lowerQuery) ?? false)
+            }
         }
     }
 
-    private static func groupLogs(_ logs: [StateChangeLog]) -> [(date: String, label: String, logs: [StateChangeLog])] {
+    private static func groupLogs(_ logs: [UnifiedLog]) -> [(date: String, label: String, logs: [UnifiedLog])] {
         let calendar = Calendar.current
         let formatter = DateFormatter()
         formatter.dateStyle = .medium
@@ -239,7 +312,9 @@ class LogViewModel: ObservableObject {
                 } else {
                     label = formatter.string(from: date)
                 }
-                return (date: date.ISO8601Format(), label: label, logs: logs)
+                // Sort logs within each date group by timestamp (newest first)
+                let sortedLogs = logs.sorted { $0.timestamp > $1.timestamp }
+                return (date: date.ISO8601Format(), label: label, logs: sortedLogs)
             }
     }
 
@@ -252,6 +327,7 @@ class LogViewModel: ObservableObject {
     func clearLogs() {
         Task {
             await loggingService.clearLogs()
+            await executionLogService.clearLogs()
         }
     }
 }

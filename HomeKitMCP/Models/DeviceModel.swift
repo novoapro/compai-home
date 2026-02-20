@@ -27,6 +27,9 @@ struct CharacteristicModel: Identifiable, Codable {
     var value: AnyCodable?
     let format: String
     let permissions: [String]
+    var minValue: Double?
+    var maxValue: Double?
+    var stepValue: Double?
 }
 
 struct CharacteristicConfiguration: Codable, Equatable {

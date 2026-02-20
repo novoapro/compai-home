@@ -193,6 +193,12 @@ class MCPServer: ObservableObject {
             return try await self.handleRestGetWorkflowLogs(req)
         }
 
+        // Webhook trigger endpoint
+        app.on(.POST, "workflows", "webhook", ":token", body: .collect(maxSize: "1mb")) { [weak self] req async throws -> Response in
+            guard let self else { throw Abort(.serviceUnavailable) }
+            return try await self.handleRestWebhookTrigger(req)
+        }
+
         // Health check
         app.on(.GET, "health") { _ -> String in
             return "ok"
@@ -380,6 +386,8 @@ class MCPServer: ObservableObject {
                 if let desc = updates["description"] as? String { workflow.description = desc }
                 if let enabled = updates["isEnabled"] as? Bool { workflow.isEnabled = enabled }
                 if let coe = updates["continueOnError"] as? Bool { workflow.continueOnError = coe }
+                if let policyStr = updates["retriggerPolicy"] as? String,
+                   let policy = ConcurrentExecutionPolicy(rawValue: policyStr) { workflow.retriggerPolicy = policy }
                 if let triggers = parsedTriggers { workflow.triggers = triggers }
                 if let conditions = parsedConditions { workflow.conditions = conditions }
                 if let blocks = parsedBlocks { workflow.blocks = blocks }
@@ -460,6 +468,52 @@ class MCPServer: ObservableObject {
         let data = try Self.encoder.encode(logs)
         logRESTCall(method: "GET", path: "/workflows/\(idStr)/logs", statusCode: 200,
                     resultSummary: "\(logs.count) logs",
+                    fullResponseBody: storage.readDetailedLogsEnabled() ? String(data: data, encoding: .utf8) : nil)
+
+        var headers = HTTPHeaders()
+        headers.add(name: .contentType, value: "application/json")
+        return Response(status: .ok, headers: headers, body: .init(data: data))
+    }
+
+    private func handleRestWebhookTrigger(_ req: Request) async throws -> Response {
+        guard let token = req.parameters.get("token"), !token.isEmpty else {
+            logRESTCall(method: "POST", path: "/workflows/webhook/:token", statusCode: 400, resultSummary: "Bad Request")
+            throw Abort(.badRequest, reason: "Missing webhook token")
+        }
+
+        // Find all enabled workflows with a webhook trigger matching this token
+        let allWorkflows = await workflowStorageService.getEnabledWorkflows()
+        let matchingWorkflows = allWorkflows.filter { workflow in
+            workflow.triggers.contains { trigger in
+                if case .webhook(let wt) = trigger { return wt.token == token }
+                return false
+            }
+        }
+
+        guard !matchingWorkflows.isEmpty else {
+            logRESTCall(method: "POST", path: "/workflows/webhook/\(token.prefix(8))...", statusCode: 404, resultSummary: "No matching workflows")
+            throw Abort(.notFound, reason: "No workflow found for this webhook token")
+        }
+
+        var results: [WorkflowExecutionLog] = []
+        for workflow in matchingWorkflows {
+            let triggerEvent = TriggerEvent(
+                deviceId: nil,
+                deviceName: nil,
+                serviceId: nil,
+                characteristicType: nil,
+                oldValue: nil,
+                newValue: nil,
+                triggerDescription: "Webhook received (token \(String(token.prefix(8)))…)"
+            )
+            if let result = await workflowEngine.triggerWorkflow(id: workflow.id, triggerEvent: triggerEvent) {
+                results.append(result)
+            }
+        }
+
+        let data = try Self.encoder.encode(results)
+        logRESTCall(method: "POST", path: "/workflows/webhook/\(token.prefix(8))...", statusCode: 200,
+                    resultSummary: "\(results.count) workflows triggered",
                     fullResponseBody: storage.readDetailedLogsEnabled() ? String(data: data, encoding: .utf8) : nil)
 
         var headers = HTTPHeaders()

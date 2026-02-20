@@ -1,5 +1,5 @@
-import Foundation
 import Combine
+import Foundation
 
 actor WorkflowExecutionLogService {
     private var logs: [WorkflowExecutionLog] = []
@@ -25,11 +25,12 @@ actor WorkflowExecutionLogService {
         let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         let appDir = appSupport.appendingPathComponent("HomeKitMCP")
         try? FileManager.default.createDirectory(at: appDir, withIntermediateDirectories: true)
-        self.fileURL = appDir.appendingPathComponent("workflow-logs.json")
+        fileURL = appDir.appendingPathComponent("workflow-logs.json")
 
         if let data = try? Data(contentsOf: fileURL),
-           let saved = try? Self.decoder.decode([WorkflowExecutionLog].self, from: data) {
-            self.logs = saved
+           let saved = try? Self.decoder.decode([WorkflowExecutionLog].self, from: data)
+        {
+            logs = saved
         }
     }
 
@@ -38,6 +39,18 @@ actor WorkflowExecutionLogService {
 
         if logs.count > maxLogs {
             logs = Array(logs.prefix(maxLogs))
+        }
+
+        logsSubject.send(logs)
+        debouncedSave()
+    }
+
+    /// Updates an existing log entry (e.g., when a running workflow completes).
+    func update(_ execution: WorkflowExecutionLog) {
+        if let index = logs.firstIndex(where: { $0.id == execution.id }) {
+            logs[index] = execution
+        } else {
+            logs.insert(execution, at: 0)
         }
 
         logsSubject.send(logs)

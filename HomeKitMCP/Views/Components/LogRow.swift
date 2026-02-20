@@ -6,6 +6,9 @@ struct LogRow: View {
 
     @State private var isExpanded = false
 
+    /// Height of the two-line collapsed content (headline + subheadline)
+    private let collapsedHeight: CGFloat = 40
+
     private var isError: Bool {
         log.category == .webhookError || log.category == .serverError
     }
@@ -36,48 +39,67 @@ struct LogRow: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            // Header: icon + name + service badge + timestamp
-            headerRow
-
-            // Content: action + result per category
-            contentSection
-
-            // Expandable detail CTA
-            if detailedLogsEnabled && hasDetailedData {
-                detailSection
-            }
-        }
-        .padding(.vertical, 4)
-    }
-
-    // MARK: - Header
-
-    private var headerRow: some View {
-        HStack {
+        HStack(alignment: isExpanded ? .firstTextBaseline : .center, spacing: 8) {
+            // Column 1: Icon indicator
             categoryIcon
-            Text(log.deviceName)
-                .font(.headline)
-                .foregroundColor(categoryColor)
+                .frame(width: 16)
 
-            if let serviceName = log.serviceName, !isMCP && !isREST {
-                Text("—")
-                    .font(.caption)
-                    .foregroundColor(Theme.Text.secondary)
-                Text(serviceName)
-                    .font(.caption)
-                    .fontWeight(.semibold)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(Theme.Tint.main.opacity(0.1))
-                    .foregroundColor(Theme.Tint.main)
-                    .cornerRadius(4)
+            // Column 2: Header row + subheader and content rows
+            VStack(alignment: .leading, spacing: 4) {
+                // Header row: device name + service badge
+                HStack(alignment: .center, spacing: 8) {
+                    Text(log.deviceName)
+                        .font(.headline)
+                        .foregroundColor(categoryColor)
+
+                    if let serviceName = log.serviceName, !isMCP && !isREST {
+                        Text(serviceName)
+                            .font(.caption)
+                            .fontWeight(.semibold)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Theme.Tint.main.opacity(0.1))
+                            .foregroundColor(Theme.Tint.main)
+                            .cornerRadius(4)
+                    }
+
+                    Spacer()
+                }
+
+                // Subheader and content rows
+                contentSection
+
+                // Expandable detail section
+                if detailedLogsEnabled && hasDetailedData && isExpanded {
+                    detailSection
+                }
             }
 
-            Spacer()
+            // Column 3: Time of execution
             Text(log.timestamp, style: .time)
                 .font(.caption)
                 .foregroundColor(Theme.Text.secondary)
+                .frame(minWidth: 50)
+
+            // Column 4: Chevron
+            if detailedLogsEnabled && hasDetailedData {
+                Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    .foregroundColor(Color(.systemGray2))
+                    .frame(width: 16)
+            } else {
+                Color.clear
+                    .frame(width: 16, height: 1)
+            }
+        }
+        .padding(.vertical, 4)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            if detailedLogsEnabled && hasDetailedData {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    isExpanded.toggle()
+                }
+            }
         }
     }
 
@@ -85,7 +107,7 @@ struct LogRow: View {
     private var categoryIcon: some View {
         switch log.category {
         case .webhookError, .serverError:
-            Image(systemName: "exclamationmark.triangle.fill")
+            Image(systemName: "exclamationmark.circle.fill")
                 .font(.caption)
                 .foregroundColor(Theme.Status.error)
         case .mcpCall:
@@ -93,7 +115,7 @@ struct LogRow: View {
                 .font(.caption)
                 .foregroundColor(.teal)
         case .restCall:
-            Image(systemName: "globe")
+            Image(systemName: "link.circle.fill")
                 .font(.caption)
                 .foregroundColor(.indigo)
         case .webhookCall:
@@ -101,13 +123,15 @@ struct LogRow: View {
                 .font(.caption)
                 .foregroundColor(Theme.Tint.secondary)
         case .stateChange:
-            EmptyView()
+            Image(systemName: "bolt.circle.fill")
+                .font(.caption)
+                .foregroundColor(Theme.Tint.main)
         case .workflowExecution:
             Image(systemName: "bolt.circle.fill")
                 .font(.caption)
                 .foregroundColor(Theme.Status.active)
         case .workflowError:
-            Image(systemName: "bolt.trianglebadge.exclamationmark")
+            Image(systemName: "exclamationmark.circle.fill")
                 .font(.caption)
                 .foregroundColor(Theme.Status.error)
         }
@@ -206,19 +230,16 @@ struct LogRow: View {
     }
 
     private var workflowContent: some View {
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: 4) {
             if let requestBody = log.requestBody {
-                // requestBody now may be multi-line: trigger info, failure location, error
                 Text(requestBody)
                     .font(.caption)
                     .foregroundColor(isWorkflowError ? Theme.Status.error : Theme.Text.secondary)
-                    .lineLimit(3)
             }
             if let responseBody = log.responseBody {
                 Text(responseBody)
-                    .font(.caption)
-                    .fontWeight(.medium)
-                    .foregroundColor(isWorkflowError ? Theme.Status.error.opacity(0.8) : Theme.Status.active)
+                    .font(.system(.caption2, design: .monospaced))
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
     }
@@ -228,9 +249,6 @@ struct LogRow: View {
             Text(CharacteristicTypes.displayName(for: log.characteristicType))
                 .font(.subheadline)
                 .foregroundColor(Theme.Text.secondary)
-
-            Spacer()
-
             if let oldValue = log.oldValue {
                 Text(CharacteristicTypes.formatValue(oldValue.value, characteristicType: log.characteristicType))
                     .font(.subheadline)
@@ -258,48 +276,32 @@ struct LogRow: View {
 
     private var detailSection: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Button {
-                withAnimation(.easeInOut(duration: 0.2)) { isExpanded.toggle() }
-            } label: {
-                HStack(spacing: 4) {
-                    Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
-                        .font(.caption2)
-                    Text(isExpanded ? "Hide Details" : "Show Details")
+            VStack(alignment: .leading, spacing: 6) {
+                if let detailedReq = log.detailedRequestBody {
+                    Text("Request:")
                         .font(.caption)
-                        .fontWeight(.medium)
+                        .fontWeight(.semibold)
+                        .foregroundColor(Theme.Text.secondary)
+                    Text(Self.formatJSON(detailedReq))
+                        .font(.system(.caption2, design: .monospaced))
+                        .foregroundColor(Theme.Text.secondary)
+                        .textSelection(.enabled)
                 }
-                .foregroundColor(Theme.Tint.main)
-            }
-            .buttonStyle(.plain)
-
-            if isExpanded {
-                VStack(alignment: .leading, spacing: 6) {
-                    if let detailedReq = log.detailedRequestBody {
-                        Text("Request:")
-                            .font(.caption)
-                            .fontWeight(.semibold)
-                            .foregroundColor(Theme.Text.secondary)
-                        Text(Self.formatJSON(detailedReq))
-                            .font(.system(.caption2, design: .monospaced))
-                            .foregroundColor(Theme.Text.secondary)
-                            .textSelection(.enabled)
-                    }
-                    if let detailedResp = log.detailedResponseBody {
-                        Text("Response:")
-                            .font(.caption)
-                            .fontWeight(.semibold)
-                            .foregroundColor(Theme.Text.secondary)
-                        Text(Self.formatJSON(detailedResp))
-                            .font(.system(.caption2, design: .monospaced))
-                            .foregroundColor(Theme.Text.secondary)
-                            .textSelection(.enabled)
-                    }
+                if let detailedResp = log.detailedResponseBody {
+                    Text("Response:")
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                        .foregroundColor(Theme.Text.secondary)
+                    Text(Self.formatJSON(detailedResp))
+                        .font(.system(.caption2, design: .monospaced))
+                        .foregroundColor(Theme.Text.secondary)
+                        .textSelection(.enabled)
                 }
-                .padding(8)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color(.systemGray6).opacity(0.5))
-                .cornerRadius(6)
             }
+            .padding(8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color(.systemGray6).opacity(0.5))
+            .cornerRadius(6)
         }
     }
 
@@ -308,7 +310,8 @@ struct LogRow: View {
         guard let data = string.data(using: .utf8),
               let json = try? JSONSerialization.jsonObject(with: data),
               let prettyData = try? JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted, .sortedKeys]),
-              let prettyString = String(data: prettyData, encoding: .utf8) else {
+              let prettyString = String(data: prettyData, encoding: .utf8)
+        else {
             return string
         }
         return prettyString
@@ -317,7 +320,41 @@ struct LogRow: View {
 
 #Preview {
     List {
-        LogRow(log: PreviewData.sampleLogs[0], detailedLogsEnabled: true)
-        LogRow(log: PreviewData.sampleLogs[1], detailedLogsEnabled: false)
+        Section(header: Text("Device State Change")) {
+            LogRow(log: PreviewData.sampleLogs[0], detailedLogsEnabled: false)
+                .listRowBackground(Theme.contentBackground)
+            NavigationLink {
+                Text("Workflow Detail View")
+            } label: {
+                WorkflowExecutionLogRow(log: PreviewData.sampleWorkflowLogs[0])
+            }
+            .buttonStyle(.plain)
+            .listRowBackground(Theme.contentBackground)
+            LogRow(log: PreviewData.sampleLogs[1], detailedLogsEnabled: true)
+                .listRowBackground(Theme.contentBackground)
+            LogRow(log: PreviewData.sampleLogs[2], detailedLogsEnabled: true)
+                .listRowBackground(Theme.contentBackground)
+            LogRow(log: PreviewData.sampleLogs[3], detailedLogsEnabled: false)
+                .listRowBackground(Theme.contentBackground)
+            LogRow(log: PreviewData.sampleLogs[4], detailedLogsEnabled: false)
+                .listRowBackground(Theme.contentBackground)
+            LogRow(log: PreviewData.sampleLogs[5], detailedLogsEnabled: false)
+                .listRowBackground(Theme.contentBackground)
+
+            NavigationLink {
+                Text("Workflow Detail View")
+            } label: {
+                WorkflowExecutionLogRow(log: PreviewData.sampleWorkflowLogs[1])
+            }
+            .listRowBackground(Theme.contentBackground)
+
+            NavigationLink {
+                Text("Workflow Detail View")
+            } label: {
+                WorkflowExecutionLogRow(log: PreviewData.sampleWorkflowLogs[2])
+            }
+            .listRowBackground(Theme.contentBackground)
+        }
     }
+    .listStyle(.plain)
 }
