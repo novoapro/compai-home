@@ -48,6 +48,11 @@ struct ValueEditor: View {
                     step: step
                 )
                 .tint(Theme.Tint.main)
+                .simultaneousGesture(
+                    DragGesture()
+                        .onChanged { _ in }
+                        .onEnded { _ in }
+                )
             }
 
         case let .picker(options):
