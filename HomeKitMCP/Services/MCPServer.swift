@@ -47,12 +47,10 @@ class MCPServer: ObservableObject {
         )
     }
 
-    func start() throws {
+    func start() async throws {
         // Stop any existing instance first
         if app != nil {
-            Task {
-                await stopAsync()
-            }
+            await stopAsync()
         }
 
         let env = Environment(name: "production", arguments: ["serve"])
@@ -116,10 +114,14 @@ class MCPServer: ObservableObject {
 
     private func stopAsync() async {
         await connectionTracker.removeAll()
-        if let app = app {
-            await app.shutdown()
+        if let app = self.app {
+            self.app = nil
+            do {
+                try await app.shutdown()
+            } catch {
+                AppLogger.server.error("Error shutting down app: \(error)")
+            }
         }
-        self.app = nil
     }
 
     // MARK: - Route Configuration

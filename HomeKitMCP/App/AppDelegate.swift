@@ -117,11 +117,13 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
     private func startMCPServerIfEnabled() {
         guard storageService.mcpServerEnabled else { return }
-        do {
-            try mcpServer.start()
-            AppLogger.server.info("MCP Server started on port \(self.storageService.mcpServerPort)")
-        } catch {
-            AppLogger.server.error("Failed to start MCP Server: \(error)")
+        Task {
+            do {
+                try await mcpServer.start()
+                AppLogger.server.info("MCP Server started on port \(self.storageService.mcpServerPort)")
+            } catch {
+                AppLogger.server.error("Failed to start MCP Server: \(error)")
+            }
         }
     }
 

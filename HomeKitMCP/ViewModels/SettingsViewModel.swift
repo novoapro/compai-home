@@ -110,10 +110,12 @@ class SettingsViewModel: ObservableObject {
     func toggleMCPServer(enabled: Bool) {
         storage.mcpServerEnabled = enabled
         if enabled {
-            do {
-                try mcpServer.start()
-            } catch {
-                AppLogger.server.error("Failed to start MCP server: \(error)")
+            Task {
+                do {
+                    try await mcpServer.start()
+                } catch {
+                    AppLogger.server.error("Failed to start MCP server: \(error)")
+                }
             }
         } else {
             mcpServer.stop()
