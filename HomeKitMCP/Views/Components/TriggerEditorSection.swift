@@ -6,13 +6,21 @@ struct TriggerEditorSection: View {
 
     var body: some View {
         Section {
-            ForEach(Array(triggers.indices), id: \.self) { index in
-                triggerRow(index: index)
+            ForEach($triggers) { $trigger in
+                triggerRow(trigger: $trigger)
             }
             .onDelete { triggers.remove(atOffsets: $0) }
 
-            Button {
-                triggers.append(.empty())
+            Menu {
+                Button { triggers.append(.empty()) } label: {
+                    Label("Device State Change", systemImage: "bolt.fill")
+                }
+                Button { triggers.append(.emptySchedule()) } label: {
+                    Label("Schedule", systemImage: "clock.fill")
+                }
+                Button { triggers.append(.emptyWebhook()) } label: {
+                    Label("Webhook", systemImage: "arrow.down.circle.fill")
+                }
             } label: {
                 Label("Add Trigger", systemImage: "plus.circle")
             }
@@ -24,89 +32,203 @@ struct TriggerEditorSection: View {
         .listRowBackground(Theme.contentBackground)
     }
 
-    private func triggerRow(index: Int) -> some View {
+    private func triggerRow(trigger: Binding<TriggerDraft>) -> some View {
         DisclosureGroup {
-            TextField("Trigger Name (optional)", text: $triggers[index].name)
-
-            DeviceCharacteristicPicker(
-                devices: devices,
-                selectedDeviceId: $triggers[index].deviceId,
-                selectedServiceId: $triggers[index].serviceId,
-                selectedCharacteristicType: $triggers[index].characteristicType
-            )
-
-            Picker("Condition", selection: $triggers[index].conditionType) {
-                ForEach(TriggerConditionType.allCases) { type in
-                    Text(type.displayName).tag(type)
-                }
-            }
-
-            if triggers[index].conditionType.requiresValue {
-                if triggers[index].conditionType == .transitioned {
-                    HStack {
-                        Text("From (optional)")
-                        Spacer()
-                        TextField("Any", text: $triggers[index].conditionFromValue)
-                            .multilineTextAlignment(.trailing)
-                            .frame(width: 80)
-                            .textFieldStyle(.roundedBorder)
-                    }
-                    HStack {
-                        Text("To")
-                        Spacer()
-                        TextField("Value", text: $triggers[index].conditionValue)
-                            .multilineTextAlignment(.trailing)
-                            .frame(width: 80)
-                            .textFieldStyle(.roundedBorder)
-                    }
-                } else {
-                    ValueEditor(
-                        value: $triggers[index].conditionValue,
-                        characteristicType: triggers[index].characteristicType,
-                        devices: devices,
-                        deviceId: triggers[index].deviceId
-                    )
-                }
-            }
+            triggerContent(trigger: trigger)
 
             Button(role: .destructive) {
-                triggers.remove(at: index)
+                triggers.removeAll(where: { $0.id == trigger.wrappedValue.id })
             } label: {
                 Label("Remove Trigger", systemImage: "trash")
                     .font(.subheadline)
             }
         } label: {
-            triggerLabel(triggers[index])
+            triggerLabel(trigger.wrappedValue)
         }
     }
 
-    private func triggerLabel(_ trigger: TriggerDraft) -> some View {
-        HStack {
-            Image(systemName: "bolt.fill")
-                .font(.caption)
-                .foregroundColor(Theme.Tint.main)
-            if !trigger.name.isEmpty {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(trigger.name)
-                        .lineLimit(1)
-                    if !trigger.deviceId.isEmpty {
-                        let deviceName = devices.first(where: { $0.id == trigger.deviceId })?.name ?? "Unknown"
-                        let charName = trigger.characteristicType.isEmpty ? "..." : CharacteristicTypes.displayName(for: trigger.characteristicType)
-                        Text("\(deviceName) › \(charName)")
-                            .font(.caption)
-                            .foregroundColor(Theme.Text.secondary)
-                            .lineLimit(1)
+    @ViewBuilder
+    private func triggerContent(trigger: Binding<TriggerDraft>) -> some View {
+        TextField("Custom Name (optional)", text: trigger.name)
+
+        switch trigger.wrappedValue.triggerType {
+        case .deviceStateChange:
+            deviceStateTriggerContent(trigger: trigger)
+        case .schedule:
+            scheduleTriggerContent(trigger: trigger)
+        case .webhook:
+            webhookTriggerContent(trigger: trigger)
+        }
+    }
+
+    // MARK: - Device State Change Content
+
+    @ViewBuilder
+    private func deviceStateTriggerContent(trigger: Binding<TriggerDraft>) -> some View {
+        DeviceCharacteristicPicker(
+            devices: devices,
+            selectedDeviceId: trigger.deviceId,
+            selectedServiceId: trigger.serviceId,
+            selectedCharacteristicType: trigger.characteristicType
+        )
+
+        Picker("Condition", selection: trigger.conditionType) {
+            ForEach(TriggerConditionType.allCases) { type in
+                Text(type.displayName).tag(type)
+            }
+        }
+
+        if trigger.wrappedValue.conditionType.requiresValue {
+            if trigger.wrappedValue.conditionType == .transitioned {
+                HStack {
+                    Text("From (optional)")
+                    Spacer()
+                    TextField("Any", text: trigger.conditionFromValue)
+                        .multilineTextAlignment(.trailing)
+                        .frame(width: 80)
+                        .textFieldStyle(.roundedBorder)
+                }
+                HStack {
+                    Text("To")
+                    Spacer()
+                    TextField("Value", text: trigger.conditionValue)
+                        .multilineTextAlignment(.trailing)
+                        .frame(width: 80)
+                        .textFieldStyle(.roundedBorder)
+                }
+            } else {
+                ValueEditor(
+                    value: trigger.conditionValue,
+                    characteristicType: trigger.wrappedValue.characteristicType,
+                    devices: devices,
+                    deviceId: trigger.wrappedValue.deviceId
+                )
+            }
+        }
+    }
+
+    // MARK: - Schedule Trigger Content
+
+    @ViewBuilder
+    private func scheduleTriggerContent(trigger: Binding<TriggerDraft>) -> some View {
+        Picker("Schedule Type", selection: trigger.scheduleType) {
+            ForEach(ScheduleDraftType.allCases) { type in
+                Text(type.displayName).tag(type)
+            }
+        }
+
+        switch trigger.wrappedValue.scheduleType {
+        case .once:
+            DatePicker("Date & Time", selection: trigger.scheduleDate)
+        case .daily:
+            timePicker(trigger: trigger)
+        case .weekly:
+            timePicker(trigger: trigger)
+            weekdayPicker(trigger: trigger)
+        case .interval:
+            HStack {
+                Text("Every")
+                Spacer()
+                TextField("1", value: trigger.scheduleIntervalAmount, format: .number)
+                    .keyboardType(.numberPad)
+                    .multilineTextAlignment(.trailing)
+                    .frame(width: 60)
+                    .textFieldStyle(.roundedBorder)
+                Picker("", selection: trigger.scheduleIntervalUnit) {
+                    ForEach(ScheduleIntervalUnit.allCases) { unit in
+                        Text(unit.displayName).tag(unit)
                     }
                 }
-            } else if trigger.deviceId.isEmpty {
-                Text("New Trigger")
-                    .foregroundColor(Theme.Text.secondary)
-            } else {
-                let deviceName = devices.first(where: { $0.id == trigger.deviceId })?.name ?? "Unknown"
-                let charName = trigger.characteristicType.isEmpty ? "..." : CharacteristicTypes.displayName(for: trigger.characteristicType)
-                Text("\(deviceName) › \(charName)")
-                    .lineLimit(1)
+                .labelsHidden()
+                .frame(width: 100)
             }
+        }
+    }
+
+    private func timePicker(trigger: Binding<TriggerDraft>) -> some View {
+        HStack {
+            Text("Time")
+            Spacer()
+            Picker("", selection: trigger.scheduleHour) {
+                ForEach(0..<24, id: \.self) { h in
+                    Text(String(format: "%02d", h)).tag(h)
+                }
+            }
+            .labelsHidden()
+            .frame(width: 60)
+            Text(":")
+            Picker("", selection: trigger.scheduleMinute) {
+                ForEach(Array(stride(from: 0, to: 60, by: 5)), id: \.self) { m in
+                    Text(String(format: "%02d", m)).tag(m)
+                }
+            }
+            .labelsHidden()
+            .frame(width: 60)
+        }
+    }
+
+    private func weekdayPicker(trigger: Binding<TriggerDraft>) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Days")
+                .font(.subheadline)
+            HStack(spacing: 4) {
+                ForEach(ScheduleWeekday.allCases, id: \.rawValue) { day in
+                    let isSelected = trigger.wrappedValue.scheduleDays.contains(day)
+                    Button {
+                        if isSelected {
+                            trigger.wrappedValue.scheduleDays.remove(day)
+                        } else {
+                            trigger.wrappedValue.scheduleDays.insert(day)
+                        }
+                    } label: {
+                        Text(day.displayName)
+                            .font(.caption)
+                            .fontWeight(isSelected ? .bold : .regular)
+                            .frame(minWidth: 32)
+                            .padding(.vertical, 6)
+                            .background(isSelected ? Theme.Tint.main : Color(.systemGray5))
+                            .foregroundColor(isSelected ? .white : Theme.Text.primary)
+                            .cornerRadius(6)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+
+    // MARK: - Webhook Trigger Content
+
+    @ViewBuilder
+    private func webhookTriggerContent(trigger: Binding<TriggerDraft>) -> some View {
+        LabeledContent("Token") {
+            Text(String(trigger.wrappedValue.webhookToken.prefix(8)) + "...")
+                .font(.system(.caption, design: .monospaced))
+                .foregroundColor(Theme.Text.secondary)
+        }
+
+        LabeledContent("URL") {
+            Text("POST /workflows/webhook/\(String(trigger.wrappedValue.webhookToken.prefix(8)))...")
+                .font(.system(.caption, design: .monospaced))
+                .foregroundColor(Theme.Text.secondary)
+                .lineLimit(1)
+        }
+
+        Button {
+            UIPasteboard.general.string = "http://localhost:3000/workflows/webhook/\(trigger.wrappedValue.webhookToken)"
+        } label: {
+            Label("Copy Webhook URL", systemImage: "doc.on.doc")
+        }
+    }
+
+    // MARK: - Trigger Label
+
+    private func triggerLabel(_ trigger: TriggerDraft) -> some View {
+        HStack {
+            Image(systemName: trigger.triggerType.icon)
+                .font(.caption)
+                .foregroundColor(trigger.triggerType == .deviceStateChange ? Theme.Tint.main : .indigo)
+            Text(trigger.name.isEmpty ? trigger.autoName(devices: devices) : trigger.name)
+                .lineLimit(1)
         }
     }
 }

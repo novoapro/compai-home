@@ -8,6 +8,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     let workflowStorageService = WorkflowStorageService()
     let workflowExecutionLogService = WorkflowExecutionLogService()
     let keychainService = KeychainService()
+    let scheduleTriggerManager = ScheduleTriggerManager()
     lazy var webhookService = WebhookService(storage: storageService, loggingService: loggingService)
     lazy var homeKitManager = HomeKitManager(loggingService: loggingService, webhookService: webhookService, configService: configService, storage: storageService)
     lazy var workflowEngine: WorkflowEngine = {
@@ -27,7 +28,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         port: storageService.mcpServerPort
     )
     lazy var homeKitViewModel = HomeKitViewModel(homeKitManager: homeKitManager, configService: configService)
-    lazy var logViewModel = LogViewModel(loggingService: loggingService, storage: storageService)
+    lazy var logViewModel = LogViewModel(loggingService: loggingService, executionLogService: workflowExecutionLogService, storage: storageService)
     lazy var settingsViewModel = SettingsViewModel(
         storage: storageService, webhookService: webhookService, mcpServer: mcpServer, configService: configService,
         keychainService: keychainService, aiWorkflowService: aiWorkflowService
@@ -97,7 +98,21 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         homeKitManager.workflowEngine = workflowEngine
         Task {
             await workflowEngine.registerEvaluator(DeviceStateChangeTriggerEvaluator())
+            await scheduleTriggerManager.setEngine(workflowEngine)
+            // Load initial schedules
+            let workflows = await workflowStorageService.getAllWorkflows()
+            await scheduleTriggerManager.reloadSchedules(workflows: workflows)
         }
+        // Reload schedules whenever workflows change
+        workflowStorageService.workflowsSubject
+            .receive(on: DispatchQueue.global(qos: .utility))
+            .sink { [weak self] workflows in
+                guard let self else { return }
+                Task {
+                    await self.scheduleTriggerManager.reloadSchedules(workflows: workflows)
+                }
+            }
+            .store(in: &cancellables)
     }
 
     private func startMCPServerIfEnabled() {

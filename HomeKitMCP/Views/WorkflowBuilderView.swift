@@ -363,6 +363,36 @@ private struct WorkflowBuilderTriggerRow: View {
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
+        case .schedule(let t):
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Image(systemName: "clock.fill")
+                        .font(.caption)
+                        .foregroundColor(Theme.Tint.main)
+                    Text(t.name ?? "Schedule")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                }
+                Text(scheduleDescription(t.scheduleType))
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            .padding(.vertical, 2)
+        case .webhook(let t):
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Image(systemName: "arrow.down.circle.fill")
+                        .font(.caption)
+                        .foregroundColor(Theme.Tint.main)
+                    Text(t.name ?? "Webhook")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                }
+                Text("Token: \(String(t.token.prefix(8)))...")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            .padding(.vertical, 2)
         }
     }
 
@@ -378,6 +408,27 @@ private struct WorkflowBuilderTriggerRow: View {
         case .lessThan(let v): return "< \(v)"
         case .greaterThanOrEqual(let v): return ">= \(v)"
         case .lessThanOrEqual(let v): return "<= \(v)"
+        }
+    }
+
+    private func scheduleDescription(_ scheduleType: ScheduleType) -> String {
+        switch scheduleType {
+        case .once(let date):
+            let formatter = DateFormatter()
+            formatter.dateStyle = .medium
+            formatter.timeStyle = .short
+            return "Once at \(formatter.string(from: date))"
+        case .daily(let time):
+            return "Daily at \(String(format: "%02d:%02d", time.hour, time.minute))"
+        case .weekly(let time, let days):
+            let dayNames = days.sorted().map(\.displayName).joined(separator: ", ")
+            return "\(dayNames) at \(String(format: "%02d:%02d", time.hour, time.minute))"
+        case .interval(let seconds):
+            if seconds >= 3600 {
+                return "Every \(Int(seconds / 3600))h"
+            } else {
+                return "Every \(Int(seconds / 60))m"
+            }
         }
     }
 }

@@ -5,6 +5,8 @@ struct WorkflowRow: View {
     let recentLogs: [WorkflowExecutionLog]
     let onToggle: () -> Void
 
+    @State private var isEnabled: Bool = false
+
     private var statusColor: Color {
         guard workflow.isEnabled else { return Theme.Status.inactive }
         if workflow.metadata.consecutiveFailures > 0 { return Theme.Status.error }
@@ -76,13 +78,19 @@ struct WorkflowRow: View {
 
             Spacer()
 
-            Toggle("", isOn: .constant(workflow.isEnabled))
+            Toggle("", isOn: $isEnabled)
                 .labelsHidden()
                 .tint(Theme.Tint.main)
-                .onTapGesture {
-                    onToggle()
+                .onChange(of: isEnabled) { newValue in
+                    if newValue != workflow.isEnabled {
+                        onToggle()
+                    }
                 }
         }
         .padding(.vertical, 4)
+        .onAppear { isEnabled = workflow.isEnabled }
+        .onChange(of: workflow.isEnabled) { newValue in
+            isEnabled = newValue
+        }
     }
 }

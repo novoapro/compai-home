@@ -109,7 +109,10 @@ class HomeKitManager: NSObject, ObservableObject {
                         type: char.characteristicType,
                         value: char.value.map { AnyCodable($0) },
                         format: char.metadata?.format ?? "unknown",
-                        permissions: characteristicPermissions(char)
+                        permissions: characteristicPermissions(char),
+                        minValue: char.metadata?.minimumValue?.doubleValue,
+                        maxValue: char.metadata?.maximumValue?.doubleValue,
+                        stepValue: char.metadata?.stepValue?.doubleValue
                     )
                 }
 

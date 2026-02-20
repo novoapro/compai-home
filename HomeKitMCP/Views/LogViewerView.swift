@@ -20,9 +20,9 @@ struct LogViewerView: View {
                             Image(systemName: "list.bullet.rectangle")
                                 .font(.largeTitle)
                                 .foregroundColor(.secondary)
-                            Text("No state changes logged yet")
+                            Text("No logs yet")
                                 .font(.headline)
-                            Text("Logs will appear here when HomeKit devices change state.")
+                            Text("Logs will appear here when devices change state or workflows execute.")
                                 .font(.subheadline)
                                 .foregroundColor(.secondary)
                                 .multilineTextAlignment(.center)
@@ -42,9 +42,19 @@ struct LogViewerView: View {
                                 .padding(.vertical, 8)
                                 .textCase(nil)
                         ) {
-                            ForEach(group.logs) { log in
-                                LogRow(log: log, detailedLogsEnabled: viewModel.detailedLogsEnabled)
+                            ForEach(group.logs) { unifiedLog in
+                                switch unifiedLog {
+                                case .stateChange(let log):
+                                    LogRow(log: log, detailedLogsEnabled: viewModel.detailedLogsEnabled)
+                                        .listRowBackground(Theme.contentBackground)
+                                case .workflowExecution(let log):
+                                    NavigationLink {
+                                        WorkflowExecutionLogDetailView(logId: log.id, viewModel: viewModel)
+                                    } label: {
+                                        WorkflowExecutionLogRow(log: log)
+                                    }
                                     .listRowBackground(Theme.contentBackground)
+                                }
                             }
                         }
                     }
@@ -354,6 +364,6 @@ struct LogViewerView: View {
 
 #Preview {
     NavigationStack {
-        LogViewerView(viewModel: LogViewModel(loggingService: LoggingService(), storage: StorageService()))
+        LogViewerView(viewModel: PreviewData.logViewModel)
     }
 }

@@ -358,7 +358,8 @@ class MCPRequestHandler {
                 "description": """
                     Create a new automation workflow from a JSON definition. The workflow JSON should include: \
                     name (required), description, triggers (array of trigger objects), conditions (optional array of guard conditions), \
-                    blocks (array of action/flow-control block objects), continueOnError (bool, default false), enabled (bool, default true). \
+                    blocks (array of action/flow-control block objects), continueOnError (bool, default false), enabled (bool, default true), \
+                    retriggerPolicy (string, 'ignoreNew' or 'cancelAndRestart', default 'ignoreNew'). \
                     Triggers use type 'deviceStateChange' with deviceId, characteristicType, and condition. \
                     Blocks use 'block' discriminator ('action' or 'flowControl') and 'type' for the specific kind. \
                     Action types: controlDevice, webhook, log. Flow control types: delay, waitForState, conditional, repeat, repeatWhile, group.
@@ -386,7 +387,7 @@ class MCPRequestHandler {
                         ],
                         "workflow": [
                             "type": "object",
-                            "description": "Partial or full workflow JSON with fields to update (name, description, triggers, conditions, blocks, continueOnError, isEnabled)"
+                            "description": "Partial or full workflow JSON with fields to update (name, description, triggers, conditions, blocks, continueOnError, isEnabled, retriggerPolicy ('ignoreNew' or 'cancelAndRestart'))"
                         ]
                     ] as [String: Any],
                     "required": ["workflow_id", "workflow"]
@@ -454,6 +455,20 @@ class MCPRequestHandler {
                     ] as [String: Any],
                     "required": ["workflow_id"]
                 ] as [String: Any]
+            ],
+            [
+                "name": "trigger_workflow_webhook",
+                "description": "Trigger a workflow via its webhook token. Any workflow with a webhook trigger matching this token will execute.",
+                "inputSchema": [
+                    "type": "object",
+                    "properties": [
+                        "token": [
+                            "type": "string",
+                            "description": "The webhook token assigned to the trigger"
+                        ]
+                    ] as [String: Any],
+                    "required": ["token"]
+                ] as [String: Any]
             ]
         ]
         let result: [String: Any] = ["tools": tools]
@@ -505,6 +520,8 @@ class MCPRequestHandler {
             return await handleGetWorkflowLogs(id: id, arguments: arguments)
         case "trigger_workflow":
             return await handleTriggerWorkflow(id: id, arguments: arguments)
+        case "trigger_workflow_webhook":
+            return await handleTriggerWorkflowWebhook(id: id, arguments: arguments)
         default:
             return JSONRPCResponse.error(
                 id: id,
@@ -818,6 +835,8 @@ class MCPRequestHandler {
             if let desc = updates["description"] as? String { merged.description = desc }
             if let enabled = updates["isEnabled"] as? Bool { merged.isEnabled = enabled }
             if let coe = updates["continueOnError"] as? Bool { merged.continueOnError = coe }
+            if let policyStr = updates["retriggerPolicy"] as? String,
+               let policy = ConcurrentExecutionPolicy(rawValue: policyStr) { merged.retriggerPolicy = policy }
 
             // For triggers/conditions/blocks, re-parse from JSON if provided
             if let triggersArray = updates["triggers"] {
@@ -838,6 +857,7 @@ class MCPRequestHandler {
                 workflow.description = merged.description
                 workflow.isEnabled = merged.isEnabled
                 workflow.continueOnError = merged.continueOnError
+                workflow.retriggerPolicy = merged.retriggerPolicy
                 workflow.triggers = merged.triggers
                 workflow.conditions = merged.conditions
                 workflow.blocks = merged.blocks
@@ -922,7 +942,8 @@ class MCPRequestHandler {
             lines.append("[\(formatter.string(from: log.triggeredAt))] \(log.workflowName) — \(log.status.rawValue) (\(duration))")
 
             if let trigger = log.triggerEvent {
-                lines.append("  Trigger: \(trigger.deviceName ?? trigger.deviceId) \(trigger.characteristicType)")
+                let triggerLabel = trigger.triggerDescription ?? "\(trigger.deviceName ?? trigger.deviceId ?? "unknown") \(trigger.characteristicType ?? "")"
+                lines.append("  Trigger: \(triggerLabel)")
             }
 
             if let error = log.errorMessage {
@@ -968,6 +989,56 @@ class MCPRequestHandler {
         for br in result.blockResults {
             let detail = br.detail ?? br.blockType
             lines.append("  [\(br.status.rawValue)] \(detail)")
+        }
+
+        return toolResult(text: lines.joined(separator: "\n"), id: id)
+    }
+
+    private func handleTriggerWorkflowWebhook(id: JSONRPCId?, arguments: [String: Any]) async -> JSONRPCResponse {
+        guard let token = arguments["token"] as? String, !token.isEmpty else {
+            return JSONRPCResponse.error(id: id, code: MCPErrorCode.invalidParams, message: "Missing required argument: token")
+        }
+
+        let allWorkflows = await workflowStorageService.getEnabledWorkflows()
+        let matchingWorkflows = allWorkflows.filter { workflow in
+            workflow.triggers.contains { trigger in
+                if case .webhook(let wt) = trigger { return wt.token == token }
+                return false
+            }
+        }
+
+        guard !matchingWorkflows.isEmpty else {
+            return toolResult(text: "No enabled workflow found for webhook token: \(token.prefix(8))...", isError: true, id: id)
+        }
+
+        var lines: [String] = []
+        for workflow in matchingWorkflows {
+            let triggerEvent = TriggerEvent(
+                deviceId: nil,
+                deviceName: nil,
+                serviceId: nil,
+                characteristicType: nil,
+                oldValue: nil,
+                newValue: nil,
+                triggerDescription: "Webhook received (token \(String(token.prefix(8)))…)"
+            )
+            if let result = await workflowEngine.triggerWorkflow(id: workflow.id, triggerEvent: triggerEvent) {
+                let duration: String
+                if let completed = result.completedAt {
+                    let ms = completed.timeIntervalSince(result.triggeredAt) * 1000
+                    duration = String(format: "%.0fms", ms)
+                } else {
+                    duration = "unknown"
+                }
+                lines.append("Workflow: \(result.workflowName) — \(result.status.rawValue) (\(duration))")
+                if let error = result.errorMessage {
+                    lines.append("  Error: \(error)")
+                }
+            }
+        }
+
+        if lines.isEmpty {
+            return toolResult(text: "Webhook matched \(matchingWorkflows.count) workflow(s) but none executed (already running?).", id: id)
         }
 
         return toolResult(text: lines.joined(separator: "\n"), id: id)

@@ -11,6 +11,7 @@ struct WorkflowDetailView: View {
 
     @State private var showingDeleteConfirmation = false
     @State private var showingEditor = false
+    @State private var isEnabled: Bool = false
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -42,8 +43,10 @@ struct WorkflowDetailView: View {
                 onSave: { draft in onUpdate(draft) }
             )
         }
+        .onAppear { isEnabled = workflow.isEnabled }
+        .onChange(of: workflow.isEnabled) { newValue in isEnabled = newValue }
         .alert("Delete Workflow?", isPresented: $showingDeleteConfirmation) {
-            Button("Cancel", role: .cancel) { }
+            Button("Cancel", role: .cancel) {}
             Button("Delete", role: .destructive) {
                 onDelete()
                 dismiss()
@@ -57,9 +60,13 @@ struct WorkflowDetailView: View {
 
     private var statusSection: some View {
         Section {
-            Toggle("Enabled", isOn: .constant(workflow.isEnabled))
+            Toggle("Enabled", isOn: $isEnabled)
                 .tint(Theme.Tint.main)
-                .onTapGesture { onToggle() }
+                .onChange(of: isEnabled) { newValue in
+                    if newValue != workflow.isEnabled {
+                        onToggle()
+                    }
+                }
 
             if let description = workflow.description {
                 Text(description)
@@ -69,6 +76,7 @@ struct WorkflowDetailView: View {
 
             LabeledContent("Executions", value: "\(workflow.metadata.totalExecutions)")
             LabeledContent("Continue on Error", value: workflow.continueOnError ? "Yes" : "No")
+            LabeledContent("Concurrent Execution", value: workflow.retriggerPolicy.displayName)
 
             if let lastTriggered = workflow.metadata.lastTriggeredAt {
                 LabeledContent("Last Triggered") {
@@ -128,7 +136,7 @@ struct WorkflowDetailView: View {
     private var blocksSection: some View {
         Section {
             ForEach(Array(workflow.blocks.enumerated()), id: \.offset) { index, block in
-                WorkflowBlockRow(block: block, index: index, depth: 0)
+                WorkflowBlockRow(block: block, index: index, depth: 0, devices: devices)
             }
         } header: {
             Text("Blocks (\(workflow.blocks.count))")
@@ -141,7 +149,11 @@ struct WorkflowDetailView: View {
     private var executionHistorySection: some View {
         Section {
             ForEach(executionLogs.prefix(10)) { log in
-                WorkflowExecutionLogRow(log: log)
+                NavigationLink {
+                    WorkflowExecutionLogDetailView(log: log)
+                } label: {
+                    WorkflowExecutionLogRow(log: log)
+                }
             }
         } header: {
             Text("Recent Executions (\(executionLogs.count))")
@@ -198,7 +210,7 @@ private struct WorkflowTriggerRow: View {
 
     var body: some View {
         switch trigger {
-        case .deviceStateChange(let t):
+        case let .deviceStateChange(t):
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
                     Image(systemName: "bolt.fill")
@@ -219,7 +231,7 @@ private struct WorkflowTriggerRow: View {
                     .foregroundColor(Theme.Text.secondary)
             }
             .padding(.vertical, 2)
-        case .compound(let t):
+        case let .compound(t):
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
                     Image(systemName: "arrow.triangle.branch")
@@ -233,21 +245,72 @@ private struct WorkflowTriggerRow: View {
                     .font(.caption)
                     .foregroundColor(Theme.Text.secondary)
             }
+        case let .schedule(t):
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Image(systemName: "clock.fill")
+                        .font(.caption)
+                        .foregroundColor(Theme.Tint.main)
+                    Text(t.name ?? "Schedule")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                }
+                Text(Self.scheduleDescription(t.scheduleType))
+                    .font(.caption)
+                    .foregroundColor(Theme.Text.secondary)
+            }
+            .padding(.vertical, 2)
+        case let .webhook(t):
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Image(systemName: "arrow.down.circle.fill")
+                        .font(.caption)
+                        .foregroundColor(Theme.Tint.main)
+                    Text(t.name ?? "Webhook")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                }
+                Text("Token: \(String(t.token.prefix(8)))...")
+                    .font(.caption)
+                    .foregroundColor(Theme.Text.secondary)
+            }
+            .padding(.vertical, 2)
+        }
+    }
+
+    static func scheduleDescription(_ scheduleType: ScheduleType) -> String {
+        switch scheduleType {
+        case let .once(date):
+            let formatter = DateFormatter()
+            formatter.dateStyle = .medium
+            formatter.timeStyle = .short
+            return "Once at \(formatter.string(from: date))"
+        case let .daily(time):
+            return "Daily at \(String(format: "%02d:%02d", time.hour, time.minute))"
+        case let .weekly(time, days):
+            let dayNames = days.sorted().map(\.displayName).joined(separator: ", ")
+            return "\(dayNames) at \(String(format: "%02d:%02d", time.hour, time.minute))"
+        case let .interval(seconds):
+            if seconds >= 3600 {
+                return "Every \(Int(seconds / 3600))h"
+            } else {
+                return "Every \(Int(seconds / 60))m"
+            }
         }
     }
 
     static func triggerConditionDescription(_ condition: TriggerCondition) -> String {
         switch condition {
         case .changed: return "Any change"
-        case .equals(let v): return "== \(v.value)"
-        case .notEquals(let v): return "!= \(v.value)"
-        case .transitioned(let from, let to):
+        case let .equals(v): return "== \(v.value)"
+        case let .notEquals(v): return "!= \(v.value)"
+        case let .transitioned(from, to):
             if let from { return "\(from.value) → \(to.value)" }
             return "→ \(to.value)"
-        case .greaterThan(let v): return "> \(v)"
-        case .lessThan(let v): return "< \(v)"
-        case .greaterThanOrEqual(let v): return ">= \(v)"
-        case .lessThanOrEqual(let v): return "<= \(v)"
+        case let .greaterThan(v): return "> \(v)"
+        case let .lessThan(v): return "< \(v)"
+        case let .greaterThanOrEqual(v): return ">= \(v)"
+        case let .lessThanOrEqual(v): return "<= \(v)"
         }
     }
 }
@@ -259,7 +322,7 @@ private struct WorkflowConditionRow: View {
 
     var body: some View {
         switch condition {
-        case .deviceState(let c):
+        case let .deviceState(c):
             VStack(alignment: .leading, spacing: 2) {
                 Text("Device: \(c.deviceId)")
                     .font(.caption)
@@ -268,10 +331,10 @@ private struct WorkflowConditionRow: View {
                     .font(.subheadline)
                     .fontWeight(.medium)
             }
-        case .and(let conditions):
+        case let .and(conditions):
             Text("AND: \(conditions.count) conditions")
                 .font(.subheadline)
-        case .or(let conditions):
+        case let .or(conditions):
             Text("OR: \(conditions.count) conditions")
                 .font(.subheadline)
         case .not:
@@ -287,13 +350,14 @@ private struct WorkflowBlockRow: View {
     let block: WorkflowBlock
     let index: Int
     let depth: Int
+    let devices: [DeviceModel]
 
     var body: some View {
         switch block {
-        case .action(let action):
-            ActionBlockRow(action: action, depth: depth)
-        case .flowControl(let flowControl):
-            FlowControlBlockRow(flowControl: flowControl, depth: depth)
+        case let .action(action):
+            ActionBlockRow(action: action, depth: depth, devices: devices)
+        case let .flowControl(flowControl):
+            FlowControlBlockRow(flowControl: flowControl, depth: depth, devices: devices)
         }
     }
 }
@@ -303,6 +367,7 @@ private struct WorkflowBlockRow: View {
 private struct ActionBlockRow: View {
     let action: WorkflowAction
     let depth: Int
+    let devices: [DeviceModel]
 
     var body: some View {
         HStack(spacing: 4) {
@@ -326,12 +391,12 @@ private struct ActionBlockRow: View {
         .padding(.vertical, 2)
     }
 
-    @ViewBuilder
     private var depthIndicators: some View {
-        ForEach(0..<depth, id: \.self) { _ in
+        ForEach(0 ..< depth, id: \.self) { _ in
             Rectangle()
-                .fill(Theme.Text.tertiary.opacity(0.3))
-                .frame(width: 2)
+                .fill(Theme.Tint.main.opacity(0.3))
+                .frame(width: 3)
+                .cornerRadius(1.5)
         }
     }
 
@@ -345,19 +410,23 @@ private struct ActionBlockRow: View {
 
     private var actionTitle: String {
         switch action {
-        case .controlDevice(let a): return a.name ?? "Control Device"
-        case .webhook(let a): return a.name ?? "Webhook"
-        case .log(let a): return a.name ?? "Log Message"
+        case let .controlDevice(a): return a.name ?? "Control Device"
+        case let .webhook(a): return a.name ?? "Webhook"
+        case let .log(a): return a.name ?? "Log Message"
         }
+    }
+
+    private func deviceName(for deviceId: String) -> String {
+        devices.first(where: { $0.id == deviceId })?.name ?? deviceId
     }
 
     private var actionDetail: String {
         switch action {
-        case .controlDevice(let a):
-            return "Set \(CharacteristicTypes.displayName(for: a.characteristicType)) = \(a.value.value) on \(a.deviceId)"
-        case .webhook(let a):
+        case let .controlDevice(a):
+            return "Set \(deviceName(for: a.deviceId)) \(CharacteristicTypes.displayName(for: a.characteristicType)) = \(a.value.value)"
+        case let .webhook(a):
             return "\(a.method) \(a.url)"
-        case .log(let a):
+        case let .log(a):
             return a.message
         }
     }
@@ -368,6 +437,7 @@ private struct ActionBlockRow: View {
 private struct FlowControlBlockRow: View {
     let flowControl: FlowControlBlock
     let depth: Int
+    let devices: [DeviceModel]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -379,10 +449,11 @@ private struct FlowControlBlockRow: View {
 
     private var headerRow: some View {
         HStack(spacing: 4) {
-            ForEach(0..<depth, id: \.self) { _ in
+            ForEach(0 ..< depth, id: \.self) { _ in
                 Rectangle()
-                    .fill(Theme.Text.tertiary.opacity(0.3))
-                    .frame(width: 2)
+                    .fill(Color.indigo.opacity(0.3))
+                    .frame(width: 3)
+                    .cornerRadius(1.5)
             }
 
             Image(systemName: flowControlIcon)
@@ -397,9 +468,33 @@ private struct FlowControlBlockRow: View {
 
     @ViewBuilder
     private var nestedBlocksView: some View {
-        if let nestedBlocks = flowControlNestedBlocks {
-            ForEach(Array(nestedBlocks.enumerated()), id: \.offset) { i, nested in
-                WorkflowBlockRow(block: nested, index: i, depth: depth + 1)
+        switch flowControl {
+        case let .conditional(b):
+            if !b.thenBlocks.isEmpty {
+                Text("Then")
+                    .font(.caption2)
+                    .fontWeight(.semibold)
+                    .foregroundColor(Theme.Text.tertiary)
+                    .padding(.leading, CGFloat((depth + 1) * 7))
+                ForEach(Array(b.thenBlocks.enumerated()), id: \.offset) { i, nested in
+                    WorkflowBlockRow(block: nested, index: i, depth: depth + 1, devices: devices)
+                }
+            }
+            if let elseBlocks = b.elseBlocks, !elseBlocks.isEmpty {
+                Text("Else")
+                    .font(.caption2)
+                    .fontWeight(.semibold)
+                    .foregroundColor(Theme.Text.tertiary)
+                    .padding(.leading, CGFloat((depth + 1) * 7))
+                ForEach(Array(elseBlocks.enumerated()), id: \.offset) { i, nested in
+                    WorkflowBlockRow(block: nested, index: i, depth: depth + 1, devices: devices)
+                }
+            }
+        default:
+            if let nestedBlocks = flowControlNestedBlocks {
+                ForEach(Array(nestedBlocks.enumerated()), id: \.offset) { i, nested in
+                    WorkflowBlockRow(block: nested, index: i, depth: depth + 1, devices: devices)
+                }
             }
         }
     }
@@ -415,68 +510,29 @@ private struct FlowControlBlockRow: View {
         }
     }
 
+    private func deviceName(for deviceId: String) -> String {
+        devices.first(where: { $0.id == deviceId })?.name ?? deviceId
+    }
+
     private var flowControlTitle: String {
         switch flowControl {
-        case .delay(let b): return b.name ?? "Delay \(b.seconds)s"
-        case .waitForState(let b):
-            return b.name ?? "Wait for \(CharacteristicTypes.displayName(for: b.characteristicType)) \(ConditionEvaluator.comparisonDescription(b.condition))"
-        case .conditional(let b): return b.name ?? "If/Else"
-        case .repeat(let b): return b.name ?? "Repeat \(b.count) times"
-        case .repeatWhile(let b): return b.name ?? "Repeat while (max \(b.maxIterations))"
-        case .group(let b): return b.name ?? b.label ?? "Group"
+        case let .delay(b): return b.name ?? "Delay \(b.seconds)s"
+        case let .waitForState(b):
+            return b.name ?? "Wait \(deviceName(for: b.deviceId)) \(CharacteristicTypes.displayName(for: b.characteristicType)) \(ConditionEvaluator.comparisonDescription(b.condition))"
+        case let .conditional(b): return b.name ?? "If/Else"
+        case let .repeat(b): return b.name ?? "Repeat \(b.count) times"
+        case let .repeatWhile(b): return b.name ?? "Repeat while (max \(b.maxIterations))"
+        case let .group(b): return b.name ?? b.label ?? "Group"
         }
     }
 
     private var flowControlNestedBlocks: [WorkflowBlock]? {
         switch flowControl {
         case .delay, .waitForState: return nil
-        case .conditional(let b): return b.thenBlocks + (b.elseBlocks ?? [])
-        case .repeat(let b): return b.blocks
-        case .repeatWhile(let b): return b.blocks
-        case .group(let b): return b.blocks
-        }
-    }
-}
-
-// MARK: - Execution Log Row
-
-private struct WorkflowExecutionLogRow: View {
-    let log: WorkflowExecutionLog
-
-    var body: some View {
-        HStack {
-            Circle()
-                .fill(statusColor)
-                .frame(width: 8, height: 8)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(log.status.rawValue.capitalized)
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                if let error = log.errorMessage {
-                    Text(error)
-                        .font(.caption)
-                        .foregroundColor(Theme.Status.error)
-                        .lineLimit(1)
-                }
-            }
-
-            Spacer()
-
-            Text(log.triggeredAt, style: .relative)
-                .font(.caption)
-                .foregroundColor(Theme.Text.secondary)
-        }
-        .padding(.vertical, 2)
-    }
-
-    private var statusColor: Color {
-        switch log.status {
-        case .success: return Theme.Status.active
-        case .failure: return Theme.Status.error
-        case .running: return .blue
-        case .skipped: return Theme.Status.inactive
-        case .conditionNotMet: return Theme.Status.warning
+        case .conditional: return nil // handled separately in nestedBlocksView
+        case let .repeat(b): return b.blocks
+        case let .repeatWhile(b): return b.blocks
+        case let .group(b): return b.blocks
         }
     }
 }

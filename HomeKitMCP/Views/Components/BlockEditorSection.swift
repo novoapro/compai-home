@@ -1,30 +1,36 @@
 import SwiftUI
 
+/// Identifiable state for presenting the nested block editor sheet.
+/// Uses a deterministic `id` (parentBlockId + label) so SwiftUI treats
+/// re-creations with the same values as the *same* item — preventing
+/// unwanted sheet dismissals when the parent's block array changes.
+struct NestedEditState: Identifiable {
+    var id: String { "\(parentBlockId.uuidString)-\(label)" }
+    let parentBlockId: UUID
+    let label: String
+}
+
 struct BlockEditorSection: View {
     @Binding var blocks: [BlockDraft]
     let devices: [DeviceModel]
     var allowNesting: Bool = true
 
-    @State private var showingBlockTypePicker = false
-    @State private var nestedEditState: NestedEditState?
+    /// When non-nil the parent (WorkflowEditorView) uses this to open the nested-block sheet.
+    var onRequestNestedEdit: ((NestedEditState) -> Void)?
 
-    struct NestedEditState: Identifiable {
-        let id = UUID()
-        let parentBlockId: UUID
-        let label: String
-    }
+    @State private var showingBlockTypePicker = false
 
     var body: some View {
         Section {
-            ForEach(Array(blocks.indices), id: \.self) { index in
+            ForEach($blocks) { $block in
                 BlockEditorRow(
-                    block: $blocks[index],
+                    block: $block,
                     devices: devices,
                     allowNesting: allowNesting,
                     onEditNestedBlocks: allowNesting ? { label, _ in
-                        nestedEditState = NestedEditState(parentBlockId: blocks[index].id, label: label)
+                        onRequestNestedEdit?(NestedEditState(parentBlockId: block.id, label: label))
                     } : nil,
-                    onDelete: { blocks.remove(at: index) }
+                    onDelete: { blocks.removeAll(where: { $0.id == block.id }) }
                 )
             }
             .onDelete { blocks.remove(atOffsets: $0) }
@@ -62,35 +68,32 @@ struct BlockEditorSection: View {
             }
         }
         .listRowBackground(Theme.contentBackground)
-        .sheet(item: $nestedEditState) { state in
-            NestedBlockEditorSheet(
-                title: nestedSheetTitle(for: state),
-                blocks: nestedBlocksBinding(for: state),
-                devices: devices
-            )
-        }
     }
+}
 
-    private func nestedSheetTitle(for state: NestedEditState) -> String {
+// MARK: - Nested Block Helpers
+
+extension BlockEditorSection {
+    static func nestedSheetTitle(for state: NestedEditState, blocks: [BlockDraft]) -> String {
         let block = blocks.first(where: { $0.id == state.parentBlockId })
         let blockName = block?.blockType.displayName ?? "Block"
         return "\(blockName) — \(state.label.capitalized) Blocks"
     }
 
-    private func nestedBlocksBinding(for state: NestedEditState) -> Binding<[BlockDraft]> {
+    static func nestedBlocksBinding(for state: NestedEditState, blocks: Binding<[BlockDraft]>) -> Binding<[BlockDraft]> {
         Binding(
             get: {
-                guard let block = blocks.first(where: { $0.id == state.parentBlockId }) else { return [] }
+                guard let block = blocks.wrappedValue.first(where: { $0.id == state.parentBlockId }) else { return [] }
                 return getNestedBlocks(from: block, label: state.label)
             },
             set: { newBlocks in
-                guard let index = blocks.firstIndex(where: { $0.id == state.parentBlockId }) else { return }
-                setNestedBlocks(on: &blocks[index], label: state.label, blocks: newBlocks)
+                guard let index = blocks.wrappedValue.firstIndex(where: { $0.id == state.parentBlockId }) else { return }
+                setNestedBlocks(on: &blocks.wrappedValue[index], label: state.label, blocks: newBlocks)
             }
         )
     }
 
-    private func getNestedBlocks(from block: BlockDraft, label: String) -> [BlockDraft] {
+    static func getNestedBlocks(from block: BlockDraft, label: String) -> [BlockDraft] {
         switch block.blockType {
         case .conditional(let d):
             return label == "then" ? d.thenBlocks : d.elseBlocks
@@ -105,7 +108,7 @@ struct BlockEditorSection: View {
         }
     }
 
-    private func setNestedBlocks(on block: inout BlockDraft, label: String, blocks: [BlockDraft]) {
+    static func setNestedBlocks(on block: inout BlockDraft, label: String, blocks: [BlockDraft]) {
         switch block.blockType {
         case .conditional(var d):
             if label == "then" { d.thenBlocks = blocks } else { d.elseBlocks = blocks }
