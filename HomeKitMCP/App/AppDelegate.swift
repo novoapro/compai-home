@@ -22,7 +22,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     lazy var homeKitViewModel = HomeKitViewModel(homeKitManager: homeKitManager, configService: configService)
     lazy var logViewModel = LogViewModel(loggingService: loggingService, storage: storageService)
     lazy var settingsViewModel = SettingsViewModel(storage: storageService, webhookService: webhookService, mcpServer: mcpServer, configService: configService)
-    lazy var workflowViewModel = WorkflowViewModel(storageService: workflowStorageService, executionLogService: workflowExecutionLogService, workflowEngine: workflowEngine)
+    lazy var workflowViewModel = WorkflowViewModel(storageService: workflowStorageService, executionLogService: workflowExecutionLogService, workflowEngine: workflowEngine, homeKitManager: homeKitManager)
 
     private var cancellables = Set<AnyCancellable>()
 
