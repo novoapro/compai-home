@@ -10,14 +10,22 @@ enum PreviewData {
             type: "00000025-0000-1000-8000-0026BB765291",
             value: AnyCodable(true),
             format: "bool",
-            permissions: ["read", "write"]
+            permissions: ["read", "write"],
+            minValue: nil,
+            maxValue: nil,
+            stepValue: nil,
+            validValues: nil
         ),
         CharacteristicModel(
             id: "char-2",
             type: "00000008-0000-1000-8000-0026BB765291",
             value: AnyCodable(75),
             format: "int",
-            permissions: ["read", "write"]
+            permissions: ["read", "write"],
+            minValue: 0,
+            maxValue: 100,
+            stepValue: 1,
+            validValues: nil
         )
     ]
 
