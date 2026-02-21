@@ -57,7 +57,7 @@ public struct CharacteristicInputConfig {
     }
 
     /// Builds picker options with labels for discrete characteristics.
-    private static func buildPickerOptions(for characteristicType: String, values: [Int]) -> [(label: String, value: String)] {
+    static func buildPickerOptions(for characteristicType: String, values: [Int]) -> [(label: String, value: String)] {
         switch characteristicType {
         case HMCharacteristicTypeCurrentDoorState,
              HMCharacteristicTypeTargetDoorState:
@@ -81,7 +81,7 @@ public struct CharacteristicInputConfig {
         }
     }
 
-    private static func buildDoorStateOptions(_ values: [Int]) -> [(label: String, value: String)] {
+    static func buildDoorStateOptions(_ values: [Int]) -> [(label: String, value: String)] {
         let stateMap: [Int: String] = [
             0: "Open",
             1: "Closed",
@@ -95,7 +95,7 @@ public struct CharacteristicInputConfig {
         }
     }
 
-    private static func buildLockStateOptions(_ values: [Int]) -> [(label: String, value: String)] {
+    static func buildLockStateOptions(_ values: [Int]) -> [(label: String, value: String)] {
         let stateMap: [Int: String] = [
             0: "Unsecured",
             1: "Secured",
@@ -108,7 +108,7 @@ public struct CharacteristicInputConfig {
         }
     }
 
-    private static func buildHeatingCoolingOptions(_ values: [Int]) -> [(label: String, value: String)] {
+    static func buildHeatingCoolingOptions(_ values: [Int]) -> [(label: String, value: String)] {
         let stateMap: [Int: String] = [
             0: "Off",
             1: "Heat",
@@ -121,7 +121,7 @@ public struct CharacteristicInputConfig {
         }
     }
 
-    private static func buildFanStateOptions(_ values: [Int]) -> [(label: String, value: String)] {
+    static func buildFanStateOptions(_ values: [Int]) -> [(label: String, value: String)] {
         let stateMap: [Int: String] = [
             0: "Inactive",
             1: "Active",

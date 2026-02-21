@@ -4,10 +4,12 @@ struct ServerSettingsView: View {
     @ObservedObject var viewModel: SettingsViewModel
     @ObservedObject private var storage: StorageService
 
-    @State private var showingApiToken = false
-    @State private var showingRegenerateConfirmation = false
+    @State private var revealedTokenIds: Set<UUID> = []
     @State private var showCopiedToast = false
     @State private var copiedToastTask: Task<Void, Never>?
+    @State private var showingAddToken = false
+    @State private var newTokenName = ""
+    @State private var tokenToDelete: APIToken?
 
     init(viewModel: SettingsViewModel) {
         self.viewModel = viewModel
@@ -81,53 +83,49 @@ struct ServerSettingsView: View {
                 Label("Network", systemImage: "network")
             }
 
+            // MARK: - API Tokens (Multi-Client)
             Section {
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack {
-                        if showingApiToken {
-                            Text(viewModel.mcpApiToken)
-                                .font(.system(.caption, design: .monospaced))
-                                .lineLimit(1)
-                                .truncationMode(.middle)
-                        } else {
-                            Text(String(repeating: "\u{2022}", count: 32))
-                                .font(.system(.caption, design: .monospaced))
-                                .foregroundColor(.secondary)
-                        }
+                ForEach(viewModel.apiTokens) { apiToken in
+                    tokenRow(apiToken)
+                }
 
-                        Spacer()
-
-                        Button {
-                            showingApiToken.toggle()
-                        } label: {
-                            Image(systemName: showingApiToken ? "eye.slash" : "eye")
-                                .foregroundColor(.secondary)
-                        }
-                        .buttonStyle(.plain)
-
-                        Button {
-                            #if targetEnvironment(macCatalyst)
-                            UIPasteboard.general.string = viewModel.mcpApiToken
-                            #endif
-                            showCopyToast()
-                        } label: {
-                            Image(systemName: "doc.on.doc")
-                                .foregroundColor(.secondary)
-                        }
-                        .buttonStyle(.plain)
-                    }
-
-                    HStack {
-                        Button("Regenerate", role: .destructive) {
-                            showingRegenerateConfirmation = true
-                        }
-                        .font(.subheadline)
-                    }
+                Button {
+                    newTokenName = ""
+                    showingAddToken = true
+                } label: {
+                    Label("Add Token", systemImage: "plus.circle")
                 }
             } header: {
-                Label("API Token", systemImage: "key")
+                Label("API Tokens", systemImage: "key")
             } footer: {
-                Text("All endpoints require an Authorization: Bearer <token> header.")
+                Text("Each client needs a unique Bearer token. Restart the server after changes.")
+            }
+
+            if viewModel.storage.mcpServerEnabled {
+                Section {
+                    Toggle("MCP Protocol", isOn: Binding(
+                        get: { storage.mcpProtocolEnabled },
+                        set: { newValue in
+                            if !newValue && !storage.restApiEnabled {
+                                storage.restApiEnabled = true
+                            }
+                            storage.mcpProtocolEnabled = newValue
+                        }
+                    ))
+                    Toggle("REST API", isOn: Binding(
+                        get: { storage.restApiEnabled },
+                        set: { newValue in
+                            if !newValue && !storage.mcpProtocolEnabled {
+                                storage.mcpProtocolEnabled = true
+                            }
+                            storage.restApiEnabled = newValue
+                        }
+                    ))
+                } header: {
+                    Label("Protocols", systemImage: "point.3.connected.trianglepath.dotted")
+                } footer: {
+                    Text("Choose which protocols are available. At least one must be enabled.")
+                }
             }
 
             if viewModel.mcpServerRunning == true {
@@ -135,9 +133,13 @@ struct ServerSettingsView: View {
                     let displayHost = viewModel.storage.mcpServerBindAddress == "0.0.0.0"
                         ? viewModel.localIPAddress
                         : viewModel.storage.mcpServerBindAddress
-                    endpointRow(label: "MCP Streamable", url: "http://\(displayHost):\(viewModel.storage.mcpServerPort)/mcp")
-                    endpointRow(label: "MCP Legacy SSE", url: "http://\(displayHost):\(viewModel.storage.mcpServerPort)/sse")
-                    endpointRow(label: "REST API", url: "http://\(displayHost):\(viewModel.storage.mcpServerPort)/devices")
+                    if storage.mcpProtocolEnabled {
+                        endpointRow(label: "MCP Streamable", url: "http://\(displayHost):\(viewModel.storage.mcpServerPort)/mcp")
+                        endpointRow(label: "MCP Legacy SSE", url: "http://\(displayHost):\(viewModel.storage.mcpServerPort)/sse")
+                    }
+                    if storage.restApiEnabled {
+                        endpointRow(label: "REST API", url: "http://\(displayHost):\(viewModel.storage.mcpServerPort)/devices")
+                    }
                 } header: {
                     Label("Endpoints", systemImage: "link")
                 }
@@ -166,16 +168,100 @@ struct ServerSettingsView: View {
             }
         }
         .animation(.spring(response: 0.35, dampingFraction: 0.8), value: showCopiedToast)
-        .alert("Regenerate API Token?", isPresented: $showingRegenerateConfirmation) {
+        .alert("Add API Token", isPresented: $showingAddToken) {
+            TextField("Client name", text: $newTokenName)
             Button("Cancel", role: .cancel) { }
-            Button("Regenerate", role: .destructive) {
-                viewModel.regenerateMCPApiToken()
-                showingApiToken = true
+            Button("Create") {
+                let name = newTokenName.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !name.isEmpty else { return }
+                viewModel.addAPIToken(name: name)
             }
         } message: {
-            Text("All existing MCP clients will need to be updated with the new token. The server must be restarted for the new token to take effect.")
+            Text("Enter a name to identify this client (e.g. Claude Desktop, Home Assistant).")
+        }
+        .alert("Delete Token?", isPresented: Binding(
+            get: { tokenToDelete != nil },
+            set: { if !$0 { tokenToDelete = nil } }
+        )) {
+            Button("Cancel", role: .cancel) { tokenToDelete = nil }
+            Button("Delete", role: .destructive) {
+                if let token = tokenToDelete {
+                    viewModel.deleteAPIToken(id: token.id)
+                    tokenToDelete = nil
+                }
+            }
+        } message: {
+            if let token = tokenToDelete {
+                Text("The client \"\(token.name)\" will no longer be able to authenticate. This cannot be undone.")
+            }
         }
     }
+
+    // MARK: - Token Row
+
+    @ViewBuilder
+    private func tokenRow(_ apiToken: APIToken) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(apiToken.name)
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                Spacer()
+                Text(apiToken.createdAt, style: .date)
+                    .font(.caption2)
+                    .foregroundColor(Theme.Text.tertiary)
+            }
+
+            HStack {
+                let isRevealed = revealedTokenIds.contains(apiToken.id)
+                if isRevealed {
+                    Text(apiToken.token)
+                        .font(.system(.caption, design: .monospaced))
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                } else {
+                    Text(String(repeating: "\u{2022}", count: 32))
+                        .font(.system(.caption, design: .monospaced))
+                        .foregroundColor(.secondary)
+                }
+
+                Spacer()
+
+                Button {
+                    if revealedTokenIds.contains(apiToken.id) {
+                        revealedTokenIds.remove(apiToken.id)
+                    } else {
+                        revealedTokenIds.insert(apiToken.id)
+                    }
+                } label: {
+                    Image(systemName: isRevealed ? "eye.slash" : "eye")
+                        .foregroundColor(.secondary)
+                }
+                .buttonStyle(.plain)
+
+                Button {
+                    #if targetEnvironment(macCatalyst)
+                    UIPasteboard.general.string = apiToken.token
+                    #endif
+                    showCopyToast()
+                } label: {
+                    Image(systemName: "doc.on.doc")
+                        .foregroundColor(.secondary)
+                }
+                .buttonStyle(.plain)
+
+                Button {
+                    tokenToDelete = apiToken
+                } label: {
+                    Image(systemName: "trash")
+                        .foregroundColor(.red)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    // MARK: - Helpers
 
     private func showCopyToast() {
         copiedToastTask?.cancel()

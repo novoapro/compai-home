@@ -10,4 +10,5 @@ enum AppLogger {
     static let menuBar = Logger(subsystem: Bundle.main.bundleIdentifier ?? "com.homekit-mcp", category: "MenuBar")
     static let general = Logger(subsystem: Bundle.main.bundleIdentifier ?? "com.homekit-mcp", category: "General")
     static let workflow = Logger(subsystem: Bundle.main.bundleIdentifier ?? "com.homekit-mcp", category: "Workflow")
+    static let scene = Logger(subsystem: Bundle.main.bundleIdentifier ?? "com.homekit-mcp", category: "Scene")
 }

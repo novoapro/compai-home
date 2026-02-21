@@ -3,6 +3,7 @@ import SwiftUI
 struct BlockEditorRow: View {
     @Binding var block: BlockDraft
     let devices: [DeviceModel]
+    var scenes: [SceneModel] = []
     let allowNesting: Bool
     let onEditNestedBlocks: ((String, [BlockDraft]) -> Void)?
     let onDelete: (() -> Void)?
@@ -18,34 +19,6 @@ struct BlockEditorRow: View {
         } else {
             DisclosureGroup(isExpanded: $isExpanded) {
                 blockContent
-
-                HStack(spacing: 12) {
-                    if let onDuplicate {
-                        Button {
-                            onDuplicate()
-                        } label: {
-                            Image(systemName: "doc.on.doc")
-                                .frame(width: 44, height: 36)
-                                .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.borderless)
-                        .accessibilityLabel("Duplicate")
-                    }
-
-                    Spacer()
-
-                    if let onDelete {
-                        Button(role: .destructive) {
-                            onDelete()
-                        } label: {
-                            Image(systemName: "trash")
-                                .frame(width: 44, height: 36)
-                                .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.borderless)
-                        .accessibilityLabel("Remove")
-                    }
-                }
             } label: {
                 blockLabel
             }
@@ -89,7 +62,7 @@ struct BlockEditorRow: View {
                         .textFieldStyle(.roundedBorder)
                         .onSubmit { isEditingName = false }
                 } else {
-                    Text(block.displayName(devices: devices))
+                    Text(block.displayName(devices: devices, scenes: scenes))
                         .font(.caption)
                         .foregroundColor(Theme.Text.secondary)
                         .lineLimit(1)
@@ -99,16 +72,46 @@ struct BlockEditorRow: View {
             Spacer()
 
             if !isReorderMode {
-                Button {
-                    isEditingName.toggle()
-                } label: {
-                    Image(systemName: isEditingName ? "checkmark.circle.fill" : "pencil")
-                        .font(.caption)
-                        .foregroundColor(Theme.Text.secondary)
-                        .frame(width: 32, height: 32)
-                        .contentShape(Rectangle())
+                HStack(spacing: 4) {
+                    Button {
+                        isEditingName.toggle()
+                    } label: {
+                        Image(systemName: isEditingName ? "checkmark.circle.fill" : "pencil")
+                            .font(.subheadline)
+                            .foregroundColor(Theme.Text.secondary)
+                            .frame(width: 32, height: 32)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+
+                    if let onDuplicate {
+                        Button {
+                            onDuplicate()
+                        } label: {
+                            Image(systemName: "doc.on.doc")
+                                .font(.subheadline)
+                                .foregroundColor(Theme.Text.secondary)
+                                .frame(width: 32, height: 32)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Duplicate")
+                    }
+
+                    if let onDelete {
+                        Button(role: .destructive) {
+                            onDelete()
+                        } label: {
+                            Image(systemName: "trash")
+                                .font(.subheadline)
+                                .foregroundColor(.red)
+                                .frame(width: 32, height: 32)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Remove")
+                    }
                 }
-                .buttonStyle(.plain)
             }
         }
     }
@@ -121,6 +124,7 @@ struct BlockEditorRow: View {
                 case let .controlDevice(d): return d.name
                 case let .webhook(d): return d.name
                 case let .log(d): return d.name
+                case let .runScene(d): return d.name
                 case let .delay(d): return d.name
                 case let .waitForState(d): return d.name
                 case let .conditional(d): return d.name
@@ -136,6 +140,7 @@ struct BlockEditorRow: View {
                 case .controlDevice(var d): d.name = newName; block.blockType = .controlDevice(d)
                 case .webhook(var d): d.name = newName; block.blockType = .webhook(d)
                 case .log(var d): d.name = newName; block.blockType = .log(d)
+                case .runScene(var d): d.name = newName; block.blockType = .runScene(d)
                 case .delay(var d): d.name = newName; block.blockType = .delay(d)
                 case .waitForState(var d): d.name = newName; block.blockType = .waitForState(d)
                 case .conditional(var d): d.name = newName; block.blockType = .conditional(d)
@@ -158,6 +163,8 @@ struct BlockEditorRow: View {
             webhookContent
         case .log:
             logContent
+        case .runScene:
+            runSceneContent
         case .delay:
             delayContent
         case .waitForState:
@@ -192,6 +199,10 @@ extension BlockEditorRow {
     private var logContent: some View {
         LogEditor(block: $block)
     }
+
+    private var runSceneContent: some View {
+        RunSceneEditor(block: $block, scenes: scenes)
+    }
 }
 
 // MARK: - Flow Control Block Editors
@@ -206,7 +217,7 @@ extension BlockEditorRow {
     }
 
     private var conditionalContent: some View {
-        ConditionalEditor(block: $block, devices: devices, allowNesting: allowNesting, onEditNestedBlocks: onEditNestedBlocks)
+        ConditionalEditor(block: $block, devices: devices, scenes: scenes, allowNesting: allowNesting, onEditNestedBlocks: onEditNestedBlocks)
     }
 
     private var repeatContent: some View {
@@ -214,7 +225,7 @@ extension BlockEditorRow {
     }
 
     private var repeatWhileContent: some View {
-        RepeatWhileEditor(block: $block, devices: devices, allowNesting: allowNesting, onEditNestedBlocks: onEditNestedBlocks)
+        RepeatWhileEditor(block: $block, devices: devices, scenes: scenes, allowNesting: allowNesting, onEditNestedBlocks: onEditNestedBlocks)
     }
 
     private var groupContent: some View {
@@ -315,6 +326,32 @@ private struct LogEditor: View {
     }
 }
 
+// MARK: - Run Scene Editor
+
+private struct RunSceneEditor: View {
+    @Binding var block: BlockDraft
+    let scenes: [SceneModel]
+
+    private var draft: Binding<RunSceneDraft> {
+        Binding(
+            get: {
+                if case .runScene(let d) = block.blockType { return d }
+                return RunSceneDraft()
+            },
+            set: { block.blockType = .runScene($0) }
+        )
+    }
+
+    var body: some View {
+        Picker("Scene", selection: draft.sceneId) {
+            Text("Select scene…").tag("")
+            ForEach(scenes) { scene in
+                Text(scene.name).tag(scene.id)
+            }
+        }
+    }
+}
+
 // MARK: - Delay Editor
 
 private struct DelayEditor: View {
@@ -392,6 +429,7 @@ private struct WaitForStateEditor: View {
 private struct ConditionalEditor: View {
     @Binding var block: BlockDraft
     let devices: [DeviceModel]
+    var scenes: [SceneModel] = []
     let allowNesting: Bool
     let onEditNestedBlocks: ((String, [BlockDraft]) -> Void)?
 
@@ -406,24 +444,43 @@ private struct ConditionalEditor: View {
     }
 
     var body: some View {
-        Text("Condition")
-            .font(.caption)
-            .foregroundColor(Theme.Text.secondary)
+        Picker("Condition Type", selection: draft.conditionKind) {
+            ForEach(FlowConditionType.allCases) { type in
+                Label(type.displayName, systemImage: type.icon).tag(type)
+            }
+        }
+        .pickerStyle(.segmented)
 
-        DeviceCharacteristicPicker(
-            devices: devices,
-            selectedDeviceId: draft.conditionDeviceId,
-            selectedServiceId: draft.conditionServiceId,
-            selectedCharacteristicType: draft.conditionCharacteristicType
-        )
+        switch draft.wrappedValue.conditionKind {
+        case .deviceState:
+            DeviceCharacteristicPicker(
+                devices: devices,
+                selectedDeviceId: draft.conditionDeviceId,
+                selectedServiceId: draft.conditionServiceId,
+                selectedCharacteristicType: draft.conditionCharacteristicType
+            )
 
-        ComparisonValueRow(
-            comparisonType: draft.comparisonType,
-            value: draft.comparisonValue,
-            characteristicType: draft.wrappedValue.conditionCharacteristicType,
-            devices: devices,
-            deviceId: draft.wrappedValue.conditionDeviceId
-        )
+            ComparisonValueRow(
+                comparisonType: draft.comparisonType,
+                value: draft.comparisonValue,
+                characteristicType: draft.wrappedValue.conditionCharacteristicType,
+                devices: devices,
+                deviceId: draft.wrappedValue.conditionDeviceId
+            )
+        case .sceneActive:
+            Picker("Scene", selection: draft.conditionSceneId) {
+                Text("Select scene…").tag("")
+                ForEach(scenes) { scene in
+                    Text(scene.name).tag(scene.id)
+                }
+            }
+
+            Picker("Check", selection: draft.conditionSceneIsActive) {
+                Text("Is Active").tag(true)
+                Text("Is Not Active").tag(false)
+            }
+            .pickerStyle(.segmented)
+        }
 
         if allowNesting {
             nestedBlockButtons
@@ -531,6 +588,7 @@ private struct RepeatEditor: View {
 private struct RepeatWhileEditor: View {
     @Binding var block: BlockDraft
     let devices: [DeviceModel]
+    var scenes: [SceneModel] = []
     let allowNesting: Bool
     let onEditNestedBlocks: ((String, [BlockDraft]) -> Void)?
 
@@ -545,24 +603,43 @@ private struct RepeatWhileEditor: View {
     }
 
     var body: some View {
-        Text("While Condition")
-            .font(.caption)
-            .foregroundColor(Theme.Text.secondary)
+        Picker("Condition Type", selection: draft.conditionKind) {
+            ForEach(FlowConditionType.allCases) { type in
+                Label(type.displayName, systemImage: type.icon).tag(type)
+            }
+        }
+        .pickerStyle(.segmented)
 
-        DeviceCharacteristicPicker(
-            devices: devices,
-            selectedDeviceId: draft.conditionDeviceId,
-            selectedServiceId: draft.conditionServiceId,
-            selectedCharacteristicType: draft.conditionCharacteristicType
-        )
+        switch draft.wrappedValue.conditionKind {
+        case .deviceState:
+            DeviceCharacteristicPicker(
+                devices: devices,
+                selectedDeviceId: draft.conditionDeviceId,
+                selectedServiceId: draft.conditionServiceId,
+                selectedCharacteristicType: draft.conditionCharacteristicType
+            )
 
-        ComparisonValueRow(
-            comparisonType: draft.comparisonType,
-            value: draft.comparisonValue,
-            characteristicType: draft.wrappedValue.conditionCharacteristicType,
-            devices: devices,
-            deviceId: draft.wrappedValue.conditionDeviceId
-        )
+            ComparisonValueRow(
+                comparisonType: draft.comparisonType,
+                value: draft.comparisonValue,
+                characteristicType: draft.wrappedValue.conditionCharacteristicType,
+                devices: devices,
+                deviceId: draft.wrappedValue.conditionDeviceId
+            )
+        case .sceneActive:
+            Picker("Scene", selection: draft.conditionSceneId) {
+                Text("Select scene…").tag("")
+                ForEach(scenes) { scene in
+                    Text(scene.name).tag(scene.id)
+                }
+            }
+
+            Picker("Check", selection: draft.conditionSceneIsActive) {
+                Text("Is Active").tag(true)
+                Text("Is Not Active").tag(false)
+            }
+            .pickerStyle(.segmented)
+        }
 
         Stepper("Max Iterations: \(draft.wrappedValue.maxIterations)", value: draft.maxIterations, in: 1...10000)
 

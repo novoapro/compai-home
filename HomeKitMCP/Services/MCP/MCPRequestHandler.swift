@@ -192,6 +192,12 @@ class MCPRequestHandler {
                 "name": "HomeKit Devices",
                 "description": "List of all HomeKit devices and their current states",
                 "mimeType": "application/json"
+            ],
+            [
+                "uri": "homekit://scenes",
+                "name": "HomeKit Scenes",
+                "description": "List of all HomeKit scenes (action sets) and their actions",
+                "mimeType": "application/json"
             ]
         ]
         let result: [String: Any] = ["resources": resources]
@@ -226,6 +232,29 @@ class MCPRequestHandler {
             let content: [[String: Any]] = [
                 [
                     "uri": "homekit://devices",
+                    "mimeType": "application/json",
+                    "text": jsonString
+                ]
+            ]
+            let result: [String: Any] = ["contents": content]
+            return JSONRPCResponse.success(id: id, result: AnyCodable(result))
+
+        case "homekit://scenes":
+            let scenes = await MainActor.run { homeKitManager.getAllScenes() }
+            let restScenes = scenes.map { RESTScene.from($0) }
+
+            guard let jsonData = try? Self.encoder.encode(restScenes),
+                  let jsonString = String(data: jsonData, encoding: .utf8) else {
+                return JSONRPCResponse.error(
+                    id: id,
+                    code: MCPErrorCode.internalError,
+                    message: "Failed to encode scene data"
+                )
+            }
+
+            let content: [[String: Any]] = [
+                [
+                    "uri": "homekit://scenes",
                     "mimeType": "application/json",
                     "text": jsonString
                 ]
@@ -291,6 +320,10 @@ class MCPRequestHandler {
             return await handleGetDevicesInRooms(id: id, arguments: arguments)
         case "get_devices_by_type":
             return await handleGetDevicesByType(id: id, arguments: arguments)
+        case "list_scenes":
+            return await handleListScenes(id: id)
+        case "execute_scene":
+            return await handleExecuteScene(id: id, arguments: arguments)
         case "list_workflows":
             return await handleListWorkflows(id: id)
         case "get_workflow":
@@ -352,12 +385,24 @@ class MCPRequestHandler {
             )
         }
 
+        // Validate value against characteristic metadata
+        let resolvedType = CharacteristicTypes.characteristicType(forName: characteristicType) ?? characteristicType
+        let device: DeviceModel? = await MainActor.run { homeKitManager.getDeviceState(id: deviceId) }
+        if let device {
+            let targetServices = serviceId != nil ? device.services.filter({ $0.id == serviceId }) : device.services
+            if let characteristic = targetServices.flatMap(\.characteristics).first(where: { $0.type == resolvedType }) {
+                do {
+                    try CharacteristicValidator.validate(value: value, against: characteristic)
+                } catch let error as CharacteristicValidator.ValidationError {
+                    return toolResult(text: error.message, isError: true, id: id)
+                } catch {}
+            }
+        }
+
         do {
             try await homeKitManager.updateDevice(id: deviceId, characteristicType: characteristicType, value: value, serviceId: serviceId)
 
-            let displayName = CharacteristicTypes.displayName(
-                for: CharacteristicTypes.characteristicType(forName: characteristicType) ?? characteristicType
-            )
+            let displayName = CharacteristicTypes.displayName(for: resolvedType)
 
             var message = "Successfully set \(displayName) to \(value) on device \(deviceId)"
             if let serviceId {
@@ -366,7 +411,7 @@ class MCPRequestHandler {
             return toolResult(text: message, id: id)
         } catch {
             AppLogger.general.error("Device control failed: \(error.localizedDescription)")
-            return toolResult(text: "Failed to control device. Check server logs for details.", isError: true, id: id)
+            return toolResult(text: "Failed to control device: \(error.localizedDescription)", isError: true, id: id)
         }
     }
 
@@ -389,8 +434,9 @@ class MCPRequestHandler {
                     for char in service.characteristics {
                         let name = CharacteristicTypes.displayName(for: char.type)
                         let val = char.value.map { CharacteristicTypes.formatValue($0.value, characteristicType: char.type) } ?? "--"
+                        let hint = Self.metadataHint(for: char)
                         let indent = device.services.count > 1 ? "      " : "    "
-                        lines.append("\(indent)\(name): \(val)")
+                        lines.append("\(indent)\(name): \(val)\(hint)")
                     }
                 }
             }
@@ -554,6 +600,48 @@ class MCPRequestHandler {
 
         let restDevice = RESTDevice.from(filteredDevice)
         return toolResult(encoding: restDevice, id: id)
+    }
+
+    // MARK: - Scene Tool Handlers
+
+    private func handleListScenes(id: JSONRPCId?) async -> JSONRPCResponse {
+        let scenes = await MainActor.run { homeKitManager.getAllScenes() }
+
+        var lines: [String] = []
+        for scene in scenes {
+            let status = scene.isExecuting ? " [executing]" : ""
+            lines.append("- \(scene.name) [\(scene.type)]\(status) (\(scene.actions.count) action\(scene.actions.count == 1 ? "" : "s")) (id: \(scene.id))")
+            for action in scene.actions {
+                let val = CharacteristicTypes.formatValue(action.targetValue.value, characteristicType: CharacteristicTypes.characteristicType(forName: action.characteristicType) ?? action.characteristicType)
+                lines.append("    \(action.deviceName) — \(action.characteristicType): \(val)")
+            }
+        }
+
+        if lines.isEmpty {
+            lines.append("No HomeKit scenes found.")
+        }
+
+        return toolResult(text: lines.joined(separator: "\n"), id: id)
+    }
+
+    private func handleExecuteScene(id: JSONRPCId?, arguments: [String: Any]) async -> JSONRPCResponse {
+        guard let sceneId = arguments["scene_id"] as? String else {
+            return JSONRPCResponse.error(
+                id: id,
+                code: MCPErrorCode.invalidParams,
+                message: "Missing required argument: scene_id"
+            )
+        }
+
+        do {
+            try await homeKitManager.executeScene(id: sceneId)
+            let scene = await MainActor.run { homeKitManager.getScene(id: sceneId) }
+            let sceneName = scene?.name ?? sceneId
+            return toolResult(text: "Successfully executed scene: \(sceneName)", id: id)
+        } catch {
+            AppLogger.scene.error("Scene execution failed via MCP: \(error.localizedDescription)")
+            return toolResult(text: "Failed to execute scene: \(error.localizedDescription)", isError: true, id: id)
+        }
     }
 
     // MARK: - Workflow Tool Handlers
@@ -770,32 +858,8 @@ class MCPRequestHandler {
             return JSONRPCResponse.error(id: id, code: MCPErrorCode.invalidParams, message: "Missing or invalid workflow_id (must be a UUID)")
         }
 
-        let result = await workflowEngine.triggerWorkflow(id: workflowId)
-
-        guard let result else {
-            return toolResult(text: "Workflow not found or already running: \(workflowIdStr)", isError: true, id: id)
-        }
-
-        let duration: String
-        if let completed = result.completedAt {
-            let ms = completed.timeIntervalSince(result.triggeredAt) * 1000
-            duration = String(format: "%.0fms", ms)
-        } else {
-            duration = "unknown"
-        }
-
-        var lines = ["Workflow triggered: \(result.workflowName)", "Status: \(result.status.rawValue)", "Duration: \(duration)"]
-
-        if let error = result.errorMessage {
-            lines.append("Error: \(error)")
-        }
-
-        for br in result.blockResults {
-            let detail = br.detail ?? br.blockType
-            lines.append("  [\(br.status.rawValue)] \(detail)")
-        }
-
-        return toolResult(text: lines.joined(separator: "\n"), id: id)
+        let result = await workflowEngine.scheduleTrigger(id: workflowId)
+        return toolResult(text: result.message, isError: !result.isAccepted, id: id)
     }
 
     private func handleTriggerWorkflowWebhook(id: JSONRPCId?, arguments: [String: Any]) async -> JSONRPCResponse {
@@ -826,23 +890,12 @@ class MCPRequestHandler {
                 newValue: nil,
                 triggerDescription: "Webhook received (token \(String(token.prefix(8)))…)"
             )
-            if let result = await workflowEngine.triggerWorkflow(id: workflow.id, triggerEvent: triggerEvent) {
-                let duration: String
-                if let completed = result.completedAt {
-                    let ms = completed.timeIntervalSince(result.triggeredAt) * 1000
-                    duration = String(format: "%.0fms", ms)
-                } else {
-                    duration = "unknown"
-                }
-                lines.append("Workflow: \(result.workflowName) — \(result.status.rawValue) (\(duration))")
-                if let error = result.errorMessage {
-                    lines.append("  Error: \(error)")
-                }
-            }
+            let result = await workflowEngine.scheduleTrigger(id: workflow.id, triggerEvent: triggerEvent)
+            lines.append("\(workflow.name): \(result.message)")
         }
 
         if lines.isEmpty {
-            return toolResult(text: "Webhook matched \(matchingWorkflows.count) workflow(s) but none executed (already running?).", id: id)
+            return toolResult(text: "Webhook matched \(matchingWorkflows.count) workflow(s) but none were scheduled.", id: id)
         }
 
         return toolResult(text: lines.joined(separator: "\n"), id: id)
@@ -896,6 +949,36 @@ class MCPRequestHandler {
 
         let jsonData = try JSONSerialization.data(withJSONObject: workflowDict, options: [])
         return try Self.decoder.decode(Workflow.self, from: jsonData)
+    }
+
+    // MARK: - Metadata Hints
+
+    /// Builds an inline metadata hint string for a characteristic, e.g. ` (int, 0–100, %)`.
+    /// Only shown for writable characteristics.
+    private static func metadataHint(for char: CharacteristicModel) -> String {
+        guard char.permissions.contains("write") else { return "" }
+
+        // Enum-style characteristics with valid values
+        if let validValues = char.validValues, !validValues.isEmpty {
+            let options = CharacteristicInputConfig.buildPickerOptions(for: char.type, values: validValues)
+            let labels = options.map(\.label).joined(separator: "|")
+            return " (enum: \(labels))"
+        }
+
+        var parts: [String] = []
+        parts.append(char.format)
+
+        if let min = char.minValue, let max = char.maxValue {
+            let minStr = min == min.rounded() ? "\(Int(min))" : "\(min)"
+            let maxStr = max == max.rounded() ? "\(Int(max))" : "\(max)"
+            parts.append("\(minStr)–\(maxStr)")
+        }
+
+        if let units = char.units {
+            parts.append(units)
+        }
+
+        return " (\(parts.joined(separator: ", ")))"
     }
 
     // MARK: - Tool Result Builders

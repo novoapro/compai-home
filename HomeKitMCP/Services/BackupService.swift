@@ -66,7 +66,8 @@ class BackupService: ObservableObject, BackupServiceProtocol {
 
         let secrets = BackupSecrets(
             aiApiKey: keychainService.read(key: KeychainService.Keys.aiApiKey),
-            mcpApiToken: keychainService.read(key: KeychainService.Keys.mcpApiToken),
+            mcpApiToken: nil,
+            apiTokens: keychainService.getAPITokens(),
             webhookSecret: keychainService.read(key: KeychainService.Keys.webhookSecret),
             webhookURL: keychainService.read(key: KeychainService.Keys.webhookURL)
         )
@@ -128,8 +129,25 @@ class BackupService: ObservableObject, BackupServiceProtocol {
         if let key = sec.aiApiKey, !key.isEmpty {
             keychainService.save(key: KeychainService.Keys.aiApiKey, value: key)
         }
-        if let token = sec.mcpApiToken, !token.isEmpty {
-            keychainService.save(key: KeychainService.Keys.mcpApiToken, value: token)
+        // Restore API tokens (prefer multi-token, fall back to legacy single token)
+        if let tokens = sec.apiTokens, !tokens.isEmpty {
+            let encoder = JSONEncoder()
+            encoder.dateEncodingStrategy = .iso8601
+            if let data = try? encoder.encode(tokens),
+               let json = String(data: data, encoding: .utf8) {
+                keychainService.save(key: KeychainService.Keys.mcpApiTokens, value: json)
+            }
+            keychainService.delete(key: KeychainService.Keys.mcpApiToken)
+        } else if let token = sec.mcpApiToken, !token.isEmpty {
+            // Legacy backup — migrate single token
+            let migrated = APIToken(name: "Default", token: token)
+            let encoder = JSONEncoder()
+            encoder.dateEncodingStrategy = .iso8601
+            if let data = try? encoder.encode([migrated]),
+               let json = String(data: data, encoding: .utf8) {
+                keychainService.save(key: KeychainService.Keys.mcpApiTokens, value: json)
+            }
+            keychainService.delete(key: KeychainService.Keys.mcpApiToken)
         }
         if let secret = sec.webhookSecret, !secret.isEmpty {
             keychainService.save(key: KeychainService.Keys.webhookSecret, value: secret)

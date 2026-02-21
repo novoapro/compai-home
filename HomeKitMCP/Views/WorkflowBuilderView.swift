@@ -492,6 +492,14 @@ private struct WorkflowBuilderConditionRow: View {
                     .font(.subheadline)
                     .fontWeight(.medium)
             }
+        case .sceneActive(let c):
+            HStack(spacing: 6) {
+                Image(systemName: "play.rectangle.fill")
+                    .foregroundStyle(.green)
+                Text("Scene \(c.sceneId) \(c.isActive ? "active" : "not active")")
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+            }
         case .and(let conditions):
             Text("AND: \(conditions.count) conditions")
                 .font(.subheadline)
@@ -557,6 +565,7 @@ private struct BuilderActionBlockRow: View {
         case .controlDevice: return "house.fill"
         case .webhook: return "globe"
         case .log: return "text.bubble"
+        case .runScene: return "play.rectangle.fill"
         }
     }
 
@@ -565,6 +574,7 @@ private struct BuilderActionBlockRow: View {
         case .controlDevice(let a): return a.name ?? "Control Device"
         case .webhook(let a): return a.name ?? "Webhook"
         case .log(let a): return a.name ?? "Log Message"
+        case .runScene(let a): return a.name ?? "Run Scene"
         }
     }
 
@@ -576,6 +586,8 @@ private struct BuilderActionBlockRow: View {
             return "\(a.method) \(a.url)"
         case .log(let a):
             return a.message
+        case .runScene(let a):
+            return "Run scene \(a.sceneId)"
         }
     }
 }

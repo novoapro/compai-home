@@ -9,6 +9,8 @@ enum LogCategory: String, Codable {
     case restCall = "rest_call"
     case workflowExecution = "workflow_execution"
     case workflowError = "workflow_error"
+    case sceneExecution = "scene_execution"
+    case sceneError = "scene_error"
 }
 
 struct StateChangeLog: Identifiable, Codable {

@@ -51,6 +51,12 @@ class StorageService: ObservableObject, StorageServiceProtocol {
     @Published var mcpServerEnabled: Bool {
         didSet { defaults.set(mcpServerEnabled, forKey: Keys.mcpServerEnabled) }
     }
+    @Published var mcpProtocolEnabled: Bool {
+        didSet { defaults.set(mcpProtocolEnabled, forKey: Keys.mcpProtocolEnabled) }
+    }
+    @Published var restApiEnabled: Bool {
+        didSet { defaults.set(restApiEnabled, forKey: Keys.restApiEnabled) }
+    }
     @Published var hideRoomNameInTheApp: Bool {
         didSet { defaults.set(hideRoomNameInTheApp, forKey: Keys.hideRoomNameInTheApp) }
     }
@@ -105,6 +111,8 @@ class StorageService: ObservableObject, StorageServiceProtocol {
             Keys.mcpServerPort: 3000,
             Keys.webhookEnabled: true,
             Keys.mcpServerEnabled: true,
+            Keys.mcpProtocolEnabled: true,
+            Keys.restApiEnabled: true,
             Keys.hideRoomNameInTheApp: true,
             Keys.detailedLogsEnabled: false,
             Keys.aiEnabled: false,
@@ -130,6 +138,8 @@ class StorageService: ObservableObject, StorageServiceProtocol {
         self.mcpServerPort = defaults.integer(forKey: Keys.mcpServerPort)
         self.webhookEnabled = defaults.bool(forKey: Keys.webhookEnabled)
         self.mcpServerEnabled = defaults.bool(forKey: Keys.mcpServerEnabled)
+        self.mcpProtocolEnabled = defaults.bool(forKey: Keys.mcpProtocolEnabled)
+        self.restApiEnabled = defaults.bool(forKey: Keys.restApiEnabled)
         self.hideRoomNameInTheApp = defaults.bool(forKey: Keys.hideRoomNameInTheApp)
         self.detailedLogsEnabled = defaults.bool(forKey: Keys.detailedLogsEnabled)
         self.aiEnabled = defaults.bool(forKey: Keys.aiEnabled)
@@ -218,6 +228,14 @@ class StorageService: ObservableObject, StorageServiceProtocol {
         UserDefaults.standard.bool(forKey: Keys.workflowsEnabled)
     }
 
+    nonisolated func readMCPProtocolEnabled() -> Bool {
+        UserDefaults.standard.bool(forKey: Keys.mcpProtocolEnabled)
+    }
+
+    nonisolated func readRestApiEnabled() -> Bool {
+        UserDefaults.standard.bool(forKey: Keys.restApiEnabled)
+    }
+
     nonisolated func readDeviceStateLoggingEnabled() -> Bool {
         UserDefaults.standard.bool(forKey: Keys.deviceStateLoggingEnabled)
     }
@@ -227,6 +245,8 @@ class StorageService: ObservableObject, StorageServiceProtocol {
         static let mcpServerPort = "mcpServerPort"
         static let webhookEnabled = "webhookEnabled"
         static let mcpServerEnabled = "mcpServerEnabled"
+        static let mcpProtocolEnabled = "mcpProtocolEnabled"
+        static let restApiEnabled = "restApiEnabled"
         static let hideRoomNameInTheApp = "hideRoomNameInTheApp"
         static let detailedLogsEnabled = "detailedLogsEnabled"
         static let aiEnabled = "aiEnabled"

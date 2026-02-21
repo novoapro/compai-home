@@ -24,6 +24,12 @@ protocol HomeKitManaging: AnyObject {
     // MARK: - Device Control
     func updateDevice(id: String, characteristicType: String, value: Any, serviceId: String?) async throws
 
+    // MARK: - Scene Access
+    var cachedScenes: [SceneModel] { get }
+    func getAllScenes() -> [SceneModel]
+    func getScene(id: String) -> SceneModel?
+    func executeScene(id: String) async throws
+
     // MARK: - Configuration
     var configService: DeviceConfigurationService { get }
 }

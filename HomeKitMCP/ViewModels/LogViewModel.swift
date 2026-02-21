@@ -11,6 +11,7 @@ enum LogCategoryFilter: String, CaseIterable, Identifiable {
     case restCall = "REST Call"
     case serverError = "Server Error"
     case workflowExecution = "Workflow"
+    case sceneExecution = "Scene"
 
     var id: String { rawValue }
 
@@ -25,6 +26,7 @@ enum LogCategoryFilter: String, CaseIterable, Identifiable {
         case .restCall: return [.restCall]
         case .serverError: return [.serverError]
         case .workflowExecution: return [.workflowExecution]
+        case .sceneExecution: return [.sceneExecution, .sceneError]
         }
     }
 
@@ -38,6 +40,7 @@ enum LogCategoryFilter: String, CaseIterable, Identifiable {
         case .restCall: return "globe"
         case .serverError: return "xmark.octagon.fill"
         case .workflowExecution: return "bolt.circle.fill"
+        case .sceneExecution: return "play.circle.fill"
         }
     }
 }

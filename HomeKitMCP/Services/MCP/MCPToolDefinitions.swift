@@ -9,7 +9,7 @@ import Foundation
 enum MCPToolDefinitions {
 
     /// The complete list of tool definitions returned by the `tools/list` method.
-    static let all: [[String: Any]] = deviceTools + workflowTools
+    static let all: [[String: Any]] = deviceTools + sceneTools + workflowTools
 
     /// Device, room, and log tools — always available.
     static let deviceTools: [[String: Any]] = [
@@ -140,6 +140,35 @@ enum MCPToolDefinitions {
         ],
     ]
 
+    /// Scene tools — always available.
+    static let sceneTools: [[String: Any]] = [
+
+        // MARK: - Scene Tools
+
+        [
+            "name": "list_scenes",
+            "description": "List all HomeKit scenes (action sets) with their type, status, and the actions they perform.",
+            "inputSchema": [
+                "type": "object",
+                "properties": [:] as [String: Any]
+            ] as [String: Any]
+        ],
+        [
+            "name": "execute_scene",
+            "description": "Execute (activate) a HomeKit scene by its ID. This triggers all the actions defined in the scene.",
+            "inputSchema": [
+                "type": "object",
+                "properties": [
+                    "scene_id": [
+                        "type": "string",
+                        "description": "Unique scene identifier (UUID from the scenes list)"
+                    ]
+                ] as [String: Any],
+                "required": ["scene_id"]
+            ] as [String: Any]
+        ],
+    ]
+
     /// Workflow tools — only available when workflows are enabled.
     static let workflowTools: [[String: Any]] = [
 
@@ -258,7 +287,7 @@ enum MCPToolDefinitions {
         ],
         [
             "name": "trigger_workflow",
-            "description": "Manually trigger a workflow execution immediately, bypassing its normal triggers. Useful for testing.",
+            "description": "Schedule a workflow execution immediately (fire-and-forget). Returns the scheduling outcome based on the workflow's retrigger policy: scheduled, replaced (previous cancelled), queued, or ignored (already running).",
             "inputSchema": [
                 "type": "object",
                 "properties": [
@@ -272,7 +301,7 @@ enum MCPToolDefinitions {
         ],
         [
             "name": "trigger_workflow_webhook",
-            "description": "Trigger a workflow via its webhook token. Any workflow with a webhook trigger matching this token will execute.",
+            "description": "Trigger a workflow via its webhook token (fire-and-forget). Any workflow with a matching webhook trigger will be scheduled. Returns the scheduling outcome for each matched workflow.",
             "inputSchema": [
                 "type": "object",
                 "properties": [

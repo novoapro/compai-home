@@ -4,21 +4,11 @@ struct TriggerEditorSection: View {
     @Binding var triggers: [TriggerDraft]
     let devices: [DeviceModel]
     var onCopy: (() -> Void)? = nil
-    @EnvironmentObject private var settingsViewModel: SettingsViewModel
-
-    /// The host that the MCP server is actually reachable on.
-    /// Shows the LAN IP when bound to all interfaces so the copied URL works from remote devices.
-    private var webhookHost: String {
-        let bind = settingsViewModel.storage.mcpServerBindAddress
-        return bind == "0.0.0.0" ? settingsViewModel.localIPAddress : bind
-    }
-
-    private var webhookPort: Int { settingsViewModel.storage.mcpServerPort }
 
     var body: some View {
         Section {
             ForEach($triggers) { $trigger in
-                TriggerRow(trigger: $trigger, devices: devices, webhookHost: webhookHost, webhookPort: webhookPort, onCopy: onCopy, onDelete: {
+                TriggerRow(trigger: $trigger, devices: devices, onCopy: onCopy, onDelete: {
                     triggers.removeAll(where: { $0.id == trigger.id })
                 })
             }
@@ -57,8 +47,6 @@ struct TriggerEditorSection: View {
 private struct TriggerRow: View {
     @Binding var trigger: TriggerDraft
     let devices: [DeviceModel]
-    let webhookHost: String
-    let webhookPort: Int
     var onCopy: (() -> Void)?
     let onDelete: () -> Void
     @State private var isEditingName: Bool = false
@@ -66,19 +54,6 @@ private struct TriggerRow: View {
     var body: some View {
         DisclosureGroup {
             triggerContent
-
-            HStack {
-                Spacer()
-                Button(role: .destructive) {
-                    onDelete()
-                } label: {
-                    Image(systemName: "trash")
-                        .frame(width: 44, height: 36)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.borderless)
-                .accessibilityLabel("Remove Trigger")
-            }
         } label: {
             triggerLabel
         }
@@ -110,16 +85,30 @@ private struct TriggerRow: View {
 
             Spacer()
 
-            Button {
-                isEditingName.toggle()
-            } label: {
-                Image(systemName: isEditingName ? "checkmark.circle.fill" : "pencil")
-                    .font(.caption)
-                    .foregroundColor(Theme.Text.secondary)
-                    .frame(width: 32, height: 32)
-                    .contentShape(Rectangle())
+            HStack(spacing: 4) {
+                Button {
+                    isEditingName.toggle()
+                } label: {
+                    Image(systemName: isEditingName ? "checkmark.circle.fill" : "pencil")
+                        .font(.subheadline)
+                        .foregroundColor(Theme.Text.secondary)
+                        .frame(width: 32, height: 32)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+
+                Button(role: .destructive) {
+                    onDelete()
+                } label: {
+                    Image(systemName: "trash")
+                        .font(.subheadline)
+                        .foregroundColor(.red)
+                        .frame(width: 32, height: 32)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Remove Trigger")
             }
-            .buttonStyle(.plain)
         }
     }
 
@@ -314,23 +303,18 @@ private struct TriggerRow: View {
     @ViewBuilder
     private var webhookTriggerContent: some View {
         LabeledContent("Token") {
-            Text(String(trigger.webhookToken.prefix(8)) + "...")
-                .font(.system(.caption, design: .monospaced))
-                .foregroundColor(Theme.Text.secondary)
-        }
-
-        LabeledContent("URL") {
-            Text("http://\(webhookHost):\(webhookPort)/workflows/webhook/\(String(trigger.webhookToken.prefix(8)))...")
+            Text(trigger.webhookToken)
                 .font(.system(.caption, design: .monospaced))
                 .foregroundColor(Theme.Text.secondary)
                 .lineLimit(1)
+                .truncationMode(.middle)
         }
 
         Button {
-            UIPasteboard.general.string = "http://\(webhookHost):\(webhookPort)/workflows/webhook/\(trigger.webhookToken)"
+            UIPasteboard.general.string = trigger.webhookToken
             onCopy?()
         } label: {
-            Label("Copy Webhook URL", systemImage: "doc.on.doc")
+            Label("Copy Token", systemImage: "doc.on.doc")
         }
     }
 

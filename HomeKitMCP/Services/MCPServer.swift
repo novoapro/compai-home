@@ -140,8 +140,8 @@ class MCPServer: ObservableObject, MCPServerProtocol {
     // MARK: - Route Configuration
 
     private func configureRoutes(_ app: Application) {
-        let apiToken = keychainService.getOrCreateMCPApiToken()
-        let authMiddleware = BearerAuthMiddleware(validToken: apiToken)
+        let validTokens = keychainService.getValidTokenStrings()
+        let authMiddleware = BearerAuthMiddleware(validTokens: validTokens)
 
         // CORS middleware — restrict to the bind address origin for protected routes.
         // The webhook trigger endpoint is intentionally left outside CORS so external
@@ -162,87 +162,119 @@ class MCPServer: ObservableObject, MCPServerProtocol {
             return "ok"
         }
 
-        // Webhook trigger endpoint — uses its own token-based auth, no bearer required.
-        // CORS is intentionally not applied here so external services can POST freely.
-        app.on(.POST, "workflows", "webhook", ":token", body: .collect(maxSize: "1mb")) { [weak self] req async throws -> Response in
+        // All routes require bearer token auth + CORS
+        let protected = app.grouped(corsMiddleware, authMiddleware)
+
+        // Webhook trigger endpoint — requires Bearer auth + webhook token in URL path.
+        protected.on(.POST, "workflows", "webhook", ":token", body: .collect(maxSize: "1mb")) { [weak self] req async throws -> Response in
             guard let self else { throw Abort(.serviceUnavailable) }
             return try await self.handleRestWebhookTrigger(req)
         }
 
-        // All other routes require bearer token auth + CORS
-        let protected = app.grouped(corsMiddleware, authMiddleware)
-
         // Streamable HTTP transport: single endpoint supporting POST, GET, and DELETE
         protected.on(.POST, "mcp", body: .collect(maxSize: "1mb")) { [weak self] req async throws -> Response in
             guard let self else { throw Abort(.serviceUnavailable) }
+            try self.guardMCPProtocolEnabled()
             return try await self.handleStreamablePost(req)
         }
 
         protected.on(.GET, "mcp") { [weak self] req async throws -> Response in
             guard let self else { throw Abort(.serviceUnavailable) }
+            try self.guardMCPProtocolEnabled()
             return self.handleStreamableGet(req)
         }
 
         protected.on(.DELETE, "mcp") { [weak self] req async throws -> Response in
             guard let self else { throw Abort(.serviceUnavailable) }
+            try self.guardMCPProtocolEnabled()
             return await self.handleStreamableDelete(req)
         }
 
         // Legacy SSE transport (2024-11-05): separate /sse and /messages endpoints
         protected.on(.GET, "sse") { [weak self] req async throws -> Response in
             guard let self else { throw Abort(.serviceUnavailable) }
+            try self.guardMCPProtocolEnabled()
             return self.handleLegacySSE(req)
         }
 
         protected.on(.POST, "messages", body: .collect(maxSize: "1mb")) { [weak self] req async throws -> Response in
             guard let self else { throw Abort(.serviceUnavailable) }
+            try self.guardMCPProtocolEnabled()
             return try await self.handleLegacyMessages(req)
         }
 
         // REST Endpoints
         protected.on(.GET, "devices") { [weak self] req async throws -> Response in
             guard let self else { throw Abort(.serviceUnavailable) }
+            try self.guardRestApiEnabled()
             return try await self.handleRestGetDevices(req)
         }
 
         protected.on(.GET, "devices", ":deviceId") { [weak self] req async throws -> Response in
             guard let self else { throw Abort(.serviceUnavailable) }
+            try self.guardRestApiEnabled()
             return try await self.handleRestGetDevice(req)
+        }
+
+        // Scene REST Endpoints
+        protected.on(.GET, "scenes") { [weak self] req async throws -> Response in
+            guard let self else { throw Abort(.serviceUnavailable) }
+            try self.guardRestApiEnabled()
+            return try await self.handleRestGetScenes(req)
+        }
+
+        protected.on(.GET, "scenes", ":sceneId") { [weak self] req async throws -> Response in
+            guard let self else { throw Abort(.serviceUnavailable) }
+            try self.guardRestApiEnabled()
+            return try await self.handleRestGetScene(req)
+        }
+
+        protected.on(.POST, "scenes", ":sceneId", "execute") { [weak self] req async throws -> Response in
+            guard let self else { throw Abort(.serviceUnavailable) }
+            try self.guardRestApiEnabled()
+            return try await self.handleRestExecuteScene(req)
         }
 
         // Workflow REST Endpoints
         protected.on(.GET, "workflows") { [weak self] req async throws -> Response in
             guard let self else { throw Abort(.serviceUnavailable) }
+            try self.guardRestApiEnabled()
             return try await self.handleRestGetWorkflows(req)
         }
 
         protected.on(.GET, "workflows", ":workflowId") { [weak self] req async throws -> Response in
             guard let self else { throw Abort(.serviceUnavailable) }
+            try self.guardRestApiEnabled()
             return try await self.handleRestGetWorkflow(req)
         }
 
         protected.on(.POST, "workflows", body: .collect(maxSize: "1mb")) { [weak self] req async throws -> Response in
             guard let self else { throw Abort(.serviceUnavailable) }
+            try self.guardRestApiEnabled()
             return try await self.handleRestCreateWorkflow(req)
         }
 
         protected.on(.PUT, "workflows", ":workflowId", body: .collect(maxSize: "1mb")) { [weak self] req async throws -> Response in
             guard let self else { throw Abort(.serviceUnavailable) }
+            try self.guardRestApiEnabled()
             return try await self.handleRestUpdateWorkflow(req)
         }
 
         protected.on(.DELETE, "workflows", ":workflowId") { [weak self] req async throws -> Response in
             guard let self else { throw Abort(.serviceUnavailable) }
+            try self.guardRestApiEnabled()
             return try await self.handleRestDeleteWorkflow(req)
         }
 
         protected.on(.POST, "workflows", ":workflowId", "trigger") { [weak self] req async throws -> Response in
             guard let self else { throw Abort(.serviceUnavailable) }
+            try self.guardRestApiEnabled()
             return try await self.handleRestTriggerWorkflow(req)
         }
 
         protected.on(.GET, "workflows", ":workflowId", "logs") { [weak self] req async throws -> Response in
             guard let self else { throw Abort(.serviceUnavailable) }
+            try self.guardRestApiEnabled()
             return try await self.handleRestGetWorkflowLogs(req)
         }
     }
@@ -251,6 +283,18 @@ class MCPServer: ObservableObject, MCPServerProtocol {
 
     private func guardWorkflowsEnabled() throws {
         guard storage.readWorkflowsEnabled() else {
+            throw Abort(.notFound)
+        }
+    }
+
+    private func guardMCPProtocolEnabled() throws {
+        guard storage.readMCPProtocolEnabled() else {
+            throw Abort(.notFound)
+        }
+    }
+
+    private func guardRestApiEnabled() throws {
+        guard storage.readRestApiEnabled() else {
             throw Abort(.notFound)
         }
     }
@@ -297,6 +341,66 @@ class MCPServer: ObservableObject, MCPServerProtocol {
                     fullResponseBody: storage.readDetailedLogsEnabled() ? String(data: data, encoding: .utf8) : nil)
 
         return jsonResponse(data: data)
+    }
+
+    // MARK: - Scene REST Handlers
+
+    private func handleRestGetScenes(_ req: Request) async throws -> Response {
+        let scenes = await MainActor.run { homeKitManager.getAllScenes() }
+        let restScenes = scenes.map { RESTScene.from($0) }
+
+        let data = try Self.encoder.encode(restScenes)
+        logRESTCall(method: "GET", path: "/scenes", statusCode: 200,
+                    resultSummary: "\(restScenes.count) scenes",
+                    fullResponseBody: storage.readDetailedLogsEnabled() ? String(data: data, encoding: .utf8) : nil)
+
+        return jsonResponse(data: data)
+    }
+
+    private func handleRestGetScene(_ req: Request) async throws -> Response {
+        guard let sceneId = req.parameters.get("sceneId") else {
+            logRESTCall(method: "GET", path: "/scenes/:id", statusCode: 400, resultSummary: "Bad Request")
+            throw Abort(.badRequest)
+        }
+
+        let scene = await MainActor.run { homeKitManager.getScene(id: sceneId) }
+
+        guard let scene else {
+            logRESTCall(method: "GET", path: "/scenes/\(sceneId)", statusCode: 404, resultSummary: "Not Found")
+            throw Abort(.notFound, reason: "Scene not found")
+        }
+
+        let restScene = RESTScene.from(scene)
+        let data = try Self.encoder.encode(restScene)
+        logRESTCall(method: "GET", path: "/scenes/\(sceneId)", statusCode: 200,
+                    resultSummary: restScene.name,
+                    fullResponseBody: storage.readDetailedLogsEnabled() ? String(data: data, encoding: .utf8) : nil)
+
+        return jsonResponse(data: data)
+    }
+
+    private func handleRestExecuteScene(_ req: Request) async throws -> Response {
+        guard let sceneId = req.parameters.get("sceneId") else {
+            logRESTCall(method: "POST", path: "/scenes/:id/execute", statusCode: 400, resultSummary: "Bad Request")
+            throw Abort(.badRequest)
+        }
+
+        do {
+            try await homeKitManager.executeScene(id: sceneId)
+            let scene = await MainActor.run { homeKitManager.getScene(id: sceneId) }
+            let sceneName = scene?.name ?? sceneId
+
+            logRESTCall(method: "POST", path: "/scenes/\(sceneId)/execute", statusCode: 200,
+                        resultSummary: "Executed: \(sceneName)")
+
+            let result: [String: Any] = ["success": true, "scene": sceneName]
+            let data = try JSONSerialization.data(withJSONObject: result)
+            return jsonResponse(data: data)
+        } catch {
+            logRESTCall(method: "POST", path: "/scenes/\(sceneId)/execute", statusCode: 500,
+                        resultSummary: "Error: \(error.localizedDescription)")
+            throw Abort(.internalServerError, reason: error.localizedDescription)
+        }
     }
 
     // MARK: - Workflow REST Handlers
@@ -483,19 +587,15 @@ class MCPServer: ObservableObject, MCPServerProtocol {
             throw Abort(.badRequest, reason: "Invalid workflow ID")
         }
 
-        let result = await workflowEngine.triggerWorkflow(id: workflowId)
+        let result = await workflowEngine.scheduleTrigger(id: workflowId)
 
-        guard let result else {
-            logRESTCall(method: "POST", path: "/workflows/\(idStr)/trigger", statusCode: 404, resultSummary: "Not Found or Running")
-            throw Abort(.notFound, reason: "Workflow not found or already running")
-        }
-
+        let httpStatus = HTTPStatus(statusCode: Int(result.httpStatusCode))
         let data = try Self.encoder.encode(result)
-        logRESTCall(method: "POST", path: "/workflows/\(idStr)/trigger", statusCode: 200,
-                    resultSummary: "\(result.status.rawValue)",
+        logRESTCall(method: "POST", path: "/workflows/\(idStr)/trigger", statusCode: UInt(httpStatus.code),
+                    resultSummary: result.message,
                     fullResponseBody: storage.readDetailedLogsEnabled() ? String(data: data, encoding: .utf8) : nil)
 
-        return jsonResponse(data: data)
+        return jsonResponse(data: data, status: httpStatus)
     }
 
     private func handleRestGetWorkflowLogs(_ req: Request) async throws -> Response {
@@ -539,7 +639,7 @@ class MCPServer: ObservableObject, MCPServerProtocol {
             throw Abort(.notFound, reason: "No workflow found for this webhook token")
         }
 
-        var results: [WorkflowExecutionLog] = []
+        var results: [TriggerResult] = []
         for workflow in matchingWorkflows {
             let triggerEvent = TriggerEvent(
                 deviceId: nil,
@@ -550,17 +650,16 @@ class MCPServer: ObservableObject, MCPServerProtocol {
                 newValue: nil,
                 triggerDescription: "Webhook received (token \(String(token.prefix(8)))…)"
             )
-            if let result = await workflowEngine.triggerWorkflow(id: workflow.id, triggerEvent: triggerEvent) {
-                results.append(result)
-            }
+            let result = await workflowEngine.scheduleTrigger(id: workflow.id, triggerEvent: triggerEvent)
+            results.append(result)
         }
 
         let data = try Self.encoder.encode(results)
-        logRESTCall(method: "POST", path: "/workflows/webhook/\(token.prefix(8))...", statusCode: 200,
-                    resultSummary: "\(results.count) workflows triggered",
+        logRESTCall(method: "POST", path: "/workflows/webhook/\(token.prefix(8))...", statusCode: 202,
+                    resultSummary: "\(results.filter(\.isAccepted).count)/\(results.count) workflows scheduled",
                     fullResponseBody: storage.readDetailedLogsEnabled() ? String(data: data, encoding: .utf8) : nil)
 
-        return jsonResponse(data: data)
+        return jsonResponse(data: data, status: .accepted)
     }
 
     // MARK: - Streamable HTTP Transport
@@ -824,8 +923,9 @@ class MCPServer: ObservableObject, MCPServerProtocol {
 // MARK: - Bearer Auth Middleware
 
 /// Vapor middleware that validates `Authorization: Bearer <token>` on every request.
+/// Accepts any token present in the `validTokens` set (multi-client support).
 private struct BearerAuthMiddleware: AsyncMiddleware {
-    let validToken: String
+    let validTokens: Set<String>
 
     func respond(to request: Request, chainingTo next: any AsyncResponder) async throws -> Response {
         guard let authHeader = request.headers.first(name: .authorization) else {
@@ -838,7 +938,7 @@ private struct BearerAuthMiddleware: AsyncMiddleware {
         }
 
         let token = String(authHeader.dropFirst(prefix.count))
-        guard token == validToken else {
+        guard validTokens.contains(token) else {
             return Response(status: .unauthorized, body: .init(string: "{\"error\":\"Invalid API token\"}"))
         }
 

@@ -45,6 +45,8 @@ struct ConditionEvaluator {
             return await evaluateDeviceState(cond)
         case .sunEvent(let cond):
             return evaluateSunEvent(cond)
+        case .sceneActive(let cond):
+            return await evaluateSceneActive(cond)
         case .and(let conditions):
             var allPassed = true
             var descriptions: [String] = []
@@ -113,6 +115,34 @@ struct ConditionEvaluator {
         }
 
         return (passed, "\(condition.comparison.displayName) \(condition.event.displayName) = \(passed)")
+    }
+
+    private func evaluateSceneActive(_ condition: SceneActiveCondition) async -> (Bool, String) {
+        guard let scene = await MainActor.run(body: { homeKitManager.getScene(id: condition.sceneId) }) else {
+            return (false, "Scene not found")
+        }
+
+        var allMatch = true
+        for action in scene.actions {
+            guard let device = await MainActor.run(body: { homeKitManager.getDeviceState(id: action.deviceId) }) else {
+                allMatch = false
+                break
+            }
+
+            let currentValue = findCharacteristicValue(in: device, characteristicType: action.characteristicType, serviceId: nil)
+            if !Self.valuesEqual(currentValue, action.targetValue.value) {
+                allMatch = false
+                break
+            }
+        }
+
+        if condition.isActive {
+            // Checking if scene IS active
+            return (allMatch, allMatch ? "Scene '\(scene.name)' is active" : "Scene '\(scene.name)' is not active")
+        } else {
+            // Checking if scene is NOT active
+            return (!allMatch, !allMatch ? "Scene '\(scene.name)' is not active" : "Scene '\(scene.name)' is active")
+        }
     }
 
     private func findCharacteristicValue(in device: DeviceModel, characteristicType: String, serviceId: String?) -> Any? {

@@ -44,7 +44,8 @@ struct BackupSettings: Codable {
 
 struct BackupSecrets: Codable {
     let aiApiKey: String?
-    let mcpApiToken: String?
+    let mcpApiToken: String?          // Legacy single token (for backward compat)
+    let apiTokens: [APIToken]?        // Multi-token support
     let webhookSecret: String?
     let webhookURL: String?
 }

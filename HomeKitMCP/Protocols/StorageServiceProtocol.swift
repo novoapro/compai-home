@@ -8,6 +8,8 @@ protocol StorageServiceProtocol: AnyObject {
     var mcpServerPort: Int { get set }
     var webhookEnabled: Bool { get set }
     var mcpServerEnabled: Bool { get set }
+    var mcpProtocolEnabled: Bool { get set }
+    var restApiEnabled: Bool { get set }
     var hideRoomNameInTheApp: Bool { get set }
     var detailedLogsEnabled: Bool { get set }
     var aiEnabled: Bool { get set }
@@ -34,4 +36,6 @@ protocol StorageServiceProtocol: AnyObject {
     nonisolated func readPollingEnabled() -> Bool
     nonisolated func readPollingInterval() -> Int
     nonisolated func readWorkflowsEnabled() -> Bool
+    nonisolated func readMCPProtocolEnabled() -> Bool
+    nonisolated func readRestApiEnabled() -> Bool
 }

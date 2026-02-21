@@ -14,6 +14,7 @@ class WorkflowViewModel: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
 
     var devices: [DeviceModel] { homeKitManager.cachedDevices }
+    var scenes: [SceneModel] { homeKitManager.getAllScenes() }
 
     var filteredWorkflows: [Workflow] {
         guard !searchText.isEmpty else { return workflows }

@@ -11,6 +11,8 @@ class HomeKitManager: NSObject, ObservableObject, HomeKitManaging {
 
     /// Cached device models, rebuilt only when accessories or characteristic values change.
     @Published private(set) var cachedDevices: [DeviceModel] = []
+    /// Cached scene models, rebuilt when action sets change.
+    @Published private(set) var cachedScenes: [SceneModel] = []
     /// O(1) device lookup by ID, rebuilt alongside cachedDevices.
     /// Access protected by `deviceLookupLock` for thread safety.
     private var deviceLookup: [String: DeviceModel] = [:]
@@ -57,6 +59,95 @@ class HomeKitManager: NSObject, ObservableObject, HomeKitManaging {
     /// change or characteristic values are read.
     func getAllDevices() -> [DeviceModel] {
         cachedDevices
+    }
+
+    // MARK: - Scene Access
+
+    /// Returns all scenes from the cache.
+    func getAllScenes() -> [SceneModel] {
+        cachedScenes
+    }
+
+    /// Returns a single scene by ID, or nil if not found.
+    func getScene(id: String) -> SceneModel? {
+        cachedScenes.first { $0.id == id }
+    }
+
+    /// Executes a HomeKit scene (action set) by its ID.
+    func executeScene(id: String) async throws {
+        guard let (home, actionSet) = findActionSet(id: id) else {
+            throw HomeKitError.sceneNotFound
+        }
+
+        let sceneName = actionSet.name
+        AppLogger.scene.info("Executing scene: \(sceneName) (\(id))")
+
+        do {
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                home.executeActionSet(actionSet) { error in
+                    if let error {
+                        continuation.resume(throwing: error)
+                    } else {
+                        continuation.resume()
+                    }
+                }
+            }
+
+            AppLogger.scene.info("Scene executed successfully: \(sceneName)")
+
+            let logEntry = StateChangeLog(
+                id: UUID(),
+                timestamp: Date(),
+                deviceId: id,
+                deviceName: sceneName,
+                characteristicType: "scene_execution",
+                oldValue: nil,
+                newValue: AnyCodable(true),
+                category: .sceneExecution,
+                requestBody: "Execute scene: \(sceneName)"
+            )
+            await loggingService.logEntry(logEntry)
+
+            let change = StateChange(
+                deviceId: id,
+                deviceName: sceneName,
+                characteristicType: "scene_execution",
+                oldValue: nil,
+                newValue: true
+            )
+            await webhookService.sendStateChange(change)
+
+            rebuildSceneCache()
+        } catch {
+            AppLogger.scene.error("Scene execution failed: \(sceneName) - \(error.localizedDescription)")
+
+            let logEntry = StateChangeLog(
+                id: UUID(),
+                timestamp: Date(),
+                deviceId: id,
+                deviceName: sceneName,
+                characteristicType: "scene_execution",
+                oldValue: nil,
+                newValue: AnyCodable(false),
+                category: .sceneError,
+                errorDetails: error.localizedDescription,
+                requestBody: "Execute scene: \(sceneName)",
+                responseBody: "Error: \(error.localizedDescription)"
+            )
+            await loggingService.logEntry(logEntry)
+
+            throw error
+        }
+    }
+
+    /// Finds the HMActionSet and its parent HMHome by scene ID.
+    private func findActionSet(id: String) -> (HMHome, HMActionSet)? {
+        for home in homes {
+            if let actionSet = home.actionSets.first(where: { $0.uniqueIdentifier.uuidString == id }) {
+                return (home, actionSet)
+            }
+        }
+        return nil
     }
 
     /// Returns devices grouped by room name. Devices without a room go under "Other".
@@ -121,6 +212,7 @@ class HomeKitManager: NSObject, ObservableObject, HomeKitManaging {
                         type: char.characteristicType,
                         value: char.value.map { AnyCodable($0) },
                         format: char.metadata?.format ?? "unknown",
+                        units: extractUnits(from: char.metadata),
                         permissions: characteristicPermissions(char),
                         minValue: char.metadata?.minimumValue?.doubleValue,
                         maxValue: char.metadata?.maximumValue?.doubleValue,
@@ -164,6 +256,54 @@ class HomeKitManager: NSObject, ObservableObject, HomeKitManaging {
         objectWillChange.send()
     }
 
+    // MARK: - Scene Cache
+
+    /// Rebuilds the scene model cache from all homes' action sets.
+    private func rebuildSceneCache() {
+        var scenes: [SceneModel] = []
+        for home in homes {
+            for actionSet in home.actionSets {
+                let actions = actionSet.actions.compactMap { action -> SceneActionModel? in
+                    guard let writeAction = action as? HMCharacteristicWriteAction<NSCopying> else { return nil }
+                    let characteristic = writeAction.characteristic
+                    guard let service = characteristic.service,
+                          let accessory = service.accessory else { return nil }
+                    return SceneActionModel(
+                        id: characteristic.uniqueIdentifier.uuidString,
+                        deviceId: accessory.uniqueIdentifier.uuidString,
+                        deviceName: accessory.name,
+                        serviceName: service.name,
+                        characteristicType: CharacteristicTypes.displayName(for: characteristic.characteristicType),
+                        targetValue: AnyCodable(writeAction.targetValue)
+                    )
+                }
+                let scene = SceneModel(
+                    id: actionSet.uniqueIdentifier.uuidString,
+                    name: actionSet.name,
+                    type: Self.actionSetTypeDisplayName(actionSet.actionSetType),
+                    isExecuting: actionSet.isExecuting,
+                    actions: actions
+                )
+                scenes.append(scene)
+            }
+        }
+        cachedScenes = scenes.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+        objectWillChange.send()
+    }
+
+    /// Maps HMActionSetType constants to human-readable names.
+    private static func actionSetTypeDisplayName(_ type: String) -> String {
+        switch type {
+        case HMActionSetTypeUserDefined: return "User Defined"
+        case HMActionSetTypeWakeUp: return "Wake Up"
+        case HMActionSetTypeSleep: return "Sleep"
+        case HMActionSetTypeHomeDeparture: return "Home Departure"
+        case HMActionSetTypeHomeArrival: return "Home Arrival"
+        case HMActionSetTypeTriggerOwned: return "Trigger Owned"
+        default: return type
+        }
+    }
+
     // MARK: - Targeted Cache Update
 
     /// Patches only the changed characteristic in the cached device model graph.
@@ -198,6 +338,7 @@ class HomeKitManager: NSObject, ObservableObject, HomeKitManaging {
                     type: char.type,
                     value: newValue.map { AnyCodable($0) },
                     format: char.format,
+                    units: char.units,
                     permissions: char.permissions,
                     minValue: char.minValue,
                     maxValue: char.maxValue,
@@ -460,6 +601,22 @@ class HomeKitManager: NSObject, ObservableObject, HomeKitManaging {
         return perms
     }
 
+    /// Maps HMCharacteristicMetadata units to a human-readable string.
+    private func extractUnits(from metadata: HMCharacteristicMetadata?) -> String? {
+        guard let units = metadata?.units else { return nil }
+        switch units {
+        case HMCharacteristicMetadataUnitsCelsius: return "celsius"
+        case HMCharacteristicMetadataUnitsFahrenheit: return "fahrenheit"
+        case HMCharacteristicMetadataUnitsPercentage: return "%"
+        case HMCharacteristicMetadataUnitsArcDegree: return "arcdegrees"
+        case HMCharacteristicMetadataUnitsSeconds: return "seconds"
+        case HMCharacteristicMetadataUnitsLux: return "lux"
+        case HMCharacteristicMetadataUnitsPartsPerMillion: return "ppm"
+        case HMCharacteristicMetadataUnitsMicrogramsPerCubicMeter: return "μg/m³"
+        default: return units
+        }
+    }
+
     /// Extracts valid values for discrete characteristics (door state, lock state, etc.)
     /// Returns nil if the characteristic doesn't have defined discrete values.
     private func extractValidValues(for characteristicType: String) -> [Int]? {
@@ -583,6 +740,7 @@ class HomeKitManager: NSObject, ObservableObject, HomeKitManaging {
         }
         registerForNotifications()
         readAllCharacteristicValues()
+        rebuildSceneCache()
     }
 }
 
@@ -651,6 +809,32 @@ extension HomeKitManager: HMHomeDelegate {
     func home(_ home: HMHome, didUpdateNameFor room: HMRoom) {
         DispatchQueue.main.async {
             self.rebuildDeviceCache()
+        }
+    }
+
+    // MARK: - Scene Delegate
+
+    func home(_ home: HMHome, didAdd actionSet: HMActionSet) {
+        DispatchQueue.main.async {
+            self.rebuildSceneCache()
+        }
+    }
+
+    func home(_ home: HMHome, didRemove actionSet: HMActionSet) {
+        DispatchQueue.main.async {
+            self.rebuildSceneCache()
+        }
+    }
+
+    func home(_ home: HMHome, didUpdateNameFor actionSet: HMActionSet) {
+        DispatchQueue.main.async {
+            self.rebuildSceneCache()
+        }
+    }
+
+    func home(_ home: HMHome, didUpdateActionsFor actionSet: HMActionSet) {
+        DispatchQueue.main.async {
+            self.rebuildSceneCache()
         }
     }
 }
@@ -742,6 +926,7 @@ enum HomeKitError: LocalizedError {
     case serviceNotFound
     case characteristicNotFound
     case notAuthorized
+    case sceneNotFound
 
     var errorDescription: String? {
         switch self {
@@ -749,6 +934,7 @@ enum HomeKitError: LocalizedError {
         case .serviceNotFound: return "Service not found"
         case .characteristicNotFound: return "Characteristic not found"
         case .notAuthorized: return "HomeKit access not authorized"
+        case .sceneNotFound: return "Scene not found"
         }
     }
 }

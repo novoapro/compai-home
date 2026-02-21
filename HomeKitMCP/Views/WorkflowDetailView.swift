@@ -4,6 +4,7 @@ struct WorkflowDetailView: View {
     let workflow: Workflow
     let executionLogs: [WorkflowExecutionLog]
     let devices: [DeviceModel]
+    var scenes: [SceneModel] = []
     var workflows: [Workflow] = []
     let onToggle: () -> Void
     let onDelete: () -> Void
@@ -42,6 +43,7 @@ struct WorkflowDetailView: View {
             WorkflowEditorView(
                 mode: .edit(workflow),
                 devices: devices,
+                scenes: scenes,
                 workflows: workflows,
                 onSave: { draft in onUpdate(draft) }
             )
@@ -386,6 +388,14 @@ private struct WorkflowConditionRow: View {
         case .not:
             Text("NOT condition")
                 .font(.subheadline)
+        case let .sceneActive(c):
+            HStack(spacing: 6) {
+                Image(systemName: "play.rectangle.fill")
+                    .foregroundStyle(.green)
+                Text("Scene \(c.isActive ? "Active" : "Not Active"): \(c.sceneId)")
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+            }
         }
     }
 }
@@ -451,6 +461,7 @@ private struct ActionBlockRow: View {
         case .controlDevice: return "house.fill"
         case .webhook: return "globe"
         case .log: return "text.bubble"
+        case .runScene: return "play.rectangle.fill"
         }
     }
 
@@ -459,6 +470,7 @@ private struct ActionBlockRow: View {
         case let .controlDevice(a): return a.name ?? "Control Device"
         case let .webhook(a): return a.name ?? "Webhook"
         case let .log(a): return a.name ?? "Log Message"
+        case let .runScene(a): return a.name ?? "Run Scene"
         }
     }
 
@@ -474,6 +486,8 @@ private struct ActionBlockRow: View {
             return "\(a.method) \(a.url)"
         case let .log(a):
             return a.message
+        case let .runScene(a):
+            return "Scene: \(a.sceneId)"
         }
     }
 }

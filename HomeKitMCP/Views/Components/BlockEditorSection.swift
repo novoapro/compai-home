@@ -13,6 +13,7 @@ struct NestedEditState: Identifiable {
 struct BlockEditorSection: View {
     @Binding var blocks: [BlockDraft]
     let devices: [DeviceModel]
+    var scenes: [SceneModel] = []
     var allowNesting: Bool = true
     var workflows: [Workflow] = []
 
@@ -47,6 +48,9 @@ struct BlockEditorSection: View {
                     }
                     Button("Log Message", systemImage: "text.bubble") {
                         blocks.append(.newLog())
+                    }
+                    Button("Run Scene", systemImage: "play.rectangle.fill") {
+                        blocks.append(.newRunScene())
                     }
                     Button("Delay", systemImage: "clock") {
                         blocks.append(.newDelay())
@@ -114,6 +118,7 @@ struct BlockEditorSection: View {
         return BlockEditorRow(
             block: block,
             devices: devices,
+            scenes: scenes,
             allowNesting: allowNesting,
             onEditNestedBlocks: allowNesting ? { label, _ in
                 onRequestNestedEdit?(NestedEditState(parentBlockId: blockId, label: label))
@@ -199,12 +204,13 @@ struct NestedBlockEditorSheet: View {
     let title: String
     @Binding var blocks: [BlockDraft]
     let devices: [DeviceModel]
+    var scenes: [SceneModel] = []
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         NavigationStack {
             Form {
-                BlockEditorSection(blocks: $blocks, devices: devices, allowNesting: false)
+                BlockEditorSection(blocks: $blocks, devices: devices, scenes: scenes, allowNesting: false)
             }
             .formStyle(.grouped)
             .scrollContentBackground(.hidden)

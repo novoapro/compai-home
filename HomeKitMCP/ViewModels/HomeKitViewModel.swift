@@ -51,6 +51,11 @@ class HomeKitViewModel: ObservableObject {
 
     @Published var filteredDevicesByRoom: [(roomName: String, devices: [DeviceModel])] = []
 
+    // Scenes
+    @Published var scenes: [SceneModel] = []
+    @Published var filteredScenes: [SceneModel] = []
+    @Published var sceneSearchText = ""
+
     init(homeKitManager: HomeKitManager, configService: DeviceConfigurationService) {
         self.homeKitManager = homeKitManager
         self.configService = configService
@@ -124,6 +129,16 @@ class HomeKitViewModel: ObservableObject {
         }
         .store(in: &cancellables)
 
+        // Scene search filtering
+        $sceneSearchText
+            .combineLatest($scenes)
+            .debounce(for: .milliseconds(200), scheduler: DispatchQueue.main)
+            .map { query, scenes in
+                guard !query.isEmpty else { return scenes }
+                return scenes.filter { $0.name.localizedCaseInsensitiveContains(query) }
+            }
+            .assign(to: &$filteredScenes)
+
         homeKitManager.$isReady
             .receive(on: DispatchQueue.main)
             .sink { [weak self] isReady in
@@ -155,6 +170,7 @@ class HomeKitViewModel: ObservableObject {
 
     func refresh() {
         devicesByRoom = homeKitManager.getDevicesGroupedByRoom()
+        scenes = homeKitManager.getAllScenes()
         isLoading = false
 
         // Update cached filter options
@@ -167,6 +183,14 @@ class HomeKitViewModel: ObservableObject {
         availableServiceTypes = Array(Set(allTypes)).sorted()
 
         Task { await refreshConfigCache() }
+    }
+
+    func executeScene(id: String) async {
+        do {
+            try await homeKitManager.executeScene(id: id)
+        } catch {
+            AppLogger.scene.error("Scene execution failed: \(error.localizedDescription)")
+        }
     }
 
     func clearFilters() {

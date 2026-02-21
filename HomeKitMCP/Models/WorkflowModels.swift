@@ -159,11 +159,14 @@ enum WorkflowAction: Codable {
     case controlDevice(ControlDeviceAction)
     case webhook(WebhookActionConfig)
     case log(LogAction)
+    case runScene(RunSceneAction)
 
     private enum ActionType: String, Codable {
         case controlDevice
         case webhook
         case log
+        case runScene
+        case activateScene // legacy alias for decoding
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -171,6 +174,7 @@ enum WorkflowAction: Codable {
         case deviceId, serviceId, characteristicType, value
         case url, method, headers, body
         case message
+        case sceneId
     }
 
     init(from decoder: Decoder) throws {
@@ -199,6 +203,11 @@ enum WorkflowAction: Codable {
                 message: container.decode(String.self, forKey: .message),
                 name: name
             ))
+        case .runScene, .activateScene:
+            self = try .runScene(RunSceneAction(
+                sceneId: container.decode(String.self, forKey: .sceneId),
+                name: name
+            ))
         }
     }
 
@@ -223,6 +232,10 @@ enum WorkflowAction: Codable {
             try container.encode(ActionType.log, forKey: .type)
             try container.encodeIfPresent(action.name, forKey: .name)
             try container.encode(action.message, forKey: .message)
+        case let .runScene(action):
+            try container.encode(ActionType.runScene, forKey: .type)
+            try container.encodeIfPresent(action.name, forKey: .name)
+            try container.encode(action.sceneId, forKey: .sceneId)
         }
     }
 
@@ -231,6 +244,7 @@ enum WorkflowAction: Codable {
         case .controlDevice: return "controlDevice"
         case .webhook: return "webhook"
         case .log: return "log"
+        case .runScene: return "runScene"
         }
     }
 }
@@ -273,6 +287,16 @@ struct LogAction {
 
     init(message: String, name: String? = nil) {
         self.message = message
+        self.name = name
+    }
+}
+
+struct RunSceneAction {
+    let sceneId: String
+    let name: String?
+
+    init(sceneId: String, name: String? = nil) {
+        self.sceneId = sceneId
         self.name = name
     }
 }
@@ -956,6 +980,7 @@ enum TriggerCondition: Codable {
 indirect enum WorkflowCondition: Codable {
     case deviceState(DeviceStateCondition)
     case sunEvent(SunEventCondition)
+    case sceneActive(SceneActiveCondition)
     case and([WorkflowCondition])
     case or([WorkflowCondition])
     case not(WorkflowCondition)
@@ -963,6 +988,7 @@ indirect enum WorkflowCondition: Codable {
     private enum ConditionType: String, Codable {
         case deviceState
         case sunEvent
+        case sceneActive
         case and
         case or
         case not
@@ -972,6 +998,7 @@ indirect enum WorkflowCondition: Codable {
         case type, conditions, condition
         case deviceId, serviceId, characteristicType, comparison
         case event, sunComparison
+        case sceneId, isActive
     }
 
     init(from decoder: Decoder) throws {
@@ -989,6 +1016,11 @@ indirect enum WorkflowCondition: Codable {
             self = try .sunEvent(SunEventCondition(
                 event: container.decode(SunEventType.self, forKey: .event),
                 comparison: container.decode(SunEventComparison.self, forKey: .sunComparison)
+            ))
+        case .sceneActive:
+            self = try .sceneActive(SceneActiveCondition(
+                sceneId: container.decode(String.self, forKey: .sceneId),
+                isActive: container.decodeIfPresent(Bool.self, forKey: .isActive) ?? true
             ))
         case .and:
             self = try .and(container.decode([WorkflowCondition].self, forKey: .conditions))
@@ -1012,6 +1044,10 @@ indirect enum WorkflowCondition: Codable {
             try container.encode(ConditionType.sunEvent, forKey: .type)
             try container.encode(cond.event, forKey: .event)
             try container.encode(cond.comparison, forKey: .sunComparison)
+        case let .sceneActive(cond):
+            try container.encode(ConditionType.sceneActive, forKey: .type)
+            try container.encode(cond.sceneId, forKey: .sceneId)
+            try container.encode(cond.isActive, forKey: .isActive)
         case let .and(conditions):
             try container.encode(ConditionType.and, forKey: .type)
             try container.encode(conditions, forKey: .conditions)
@@ -1049,6 +1085,16 @@ enum SunEventComparison: String, Codable, CaseIterable, Identifiable {
 struct SunEventCondition: Codable {
     let event: SunEventType
     let comparison: SunEventComparison
+}
+
+struct SceneActiveCondition: Codable {
+    let sceneId: String
+    let isActive: Bool
+
+    init(sceneId: String, isActive: Bool = true) {
+        self.sceneId = sceneId
+        self.isActive = isActive
+    }
 }
 
 // MARK: - Shared: ComparisonOperator
@@ -1230,4 +1276,128 @@ enum ExecutionStatus: String, Codable {
     case skipped
     case conditionNotMet
     case cancelled
+}
+
+// MARK: - Trigger Result (Fire-and-Forget)
+
+/// Immediate result of a trigger request. Describes what happened when the trigger
+/// was submitted, not the outcome of the workflow execution itself.
+enum TriggerResult: Codable {
+    case scheduled(workflowId: UUID, workflowName: String)
+    case replaced(workflowId: UUID, workflowName: String)
+    case queued(workflowId: UUID, workflowName: String)
+    case ignored(workflowId: UUID, workflowName: String)
+    case notFound
+    case disabled
+    case workflowDisabled(workflowId: UUID, workflowName: String)
+
+    var message: String {
+        switch self {
+        case .scheduled(_, let name):
+            return "Workflow '\(name)' execution scheduled."
+        case .replaced(_, let name):
+            return "Previous execution of '\(name)' was cancelled; new execution scheduled."
+        case .queued(_, let name):
+            return "Workflow '\(name)' has been queued for execution."
+        case .ignored(_, let name):
+            return "Trigger ignored: '\(name)' is already running."
+        case .notFound:
+            return "Workflow not found."
+        case .disabled:
+            return "Workflows are disabled."
+        case .workflowDisabled(_, let name):
+            return "Workflow '\(name)' is disabled."
+        }
+    }
+
+    var isAccepted: Bool {
+        switch self {
+        case .scheduled, .replaced, .queued: return true
+        case .ignored, .notFound, .disabled, .workflowDisabled: return false
+        }
+    }
+
+    var isNotFound: Bool {
+        if case .notFound = self { return true }
+        return false
+    }
+
+    var httpStatusCode: UInt {
+        switch self {
+        case .scheduled, .replaced, .queued: return 202
+        case .ignored: return 409
+        case .notFound: return 404
+        case .disabled, .workflowDisabled: return 503
+        }
+    }
+
+    // MARK: Codable — flat JSON
+
+    private enum CodingKeys: String, CodingKey {
+        case status, workflowId, workflowName, message
+    }
+
+    private var statusString: String {
+        switch self {
+        case .scheduled: return "scheduled"
+        case .replaced: return "replaced"
+        case .queued: return "queued"
+        case .ignored: return "ignored"
+        case .notFound: return "not_found"
+        case .disabled: return "disabled"
+        case .workflowDisabled: return "workflow_disabled"
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(statusString, forKey: .status)
+        try container.encode(message, forKey: .message)
+
+        switch self {
+        case .scheduled(let id, let name),
+             .replaced(let id, let name),
+             .queued(let id, let name),
+             .ignored(let id, let name),
+             .workflowDisabled(let id, let name):
+            try container.encode(id, forKey: .workflowId)
+            try container.encode(name, forKey: .workflowName)
+        case .notFound, .disabled:
+            break
+        }
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let status = try container.decode(String.self, forKey: .status)
+
+        switch status {
+        case "scheduled":
+            let id = try container.decode(UUID.self, forKey: .workflowId)
+            let name = try container.decode(String.self, forKey: .workflowName)
+            self = .scheduled(workflowId: id, workflowName: name)
+        case "replaced":
+            let id = try container.decode(UUID.self, forKey: .workflowId)
+            let name = try container.decode(String.self, forKey: .workflowName)
+            self = .replaced(workflowId: id, workflowName: name)
+        case "queued":
+            let id = try container.decode(UUID.self, forKey: .workflowId)
+            let name = try container.decode(String.self, forKey: .workflowName)
+            self = .queued(workflowId: id, workflowName: name)
+        case "ignored":
+            let id = try container.decode(UUID.self, forKey: .workflowId)
+            let name = try container.decode(String.self, forKey: .workflowName)
+            self = .ignored(workflowId: id, workflowName: name)
+        case "not_found":
+            self = .notFound
+        case "disabled":
+            self = .disabled
+        case "workflow_disabled":
+            let id = try container.decode(UUID.self, forKey: .workflowId)
+            let name = try container.decode(String.self, forKey: .workflowName)
+            self = .workflowDisabled(workflowId: id, workflowName: name)
+        default:
+            throw DecodingError.dataCorruptedError(forKey: .status, in: container, debugDescription: "Unknown trigger result status: \(status)")
+        }
+    }
 }

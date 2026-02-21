@@ -20,6 +20,7 @@ struct HomeKitMCPApp: App {
 
 enum NavigationItem: String, CaseIterable, Identifiable, Hashable {
     case devices
+    case scenes
     case workflows
     case logs
     case settings
@@ -29,6 +30,7 @@ enum NavigationItem: String, CaseIterable, Identifiable, Hashable {
     var label: String {
         switch self {
         case .devices: return "Devices"
+        case .scenes: return "Scenes"
         case .workflows: return "Workflows"
         case .logs: return "Logs"
         case .settings: return "Settings"
@@ -38,6 +40,7 @@ enum NavigationItem: String, CaseIterable, Identifiable, Hashable {
     var icon: String {
         switch self {
         case .devices: return "house.fill"
+        case .scenes: return "play.rectangle.fill"
         case .workflows: return "bolt.fill"
         case .logs: return "list.bullet.rectangle"
         case .settings: return "gear"
@@ -160,17 +163,19 @@ struct ContentView: View {
                 selection = .nav(.devices)
             }
         }
-        // Keyboard shortcuts for sidebar navigation (Cmd+1/2/3, Cmd+, for Settings)
+        // Keyboard shortcuts for sidebar navigation (Cmd+1/2/3/4, Cmd+, for Settings)
         .background {
             VStack {
                 Button("") { selection = .nav(.devices) }
                     .keyboardShortcut("1", modifiers: .command)
+                Button("") { selection = .nav(.scenes) }
+                    .keyboardShortcut("2", modifiers: .command)
                 if settingsViewModel.workflowsEnabled {
                     Button("") { selection = .nav(.workflows) }
-                        .keyboardShortcut("2", modifiers: .command)
+                        .keyboardShortcut("3", modifiers: .command)
                 }
                 Button("") { selection = .nav(.logs) }
-                    .keyboardShortcut("3", modifiers: .command)
+                    .keyboardShortcut("4", modifiers: .command)
                 Button("") { selection = .nav(.settings) }
                     .keyboardShortcut(",", modifiers: .command)
             }
@@ -208,6 +213,7 @@ struct ContentView: View {
             Section {
                 ForEach(NavigationItem.allCases.filter { item in
                     if item == .workflows { return settingsViewModel.workflowsEnabled }
+                    if item == .scenes { return !homeKitViewModel.scenes.isEmpty }
                     return true
                 }) { item in
                     Label(item.label, systemImage: item.icon)
@@ -237,6 +243,10 @@ struct ContentView: View {
         case .nav(.devices), .none:
             NavigationStack {
                 DeviceListView(viewModel: homeKitViewModel)
+            }
+        case .nav(.scenes):
+            NavigationStack {
+                SceneListView(viewModel: homeKitViewModel)
             }
         case .nav(.workflows):
             NavigationStack {

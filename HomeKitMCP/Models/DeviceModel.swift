@@ -26,6 +26,7 @@ struct CharacteristicModel: Identifiable, Codable {
     let type: String
     var value: AnyCodable?
     let format: String
+    let units: String?
     let permissions: [String]
     var minValue: Double?
     var maxValue: Double?

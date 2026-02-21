@@ -74,12 +74,29 @@ class KeychainService {
     }
 }
 
+// MARK: - API Token Model
+
+struct APIToken: Codable, Identifiable, Equatable {
+    let id: UUID
+    var name: String
+    let token: String
+    let createdAt: Date
+
+    init(id: UUID = UUID(), name: String, token: String, createdAt: Date = Date()) {
+        self.id = id
+        self.name = name
+        self.token = token
+        self.createdAt = createdAt
+    }
+}
+
 // MARK: - Keychain Keys
 
 extension KeychainService {
     enum Keys {
         static let aiApiKey = "ai-api-key"
         static let mcpApiToken = "mcp-api-token"
+        static let mcpApiTokens = "mcp-api-tokens"
         static let webhookSecret = "webhook-secret"
         static let webhookURL = "webhook-url"
         static let appleSignInUserId = "apple-signin-user-id"
@@ -87,14 +104,71 @@ extension KeychainService {
         static let appleSignInName = "apple-signin-name"
     }
 
+    // MARK: - Multi-Token Management
+
+    /// Returns all API tokens, migrating the legacy single token if needed.
+    func getAPITokens() -> [APIToken] {
+        if let json = read(key: Keys.mcpApiTokens), let data = json.data(using: .utf8) {
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601
+            if let tokens = try? decoder.decode([APIToken].self, from: data), !tokens.isEmpty {
+                return tokens
+            }
+        }
+
+        // Migrate legacy single token
+        if let legacyToken = read(key: Keys.mcpApiToken), !legacyToken.isEmpty {
+            let migrated = APIToken(name: "Default", token: legacyToken)
+            saveAPITokens([migrated])
+            delete(key: Keys.mcpApiToken)
+            return [migrated]
+        }
+
+        return []
+    }
+
+    /// Creates a new API token with the given name and persists it.
+    @discardableResult
+    func addAPIToken(name: String) -> APIToken {
+        var tokens = getAPITokens()
+        let newToken = APIToken(name: name, token: generateSecureToken())
+        tokens.append(newToken)
+        saveAPITokens(tokens)
+        return newToken
+    }
+
+    /// Deletes an API token by ID.
+    func deleteAPIToken(id: UUID) {
+        var tokens = getAPITokens()
+        tokens.removeAll { $0.id == id }
+        saveAPITokens(tokens)
+    }
+
+    /// Returns the set of valid token strings for middleware validation.
+    func getValidTokenStrings() -> Set<String> {
+        Set(getAPITokens().map(\.token))
+    }
+
+    private func saveAPITokens(_ tokens: [APIToken]) {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        guard let data = try? encoder.encode(tokens),
+              let json = String(data: data, encoding: .utf8) else { return }
+        _ = save(key: Keys.mcpApiTokens, value: json)
+    }
+
+    // MARK: - Legacy Single Token (kept for backward compatibility during migration)
+
     /// Returns the existing MCP API token, or generates and stores a new one.
     func getOrCreateMCPApiToken() -> String {
-        if let existing = read(key: Keys.mcpApiToken), !existing.isEmpty {
-            return existing
+        // Prefer multi-token system
+        let tokens = getAPITokens()
+        if let first = tokens.first {
+            return first.token
         }
-        let token = generateSecureToken()
-        _ = save(key: Keys.mcpApiToken, value: token)
-        return token
+        // Fallback: create a default token
+        let newToken = addAPIToken(name: "Default")
+        return newToken.token
     }
 
     /// Generates a new MCP API token, replacing any existing one.
@@ -104,6 +178,8 @@ extension KeychainService {
         _ = save(key: Keys.mcpApiToken, value: token)
         return token
     }
+
+    // MARK: - Webhook Secret
 
     /// Returns the existing webhook secret, or generates and stores a new one.
     func getOrCreateWebhookSecret() -> String {
@@ -124,7 +200,7 @@ extension KeychainService {
     }
 
     /// Generates a cryptographically secure 32-byte hex token.
-    private func generateSecureToken() -> String {
+    func generateSecureToken() -> String {
         var bytes = [UInt8](repeating: 0, count: 32)
         _ = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
         return bytes.map { String(format: "%02x", $0) }.joined()

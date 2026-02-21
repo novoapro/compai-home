@@ -28,6 +28,7 @@ actor WorkflowEngine: WorkflowEngineProtocol {
     private struct PendingEntry {
         let workflow: Workflow
         let change: StateChange?
+        let triggerEvent: TriggerEvent?
         let queuedAt: Date
     }
 
@@ -205,6 +206,57 @@ actor WorkflowEngine: WorkflowEngineProtocol {
         return await task.value
     }
 
+    // MARK: - Fire-and-Forget Triggers
+
+    /// Fire-and-forget manual trigger — returns immediately with the scheduling outcome.
+    func scheduleTrigger(id: UUID) async -> TriggerResult {
+        guard storage.readWorkflowsEnabled() else { return .disabled }
+        guard let workflow = await workflowStorageService.getWorkflow(id: id) else { return .notFound }
+
+        if runningTasks[id] != nil {
+            switch workflow.retriggerPolicy {
+            case .ignoreNew:
+                return .ignored(workflowId: id, workflowName: workflow.name)
+            case .cancelAndRestart:
+                runningTasks[id]?.cancel()
+                runningTasks.removeValue(forKey: id)
+                startExecution(workflow, change: nil)
+                return .replaced(workflowId: id, workflowName: workflow.name)
+            case .queueAndExecute:
+                enqueueWorkflow(workflow, change: nil)
+                return .queued(workflowId: id, workflowName: workflow.name)
+            }
+        }
+
+        startExecution(workflow, change: nil)
+        return .scheduled(workflowId: id, workflowName: workflow.name)
+    }
+
+    /// Fire-and-forget trigger with a custom event — returns immediately with the scheduling outcome.
+    func scheduleTrigger(id: UUID, triggerEvent: TriggerEvent) async -> TriggerResult {
+        guard storage.readWorkflowsEnabled() else { return .disabled }
+        guard let workflow = await workflowStorageService.getWorkflow(id: id) else { return .notFound }
+        guard workflow.isEnabled else { return .workflowDisabled(workflowId: id, workflowName: workflow.name) }
+
+        if runningTasks[id] != nil {
+            switch workflow.retriggerPolicy {
+            case .ignoreNew:
+                return .ignored(workflowId: id, workflowName: workflow.name)
+            case .cancelAndRestart:
+                runningTasks[id]?.cancel()
+                runningTasks.removeValue(forKey: id)
+                startExecution(workflow, change: nil, triggerEvent: triggerEvent)
+                return .replaced(workflowId: id, workflowName: workflow.name)
+            case .queueAndExecute:
+                enqueueWorkflow(workflow, change: nil, triggerEvent: triggerEvent)
+                return .queued(workflowId: id, workflowName: workflow.name)
+            }
+        }
+
+        startExecution(workflow, change: nil, triggerEvent: triggerEvent)
+        return .scheduled(workflowId: id, workflowName: workflow.name)
+    }
+
     /// Internal trigger used by the Execute Workflow block — carries caller context for circular call detection.
     private func triggerWorkflow(id: UUID, triggerEvent: TriggerEvent, callerContext: ExecutionContext) async -> WorkflowExecutionLog? {
         guard let workflow = await workflowStorageService.getWorkflow(id: id) else { return nil }
@@ -279,14 +331,14 @@ actor WorkflowEngine: WorkflowEngineProtocol {
     // MARK: - Execution Slot Management
 
     /// Attempt to immediately start a workflow, or queue it if no slots are available.
-    private func startExecution(_ workflow: Workflow, change: StateChange?) {
+    private func startExecution(_ workflow: Workflow, change: StateChange?, triggerEvent: TriggerEvent? = nil) {
         guard runningTasks.count < maxConcurrentExecutions else {
-            enqueueWorkflow(workflow, change: change)
+            enqueueWorkflow(workflow, change: change, triggerEvent: triggerEvent)
             return
         }
         let workflowId = workflow.id
         let task = Task { [weak self] in
-            await self?.executeWorkflow(workflow, change: change)
+            await self?.executeWorkflow(workflow, change: change, triggerEvent: triggerEvent)
             await self?.removeRunning(workflowId)
         }
         runningTasks[workflowId] = task
@@ -294,7 +346,7 @@ actor WorkflowEngine: WorkflowEngineProtocol {
 
     /// Add a workflow to the pending FIFO queue, respecting the max queue size.
     /// Only one pending entry per workflow — duplicate triggers are ignored.
-    private func enqueueWorkflow(_ workflow: Workflow, change: StateChange?) {
+    private func enqueueWorkflow(_ workflow: Workflow, change: StateChange?, triggerEvent: TriggerEvent? = nil) {
         if pendingQueue.contains(where: { $0.workflow.id == workflow.id }) {
             AppLogger.workflow.debug("[\(workflow.name)] Already queued, skipping duplicate trigger")
             return
@@ -308,7 +360,7 @@ actor WorkflowEngine: WorkflowEngineProtocol {
         let maxSlots = maxConcurrentExecutions
         let pending = pendingQueue.count + 1
         AppLogger.workflow.info("[\(workflow.name)] Queued (slots: \(slots)/\(maxSlots), pending: \(pending))")
-        pendingQueue.append(PendingEntry(workflow: workflow, change: change, queuedAt: Date()))
+        pendingQueue.append(PendingEntry(workflow: workflow, change: change, triggerEvent: triggerEvent, queuedAt: Date()))
     }
 
     /// Called when a workflow completes. Frees the slot and drains the pending queue.
@@ -336,7 +388,7 @@ actor WorkflowEngine: WorkflowEngineProtocol {
 
             let waitStr = String(format: "%.1f", waitTime)
             AppLogger.workflow.info("[\(entry.workflow.name)] Dequeued after \(waitStr)s — starting execution")
-            startExecution(entry.workflow, change: entry.change)
+            startExecution(entry.workflow, change: entry.change, triggerEvent: entry.triggerEvent)
         }
     }
 
@@ -614,6 +666,7 @@ actor WorkflowEngine: WorkflowEngineProtocol {
             case let .controlDevice(a): return a.name
             case let .webhook(a): return a.name
             case let .log(a): return a.name
+            case let .runScene(a): return a.name
             }
         }()
         var result = BlockResult(blockIndex: index, blockKind: "action", blockType: action.displayType, blockName: actionName)
@@ -635,6 +688,10 @@ actor WorkflowEngine: WorkflowEngineProtocol {
                 case let .log(a):
                     AppLogger.workflow.info("Workflow log: \(a.message)")
                     result.detail = a.message
+                case let .runScene(a):
+                    try await self.homeKitManager.executeScene(id: a.sceneId)
+                    let sceneName = await MainActor.run { self.homeKitManager.getScene(id: a.sceneId)?.name } ?? a.sceneId
+                    result.detail = "Ran scene '\(sceneName)'"
                 }
             }
             result.status = .success
@@ -654,6 +711,16 @@ actor WorkflowEngine: WorkflowEngineProtocol {
 
     private func executeControlDevice(_ action: ControlDeviceAction) async throws {
         let resolvedType = CharacteristicTypes.characteristicType(forName: action.characteristicType) ?? action.characteristicType
+
+        // Validate value against characteristic metadata
+        let device: DeviceModel? = await MainActor.run { homeKitManager.getDeviceState(id: action.deviceId) }
+        if let device {
+            let targetServices = action.serviceId != nil ? device.services.filter({ $0.id == action.serviceId }) : device.services
+            if let characteristic = targetServices.flatMap(\.characteristics).first(where: { $0.type == resolvedType }) {
+                try CharacteristicValidator.validate(value: action.value.value, against: characteristic)
+            }
+        }
+
         try await homeKitManager.updateDevice(
             id: action.deviceId,
             characteristicType: resolvedType,

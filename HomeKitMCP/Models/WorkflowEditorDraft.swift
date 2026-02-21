@@ -278,7 +278,7 @@ extension TriggerDraft {
 }
 
 extension ConditionDraft {
-    func autoName(devices: [DeviceModel]) -> String {
+    func autoName(devices: [DeviceModel], scenes: [SceneModel] = []) -> String {
         switch conditionDraftType {
         case .deviceState:
             guard !deviceId.isEmpty else { return "New Condition" }
@@ -291,12 +291,17 @@ extension ConditionDraft {
             return parts.joined(separator: " ")
         case .sunEvent:
             return "\(sunEventComparison.displayName) \(sunEventType.displayName)"
+        case .sceneActive:
+            guard !sceneId.isEmpty else { return "Scene Active" }
+            let scene = scenes.first(where: { $0.id == sceneId })
+            let sceneName = scene?.name ?? sceneId
+            return sceneIsActive ? "Scene \"\(sceneName)\" active" : "Scene \"\(sceneName)\" not active"
         }
     }
 }
 
 extension BlockDraft {
-    func autoName(devices: [DeviceModel]) -> String {
+    func autoName(devices: [DeviceModel], scenes: [SceneModel] = []) -> String {
         switch blockType {
         case let .controlDevice(d):
             return d.autoName(devices: devices)
@@ -304,16 +309,18 @@ extension BlockDraft {
             return d.autoName()
         case let .log(d):
             return d.autoName()
+        case let .runScene(d):
+            return d.autoName(scenes: scenes)
         case let .delay(d):
             return d.autoName()
         case let .waitForState(d):
             return d.autoName(devices: devices)
         case let .conditional(d):
-            return d.autoName(devices: devices)
+            return d.autoName(devices: devices, scenes: scenes)
         case let .repeatBlock(d):
             return d.autoName()
         case let .repeatWhile(d):
-            return d.autoName(devices: devices)
+            return d.autoName(devices: devices, scenes: scenes)
         case let .group(d):
             return d.autoName()
         case let .stop(d):
@@ -324,12 +331,13 @@ extension BlockDraft {
     }
 
     /// Returns the user-set name or the auto-generated name
-    func displayName(devices: [DeviceModel]) -> String {
+    func displayName(devices: [DeviceModel], scenes: [SceneModel] = []) -> String {
         let explicitName: String = {
             switch blockType {
             case let .controlDevice(d): return d.name
             case let .webhook(d): return d.name
             case let .log(d): return d.name
+            case let .runScene(d): return d.name
             case let .delay(d): return d.name
             case let .waitForState(d): return d.name
             case let .conditional(d): return d.name
@@ -340,7 +348,7 @@ extension BlockDraft {
             case let .executeWorkflow(d): return d.name
             }
         }()
-        return explicitName.isEmpty ? autoName(devices: devices) : explicitName
+        return explicitName.isEmpty ? autoName(devices: devices, scenes: scenes) : explicitName
     }
 }
 
@@ -373,6 +381,14 @@ private extension LogDraft {
     }
 }
 
+private extension RunSceneDraft {
+    func autoName(scenes: [SceneModel] = []) -> String {
+        guard !sceneId.isEmpty else { return "Run Scene" }
+        let scene = scenes.first(where: { $0.id == sceneId })
+        return "Run \"\(scene?.name ?? sceneId)\""
+    }
+}
+
 private extension DelayDraft {
     func autoName() -> String {
         return "Delay \(seconds)s"
@@ -390,12 +406,20 @@ private extension WaitForStateDraft {
 }
 
 private extension ConditionalDraft {
-    func autoName(devices: [DeviceModel]) -> String {
-        guard !conditionDeviceId.isEmpty else { return "If/Else" }
-        let device = devices.first(where: { $0.id == conditionDeviceId })
-        let devName = device?.name ?? "Unknown"
-        let charName = conditionCharacteristicType.isEmpty ? "" : CharacteristicTypes.displayName(for: conditionCharacteristicType)
-        return "If \(devName) \(charName) \(comparisonType.displayName) \(comparisonValue)".trimmingCharacters(in: .whitespaces)
+    func autoName(devices: [DeviceModel], scenes: [SceneModel] = []) -> String {
+        switch conditionKind {
+        case .deviceState:
+            guard !conditionDeviceId.isEmpty else { return "If/Else" }
+            let device = devices.first(where: { $0.id == conditionDeviceId })
+            let devName = device?.name ?? "Unknown"
+            let charName = conditionCharacteristicType.isEmpty ? "" : CharacteristicTypes.displayName(for: conditionCharacteristicType)
+            return "If \(devName) \(charName) \(comparisonType.displayName) \(comparisonValue)".trimmingCharacters(in: .whitespaces)
+        case .sceneActive:
+            guard !conditionSceneId.isEmpty else { return "If/Else (Scene)" }
+            let scene = scenes.first(where: { $0.id == conditionSceneId })
+            let sceneName = scene?.name ?? conditionSceneId
+            return conditionSceneIsActive ? "If \"\(sceneName)\" active" : "If \"\(sceneName)\" not active"
+        }
     }
 }
 
@@ -406,12 +430,20 @@ private extension RepeatDraft {
 }
 
 private extension RepeatWhileDraft {
-    func autoName(devices: [DeviceModel]) -> String {
-        guard !conditionDeviceId.isEmpty else { return "Repeat While" }
-        let device = devices.first(where: { $0.id == conditionDeviceId })
-        let devName = device?.name ?? "Unknown"
-        let charName = conditionCharacteristicType.isEmpty ? "" : CharacteristicTypes.displayName(for: conditionCharacteristicType)
-        return "While \(devName) \(charName) \(comparisonType.displayName) \(comparisonValue)".trimmingCharacters(in: .whitespaces)
+    func autoName(devices: [DeviceModel], scenes: [SceneModel] = []) -> String {
+        switch conditionKind {
+        case .deviceState:
+            guard !conditionDeviceId.isEmpty else { return "Repeat While" }
+            let device = devices.first(where: { $0.id == conditionDeviceId })
+            let devName = device?.name ?? "Unknown"
+            let charName = conditionCharacteristicType.isEmpty ? "" : CharacteristicTypes.displayName(for: conditionCharacteristicType)
+            return "While \(devName) \(charName) \(comparisonType.displayName) \(comparisonValue)".trimmingCharacters(in: .whitespaces)
+        case .sceneActive:
+            guard !conditionSceneId.isEmpty else { return "While (Scene)" }
+            let scene = scenes.first(where: { $0.id == conditionSceneId })
+            let sceneName = scene?.name ?? conditionSceneId
+            return conditionSceneIsActive ? "While \"\(sceneName)\" active" : "While \"\(sceneName)\" not active"
+        }
     }
 }
 
@@ -448,6 +480,7 @@ private extension ExecuteWorkflowDraft {
 enum ConditionDraftType: String, CaseIterable, Identifiable {
     case deviceState
     case sunEvent
+    case sceneActive
 
     var id: String { rawValue }
 
@@ -455,6 +488,7 @@ enum ConditionDraftType: String, CaseIterable, Identifiable {
         switch self {
         case .deviceState: return "Device State"
         case .sunEvent: return "Sunrise/Sunset"
+        case .sceneActive: return "Scene Active"
         }
     }
 
@@ -462,6 +496,7 @@ enum ConditionDraftType: String, CaseIterable, Identifiable {
         switch self {
         case .deviceState: return "shield.fill"
         case .sunEvent: return "sunrise.fill"
+        case .sceneActive: return "play.rectangle.fill"
         }
     }
 }
@@ -481,6 +516,10 @@ struct ConditionDraft: Identifiable {
     // Sun Event fields
     var sunEventType: SunEventType = .sunrise
     var sunEventComparison: SunEventComparison = .after
+
+    // Scene Active fields
+    var sceneId: String = ""
+    var sceneIsActive: Bool = true
 
     static func empty() -> ConditionDraft {
         ConditionDraft(
@@ -509,6 +548,19 @@ struct ConditionDraft: Identifiable {
             sunEventComparison: .after
         )
     }
+
+    static func emptySceneActive() -> ConditionDraft {
+        ConditionDraft(
+            id: UUID(),
+            name: "",
+            conditionDraftType: .sceneActive,
+            deviceId: "",
+            serviceId: nil,
+            characteristicType: "",
+            comparisonType: .equals,
+            comparisonValue: ""
+        )
+    }
 }
 
 // MARK: - Block Draft
@@ -527,6 +579,10 @@ struct BlockDraft: Identifiable {
 
     static func newLog() -> BlockDraft {
         BlockDraft(id: UUID(), blockType: .log(LogDraft()))
+    }
+
+    static func newRunScene() -> BlockDraft {
+        BlockDraft(id: UUID(), blockType: .runScene(RunSceneDraft()))
     }
 
     static func newDelay() -> BlockDraft {
@@ -566,6 +622,7 @@ enum BlockDraftType {
     case controlDevice(ControlDeviceDraft)
     case webhook(WebhookDraft)
     case log(LogDraft)
+    case runScene(RunSceneDraft)
     case delay(DelayDraft)
     case waitForState(WaitForStateDraft)
     case conditional(ConditionalDraft)
@@ -580,6 +637,7 @@ enum BlockDraftType {
         case .controlDevice: return "Control Device"
         case .webhook: return "Webhook"
         case .log: return "Log Message"
+        case .runScene: return "Run Scene"
         case .delay: return "Delay"
         case .waitForState: return "Wait for State"
         case .conditional: return "If/Else"
@@ -596,6 +654,7 @@ enum BlockDraftType {
         case .controlDevice: return "house.fill"
         case .webhook: return "globe"
         case .log: return "text.bubble"
+        case .runScene: return "play.rectangle.fill"
         case .delay: return "clock"
         case .waitForState: return "hourglass"
         case .conditional: return "arrow.triangle.branch"
@@ -609,7 +668,7 @@ enum BlockDraftType {
 
     var isFlowControl: Bool {
         switch self {
-        case .controlDevice, .webhook, .log: return false
+        case .controlDevice, .webhook, .log, .runScene: return false
         default: return true
         }
     }
@@ -644,6 +703,11 @@ struct LogDraft {
     var message: String = ""
 }
 
+struct RunSceneDraft {
+    var name: String = ""
+    var sceneId: String = ""
+}
+
 struct DelayDraft {
     var name: String = ""
     var seconds: Double = 1.0
@@ -659,13 +723,40 @@ struct WaitForStateDraft {
     var timeoutSeconds: Double = 30.0
 }
 
+/// Condition types available inside flow control blocks (If/Else, Repeat While).
+enum FlowConditionType: String, CaseIterable, Identifiable {
+    case deviceState
+    case sceneActive
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .deviceState: return "Device State"
+        case .sceneActive: return "Scene Active"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .deviceState: return "shield.fill"
+        case .sceneActive: return "play.rectangle.fill"
+        }
+    }
+}
+
 struct ConditionalDraft {
     var name: String = ""
+    var conditionKind: FlowConditionType = .deviceState
+    // Device State fields
     var conditionDeviceId: String = ""
     var conditionServiceId: String?
     var conditionCharacteristicType: String = ""
     var comparisonType: ComparisonType = .equals
     var comparisonValue: String = ""
+    // Scene Active fields
+    var conditionSceneId: String = ""
+    var conditionSceneIsActive: Bool = true
     var thenBlocks: [BlockDraft] = []
     var elseBlocks: [BlockDraft] = []
 }
@@ -679,11 +770,16 @@ struct RepeatDraft {
 
 struct RepeatWhileDraft {
     var name: String = ""
+    var conditionKind: FlowConditionType = .deviceState
+    // Device State fields
     var conditionDeviceId: String = ""
     var conditionServiceId: String?
     var conditionCharacteristicType: String = ""
     var comparisonType: ComparisonType = .equals
     var comparisonValue: String = ""
+    // Scene Active fields
+    var conditionSceneId: String = ""
+    var conditionSceneIsActive: Bool = true
     var maxIterations: Int = 100
     var delayBetweenSeconds: Double = 0
     var blocks: [BlockDraft] = []
@@ -719,7 +815,7 @@ extension BlockDraft {
 extension BlockDraftType {
     func deepCopy() -> BlockDraftType {
         switch self {
-        case .controlDevice, .webhook, .log, .delay, .waitForState, .stop, .executeWorkflow:
+        case .controlDevice, .webhook, .log, .runScene, .delay, .waitForState, .stop, .executeWorkflow:
             return self // value types with no nested blocks
         case .conditional(var d):
             d.thenBlocks = d.thenBlocks.map { $0.deepCopy() }
@@ -911,6 +1007,18 @@ extension WorkflowDraft {
                 sunEventType: c.event,
                 sunEventComparison: c.comparison
             )
+        case let .sceneActive(c):
+            return ConditionDraft(
+                id: UUID(),
+                conditionDraftType: .sceneActive,
+                deviceId: "",
+                serviceId: nil,
+                characteristicType: "",
+                comparisonType: .equals,
+                comparisonValue: "",
+                sceneId: c.sceneId,
+                sceneIsActive: c.isActive
+            )
         case .and, .or, .not:
             // Compound conditions not editable in the UI editor
             return nil
@@ -956,6 +1064,11 @@ extension WorkflowDraft {
             )))
         case let .log(a):
             return BlockDraft(id: UUID(), blockType: .log(LogDraft(name: a.name ?? "", message: a.message)))
+        case let .runScene(a):
+            return BlockDraft(id: UUID(), blockType: .runScene(RunSceneDraft(
+                name: a.name ?? "",
+                sceneId: a.sceneId
+            )))
         }
     }
 
@@ -975,17 +1088,31 @@ extension WorkflowDraft {
                 timeoutSeconds: b.timeoutSeconds
             )))
         case let .conditional(b):
-            let (devId, svcId, charType, compType, compValue) = extractDeviceCondition(b.condition)
-            return BlockDraft(id: UUID(), blockType: .conditional(ConditionalDraft(
-                name: b.name ?? "",
-                conditionDeviceId: devId,
-                conditionServiceId: svcId,
-                conditionCharacteristicType: charType,
-                comparisonType: compType,
-                comparisonValue: compValue,
-                thenBlocks: b.thenBlocks.map { convertBlock($0) },
-                elseBlocks: (b.elseBlocks ?? []).map { convertBlock($0) }
-            )))
+            var draft = ConditionalDraft(name: b.name ?? "")
+            switch b.condition {
+            case let .deviceState(c):
+                let (compType, compValue) = convertComparison(c.comparison)
+                draft.conditionKind = .deviceState
+                draft.conditionDeviceId = c.deviceId
+                draft.conditionServiceId = c.serviceId
+                draft.conditionCharacteristicType = c.characteristicType
+                draft.comparisonType = compType
+                draft.comparisonValue = compValue
+            case let .sceneActive(c):
+                draft.conditionKind = .sceneActive
+                draft.conditionSceneId = c.sceneId
+                draft.conditionSceneIsActive = c.isActive
+            default:
+                let (devId, svcId, charType, compType, compValue) = extractDeviceCondition(b.condition)
+                draft.conditionDeviceId = devId
+                draft.conditionServiceId = svcId
+                draft.conditionCharacteristicType = charType
+                draft.comparisonType = compType
+                draft.comparisonValue = compValue
+            }
+            draft.thenBlocks = b.thenBlocks.map { convertBlock($0) }
+            draft.elseBlocks = (b.elseBlocks ?? []).map { convertBlock($0) }
+            return BlockDraft(id: UUID(), blockType: .conditional(draft))
         case let .repeat(b):
             return BlockDraft(id: UUID(), blockType: .repeatBlock(RepeatDraft(
                 name: b.name ?? "",
@@ -994,18 +1121,32 @@ extension WorkflowDraft {
                 blocks: b.blocks.map { convertBlock($0) }
             )))
         case let .repeatWhile(b):
-            let (devId, svcId, charType, compType, compValue) = extractDeviceCondition(b.condition)
-            return BlockDraft(id: UUID(), blockType: .repeatWhile(RepeatWhileDraft(
-                name: b.name ?? "",
-                conditionDeviceId: devId,
-                conditionServiceId: svcId,
-                conditionCharacteristicType: charType,
-                comparisonType: compType,
-                comparisonValue: compValue,
-                maxIterations: b.maxIterations,
-                delayBetweenSeconds: b.delayBetweenSeconds ?? 0,
-                blocks: b.blocks.map { convertBlock($0) }
-            )))
+            var draft = RepeatWhileDraft(name: b.name ?? "")
+            switch b.condition {
+            case let .deviceState(c):
+                let (compType, compValue) = convertComparison(c.comparison)
+                draft.conditionKind = .deviceState
+                draft.conditionDeviceId = c.deviceId
+                draft.conditionServiceId = c.serviceId
+                draft.conditionCharacteristicType = c.characteristicType
+                draft.comparisonType = compType
+                draft.comparisonValue = compValue
+            case let .sceneActive(c):
+                draft.conditionKind = .sceneActive
+                draft.conditionSceneId = c.sceneId
+                draft.conditionSceneIsActive = c.isActive
+            default:
+                let (devId, svcId, charType, compType, compValue) = extractDeviceCondition(b.condition)
+                draft.conditionDeviceId = devId
+                draft.conditionServiceId = svcId
+                draft.conditionCharacteristicType = charType
+                draft.comparisonType = compType
+                draft.comparisonValue = compValue
+            }
+            draft.maxIterations = b.maxIterations
+            draft.delayBetweenSeconds = b.delayBetweenSeconds ?? 0
+            draft.blocks = b.blocks.map { convertBlock($0) }
+            return BlockDraft(id: UUID(), blockType: .repeatWhile(draft))
         case let .group(b):
             return BlockDraft(id: UUID(), blockType: .group(GroupDraft(
                 name: b.name ?? "",
@@ -1144,6 +1285,11 @@ extension ConditionDraft {
                 event: sunEventType,
                 comparison: sunEventComparison
             ))
+        case .sceneActive:
+            return .sceneActive(SceneActiveCondition(
+                sceneId: sceneId,
+                isActive: sceneIsActive
+            ))
         }
     }
 
@@ -1186,6 +1332,11 @@ extension BlockDraft {
             )))
         case let .log(d):
             return .action(.log(LogAction(message: d.message, name: d.name.isEmpty ? nil : d.name)))
+        case let .runScene(d):
+            return .action(.runScene(RunSceneAction(
+                sceneId: d.sceneId,
+                name: d.name.isEmpty ? nil : d.name
+            )))
         case let .delay(d):
             return .flowControl(.delay(DelayBlock(seconds: d.seconds, name: d.name.isEmpty ? nil : d.name)))
         case let .waitForState(d):
@@ -1198,13 +1349,24 @@ extension BlockDraft {
                 name: d.name.isEmpty ? nil : d.name
             )))
         case let .conditional(d):
+            let condition: WorkflowCondition = {
+                switch d.conditionKind {
+                case .deviceState:
+                    return .deviceState(DeviceStateCondition(
+                        deviceId: d.conditionDeviceId,
+                        serviceId: d.conditionServiceId,
+                        characteristicType: d.conditionCharacteristicType,
+                        comparison: d.comparisonType.toOperator(value: d.comparisonValue)
+                    ))
+                case .sceneActive:
+                    return .sceneActive(SceneActiveCondition(
+                        sceneId: d.conditionSceneId,
+                        isActive: d.conditionSceneIsActive
+                    ))
+                }
+            }()
             return .flowControl(.conditional(ConditionalBlock(
-                condition: .deviceState(DeviceStateCondition(
-                    deviceId: d.conditionDeviceId,
-                    serviceId: d.conditionServiceId,
-                    characteristicType: d.conditionCharacteristicType,
-                    comparison: d.comparisonType.toOperator(value: d.comparisonValue)
-                )),
+                condition: condition,
                 thenBlocks: d.thenBlocks.map { $0.toBlock() },
                 elseBlocks: d.elseBlocks.isEmpty ? nil : d.elseBlocks.map { $0.toBlock() },
                 name: d.name.isEmpty ? nil : d.name
@@ -1217,13 +1379,24 @@ extension BlockDraft {
                 name: d.name.isEmpty ? nil : d.name
             )))
         case let .repeatWhile(d):
+            let condition: WorkflowCondition = {
+                switch d.conditionKind {
+                case .deviceState:
+                    return .deviceState(DeviceStateCondition(
+                        deviceId: d.conditionDeviceId,
+                        serviceId: d.conditionServiceId,
+                        characteristicType: d.conditionCharacteristicType,
+                        comparison: d.comparisonType.toOperator(value: d.comparisonValue)
+                    ))
+                case .sceneActive:
+                    return .sceneActive(SceneActiveCondition(
+                        sceneId: d.conditionSceneId,
+                        isActive: d.conditionSceneIsActive
+                    ))
+                }
+            }()
             return .flowControl(.repeatWhile(RepeatWhileBlock(
-                condition: .deviceState(DeviceStateCondition(
-                    deviceId: d.conditionDeviceId,
-                    serviceId: d.conditionServiceId,
-                    characteristicType: d.conditionCharacteristicType,
-                    comparison: d.comparisonType.toOperator(value: d.comparisonValue)
-                )),
+                condition: condition,
                 blocks: d.blocks.map { $0.toBlock() },
                 maxIterations: d.maxIterations,
                 delayBetweenSeconds: d.delayBetweenSeconds > 0 ? d.delayBetweenSeconds : nil,

@@ -13,6 +13,7 @@ struct WorkflowEditorView: View {
 
     let mode: Mode
     let devices: [DeviceModel]
+    var scenes: [SceneModel] = []
     var workflows: [Workflow] = []
     let onSave: (WorkflowDraft) -> Void
 
@@ -28,9 +29,10 @@ struct WorkflowEditorView: View {
     /// does NOT re-render when individual blocks change inside the form.
     @State private var nestedEditState: NestedEditState?
 
-    init(mode: Mode, devices: [DeviceModel], workflows: [Workflow] = [], onSave: @escaping (WorkflowDraft) -> Void) {
+    init(mode: Mode, devices: [DeviceModel], scenes: [SceneModel] = [], workflows: [Workflow] = [], onSave: @escaping (WorkflowDraft) -> Void) {
         self.mode = mode
         self.devices = devices
+        self.scenes = scenes
         self.workflows = workflows
         self.onSave = onSave
         switch mode {
@@ -46,10 +48,11 @@ struct WorkflowEditorView: View {
             Form {
                 detailsSection
                 TriggerEditorSection(triggers: $draft.triggers, devices: devices, onCopy: showCopyToast)
-                ConditionEditorSection(conditions: $draft.conditions, devices: devices)
+                ConditionEditorSection(conditions: $draft.conditions, devices: devices, scenes: scenes)
                 BlockEditorSection(
                     blocks: $draft.blocks,
                     devices: devices,
+                    scenes: scenes,
                     workflows: workflows,
                     onRequestNestedEdit: { state in
                         nestedEditState = state
@@ -87,7 +90,8 @@ struct WorkflowEditorView: View {
                 NestedBlockEditorSheet(
                     title: BlockEditorSection.nestedSheetTitle(for: state, blocks: draft.blocks),
                     blocks: BlockEditorSection.nestedBlocksBinding(for: state, blocks: $draft.blocks),
-                    devices: devices
+                    devices: devices,
+                    scenes: scenes
                 )
             }
             .overlay(alignment: .bottom) {

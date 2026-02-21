@@ -3,11 +3,12 @@ import SwiftUI
 struct ConditionEditorSection: View {
     @Binding var conditions: [ConditionDraft]
     let devices: [DeviceModel]
+    var scenes: [SceneModel] = []
 
     var body: some View {
         Section {
             ForEach($conditions) { $condition in
-                ConditionRow(condition: $condition, devices: devices, onDelete: {
+                ConditionRow(condition: $condition, devices: devices, scenes: scenes, onDelete: {
                     conditions.removeAll(where: { $0.id == condition.id })
                 })
             }
@@ -24,6 +25,11 @@ struct ConditionEditorSection: View {
                 } label: {
                     Label("Sunrise/Sunset", systemImage: "sunrise.fill")
                 }
+                Button {
+                    conditions.append(.emptySceneActive())
+                } label: {
+                    Label("Scene Active", systemImage: "play.rectangle.fill")
+                }
             } label: {
                 Label("Add Condition", systemImage: "plus.circle")
             }
@@ -39,25 +45,13 @@ struct ConditionEditorSection: View {
 private struct ConditionRow: View {
     @Binding var condition: ConditionDraft
     let devices: [DeviceModel]
+    var scenes: [SceneModel] = []
     let onDelete: () -> Void
     @State private var isEditingName: Bool = false
 
     var body: some View {
         DisclosureGroup {
             conditionContent
-
-            HStack {
-                Spacer()
-                Button(role: .destructive) {
-                    onDelete()
-                } label: {
-                    Image(systemName: "trash")
-                        .frame(width: 44, height: 36)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.borderless)
-                .accessibilityLabel("Remove Condition")
-            }
         } label: {
             conditionLabel
         }
@@ -83,6 +77,8 @@ private struct ConditionRow: View {
             )
         case .sunEvent:
             sunEventConditionContent
+        case .sceneActive:
+            sceneActiveConditionContent
         }
     }
 
@@ -104,11 +100,28 @@ private struct ConditionRow: View {
         }
     }
 
+    private var sceneActiveConditionContent: some View {
+        VStack(spacing: 12) {
+            Picker("Scene", selection: $condition.sceneId) {
+                Text("Select scene…").tag("")
+                ForEach(scenes) { scene in
+                    Text(scene.name).tag(scene.id)
+                }
+            }
+
+            Picker("Check", selection: $condition.sceneIsActive) {
+                Text("Is Active").tag(true)
+                Text("Is Not Active").tag(false)
+            }
+            .pickerStyle(.segmented)
+        }
+    }
+
     private var conditionLabel: some View {
         HStack(spacing: 8) {
             Image(systemName: condition.conditionDraftType.icon)
                 .font(.caption)
-                .foregroundColor(condition.conditionDraftType == .sunEvent ? .orange : .indigo)
+                .foregroundColor(conditionIconColor)
             VStack(alignment: .leading, spacing: 2) {
                 Text(condition.conditionDraftType.displayName)
                     .font(.subheadline)
@@ -119,7 +132,7 @@ private struct ConditionRow: View {
                         .textFieldStyle(.roundedBorder)
                         .onSubmit { isEditingName = false }
                 } else {
-                    Text(condition.name.isEmpty ? condition.autoName(devices: devices) : condition.name)
+                    Text(condition.name.isEmpty ? condition.autoName(devices: devices, scenes: scenes) : condition.name)
                         .font(.caption)
                         .foregroundColor(Theme.Text.secondary)
                         .lineLimit(1)
@@ -128,16 +141,38 @@ private struct ConditionRow: View {
 
             Spacer()
 
-            Button {
-                isEditingName.toggle()
-            } label: {
-                Image(systemName: isEditingName ? "checkmark.circle.fill" : "pencil")
-                    .font(.caption)
-                    .foregroundColor(Theme.Text.secondary)
-                    .frame(width: 32, height: 32)
-                    .contentShape(Rectangle())
+            HStack(spacing: 4) {
+                Button {
+                    isEditingName.toggle()
+                } label: {
+                    Image(systemName: isEditingName ? "checkmark.circle.fill" : "pencil")
+                        .font(.subheadline)
+                        .foregroundColor(Theme.Text.secondary)
+                        .frame(width: 32, height: 32)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+
+                Button(role: .destructive) {
+                    onDelete()
+                } label: {
+                    Image(systemName: "trash")
+                        .font(.subheadline)
+                        .foregroundColor(.red)
+                        .frame(width: 32, height: 32)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Remove Condition")
             }
-            .buttonStyle(.plain)
+        }
+    }
+
+    private var conditionIconColor: Color {
+        switch condition.conditionDraftType {
+        case .deviceState: return .indigo
+        case .sunEvent: return .orange
+        case .sceneActive: return .green
         }
     }
 }

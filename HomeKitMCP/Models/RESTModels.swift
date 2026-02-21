@@ -39,18 +39,80 @@ struct RESTService: Codable {
     }
 }
 
-/// A simplified characteristic representation for the REST API.
-/// Excludes `permissions` and `format`.
+/// A characteristic representation for the REST API with full metadata.
 struct RESTCharacteristic: Codable {
     let id: String
     let name: String
     let value: AnyCodable?
+    let format: String
+    let units: String?
+    let permissions: [String]
+    let minValue: Double?
+    let maxValue: Double?
+    let stepValue: Double?
+    let validValues: [RESTValidValue]?
 
     static func from(_ characteristic: CharacteristicModel) -> RESTCharacteristic {
-        RESTCharacteristic(
+        let labeledValues: [RESTValidValue]? = characteristic.validValues.map { values in
+            let options = CharacteristicInputConfig.buildPickerOptions(for: characteristic.type, values: values)
+            return options.map { RESTValidValue(value: Int($0.value) ?? 0, label: $0.label) }
+        }
+
+        return RESTCharacteristic(
             id: characteristic.id,
             name: CharacteristicTypes.displayName(for: characteristic.type),
-            value: characteristic.value
+            value: characteristic.value,
+            format: characteristic.format,
+            units: characteristic.units,
+            permissions: characteristic.permissions,
+            minValue: characteristic.minValue,
+            maxValue: characteristic.maxValue,
+            stepValue: characteristic.stepValue,
+            validValues: labeledValues
+        )
+    }
+}
+
+/// A labeled valid value for enum-like characteristics.
+struct RESTValidValue: Codable {
+    let value: Int
+    let label: String
+}
+
+// MARK: - Scene REST Models
+
+/// A simplified scene representation for the REST API.
+struct RESTScene: Codable {
+    let id: String
+    let name: String
+    let type: String
+    let isExecuting: Bool
+    let actionCount: Int
+    let actions: [RESTSceneAction]
+
+    static func from(_ scene: SceneModel) -> RESTScene {
+        RESTScene(
+            id: scene.id,
+            name: scene.name,
+            type: scene.type,
+            isExecuting: scene.isExecuting,
+            actionCount: scene.actions.count,
+            actions: scene.actions.map { RESTSceneAction.from($0) }
+        )
+    }
+}
+
+/// A simplified scene action representation for the REST API.
+struct RESTSceneAction: Codable {
+    let deviceName: String
+    let characteristicType: String
+    let targetValue: AnyCodable
+
+    static func from(_ action: SceneActionModel) -> RESTSceneAction {
+        RESTSceneAction(
+            deviceName: action.deviceName,
+            characteristicType: action.characteristicType,
+            targetValue: action.targetValue
         )
     }
 }

@@ -120,7 +120,7 @@ struct LogRow: View {
     @ViewBuilder
     private var categoryIconImage: some View {
         switch log.category {
-        case .webhookError, .serverError:
+        case .webhookError, .serverError, .sceneError:
             Image(systemName: "exclamationmark.circle.fill")
         case .mcpCall:
             Image(systemName: "arrow.left.arrow.right.circle.fill")
@@ -134,6 +134,8 @@ struct LogRow: View {
             Image(systemName: "bolt.circle.fill")
         case .workflowError:
             Image(systemName: "exclamationmark.circle.fill")
+        case .sceneExecution:
+            Image(systemName: "play.circle.fill")
         }
     }
 
@@ -148,7 +150,7 @@ struct LogRow: View {
             restContent
         case .webhookCall:
             webhookContent
-        case .webhookError, .serverError:
+        case .webhookError, .serverError, .sceneError:
             errorContent
         case .stateChange:
             stateChangeContent
@@ -156,6 +158,8 @@ struct LogRow: View {
             workflowContent
         case .workflowError:
             workflowContent
+        case .sceneExecution:
+            stateChangeContent
         }
     }
 
