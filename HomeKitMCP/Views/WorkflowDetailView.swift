@@ -9,6 +9,7 @@ struct WorkflowDetailView: View {
     let onDelete: () -> Void
     let onTrigger: () -> Void
     let onUpdate: (WorkflowDraft) -> Void
+    var onCancelExecution: ((UUID) -> Void)?
 
     @State private var showingDeleteConfirmation = false
     @State private var showingEditor = false
@@ -152,7 +153,7 @@ struct WorkflowDetailView: View {
         Section {
             ForEach(executionLogs.prefix(10)) { log in
                 NavigationLink {
-                    WorkflowExecutionLogDetailView(log: log)
+                    WorkflowExecutionLogDetailView(log: log, onCancel: onCancelExecution)
                 } label: {
                     WorkflowExecutionLogRow(log: log)
                 }
@@ -292,6 +293,26 @@ private struct WorkflowTriggerRow: View {
                     .foregroundColor(Theme.Text.secondary)
             }
             .padding(.vertical, 2)
+        case let .sunEvent(t):
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Image(systemName: "sunrise.fill")
+                        .font(.caption)
+                        .foregroundColor(.orange)
+                    Text(t.name ?? "Sunrise/Sunset")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                }
+                let offsetDesc: String = {
+                    if t.offsetMinutes == 0 { return "" }
+                    if t.offsetMinutes > 0 { return " +\(t.offsetMinutes)min" }
+                    return " \(t.offsetMinutes)min"
+                }()
+                Text("\(t.event.displayName)\(offsetDesc)")
+                    .font(.caption)
+                    .foregroundColor(Theme.Text.secondary)
+            }
+            .padding(.vertical, 2)
         }
     }
 
@@ -345,6 +366,14 @@ private struct WorkflowConditionRow: View {
                     .font(.caption)
                     .foregroundColor(Theme.Text.secondary)
                 Text("\(CharacteristicTypes.displayName(for: c.characteristicType)) \(ConditionEvaluator.comparisonDescription(c.comparison))")
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+            }
+        case let .sunEvent(c):
+            HStack(spacing: 6) {
+                Image(systemName: "sunrise.fill")
+                    .foregroundStyle(.orange)
+                Text("\(c.comparison.displayName) \(c.event.displayName)")
                     .font(.subheadline)
                     .fontWeight(.medium)
             }

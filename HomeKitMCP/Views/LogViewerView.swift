@@ -2,6 +2,7 @@ import SwiftUI
 
 struct LogViewerView: View {
     @ObservedObject var viewModel: LogViewModel
+    var onCancelExecution: ((UUID) -> Void)?
     @State private var showingClearConfirmation = false
 
     var body: some View {
@@ -41,7 +42,7 @@ struct LogViewerView: View {
                                         .listRowBackground(Theme.contentBackground)
                                 case .workflowExecution(let log):
                                     NavigationLink {
-                                        WorkflowExecutionLogDetailView(logId: log.id, viewModel: viewModel)
+                                        WorkflowExecutionLogDetailView(logId: log.id, viewModel: viewModel, onCancel: onCancelExecution)
                                     } label: {
                                         WorkflowExecutionLogRow(log: log)
                                     }

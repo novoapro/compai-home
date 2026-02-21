@@ -596,6 +596,7 @@ indirect enum WorkflowTrigger: Codable {
     case schedule(ScheduleTrigger)
     case webhook(WebhookTrigger)
     case workflow(WorkflowCallTrigger)
+    case sunEvent(SunEventTrigger)
 
     private enum TriggerType: String, Codable {
         case deviceStateChange
@@ -603,6 +604,7 @@ indirect enum WorkflowTrigger: Codable {
         case schedule
         case webhook
         case workflow
+        case sunEvent
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -611,6 +613,7 @@ indirect enum WorkflowTrigger: Codable {
         case logicOperator = "operator"
         case triggers
         case scheduleType, token
+        case event, offsetMinutes
     }
 
     init(from decoder: Decoder) throws {
@@ -644,6 +647,12 @@ indirect enum WorkflowTrigger: Codable {
             ))
         case .workflow:
             self = .workflow(WorkflowCallTrigger(name: name))
+        case .sunEvent:
+            self = try .sunEvent(SunEventTrigger(
+                event: container.decode(SunEventType.self, forKey: .event),
+                offsetMinutes: container.decodeIfPresent(Int.self, forKey: .offsetMinutes) ?? 0,
+                name: name
+            ))
         }
     }
 
@@ -673,6 +682,11 @@ indirect enum WorkflowTrigger: Codable {
         case let .workflow(trigger):
             try container.encode(TriggerType.workflow, forKey: .type)
             try container.encodeIfPresent(trigger.name, forKey: .name)
+        case let .sunEvent(trigger):
+            try container.encode(TriggerType.sunEvent, forKey: .type)
+            try container.encodeIfPresent(trigger.name, forKey: .name)
+            try container.encode(trigger.event, forKey: .event)
+            try container.encode(trigger.offsetMinutes, forKey: .offsetMinutes)
         }
     }
 }
@@ -822,6 +836,32 @@ struct WorkflowCallTrigger: Codable {
     }
 }
 
+enum SunEventType: String, Codable, CaseIterable, Identifiable {
+    case sunrise
+    case sunset
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .sunrise: return "Sunrise"
+        case .sunset: return "Sunset"
+        }
+    }
+}
+
+struct SunEventTrigger {
+    let event: SunEventType
+    let offsetMinutes: Int
+    let name: String?
+
+    init(event: SunEventType, offsetMinutes: Int = 0, name: String? = nil) {
+        self.event = event
+        self.offsetMinutes = offsetMinutes
+        self.name = name
+    }
+}
+
 enum LogicOperator: String, Codable {
     case and
     case or
@@ -915,12 +955,14 @@ enum TriggerCondition: Codable {
 
 indirect enum WorkflowCondition: Codable {
     case deviceState(DeviceStateCondition)
+    case sunEvent(SunEventCondition)
     case and([WorkflowCondition])
     case or([WorkflowCondition])
     case not(WorkflowCondition)
 
     private enum ConditionType: String, Codable {
         case deviceState
+        case sunEvent
         case and
         case or
         case not
@@ -929,6 +971,7 @@ indirect enum WorkflowCondition: Codable {
     private enum CodingKeys: String, CodingKey {
         case type, conditions, condition
         case deviceId, serviceId, characteristicType, comparison
+        case event, sunComparison
     }
 
     init(from decoder: Decoder) throws {
@@ -941,6 +984,11 @@ indirect enum WorkflowCondition: Codable {
                 serviceId: container.decodeIfPresent(String.self, forKey: .serviceId),
                 characteristicType: container.decode(String.self, forKey: .characteristicType),
                 comparison: container.decode(ComparisonOperator.self, forKey: .comparison)
+            ))
+        case .sunEvent:
+            self = try .sunEvent(SunEventCondition(
+                event: container.decode(SunEventType.self, forKey: .event),
+                comparison: container.decode(SunEventComparison.self, forKey: .sunComparison)
             ))
         case .and:
             self = try .and(container.decode([WorkflowCondition].self, forKey: .conditions))
@@ -960,6 +1008,10 @@ indirect enum WorkflowCondition: Codable {
             try container.encodeIfPresent(cond.serviceId, forKey: .serviceId)
             try container.encode(cond.characteristicType, forKey: .characteristicType)
             try container.encode(cond.comparison, forKey: .comparison)
+        case let .sunEvent(cond):
+            try container.encode(ConditionType.sunEvent, forKey: .type)
+            try container.encode(cond.event, forKey: .event)
+            try container.encode(cond.comparison, forKey: .sunComparison)
         case let .and(conditions):
             try container.encode(ConditionType.and, forKey: .type)
             try container.encode(conditions, forKey: .conditions)
@@ -978,6 +1030,25 @@ struct DeviceStateCondition {
     let serviceId: String?
     let characteristicType: String
     let comparison: ComparisonOperator
+}
+
+enum SunEventComparison: String, Codable, CaseIterable, Identifiable {
+    case before
+    case after
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .before: return "Before"
+        case .after: return "After"
+        }
+    }
+}
+
+struct SunEventCondition: Codable {
+    let event: SunEventType
+    let comparison: SunEventComparison
 }
 
 // MARK: - Shared: ComparisonOperator

@@ -65,9 +65,15 @@ class WorkflowViewModel: ObservableObject {
     func toggleEnabled(id: UUID) {
         Task {
             if var workflow = await storageService.getWorkflow(id: id) {
+                let wasEnabled = workflow.isEnabled
                 workflow.isEnabled.toggle()
                 workflow.updatedAt = Date()
                 await storageService.updateWorkflow(id: id) { $0 = workflow }
+
+                // When disabling, cancel any running executions for this workflow
+                if wasEnabled && !workflow.isEnabled {
+                    await workflowEngine.cancelRunningExecutions(forWorkflow: id)
+                }
             }
         }
     }
@@ -81,6 +87,12 @@ class WorkflowViewModel: ObservableObject {
     func triggerWorkflow(id: UUID) {
         Task {
             _ = await workflowEngine.triggerWorkflow(id: id)
+        }
+    }
+
+    func cancelExecution(executionId: UUID) {
+        Task {
+            await workflowEngine.cancelExecution(executionId: executionId)
         }
     }
 

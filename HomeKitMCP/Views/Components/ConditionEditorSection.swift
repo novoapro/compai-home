@@ -13,8 +13,17 @@ struct ConditionEditorSection: View {
             }
             .onDelete { conditions.remove(atOffsets: $0) }
 
-            Button {
-                conditions.append(.empty())
+            Menu {
+                Button {
+                    conditions.append(.empty())
+                } label: {
+                    Label("Device State", systemImage: "shield.fill")
+                }
+                Button {
+                    conditions.append(.emptySunEvent())
+                } label: {
+                    Label("Sunrise/Sunset", systemImage: "sunrise.fill")
+                }
             } label: {
                 Label("Add Condition", systemImage: "plus.circle")
             }
@@ -35,20 +44,7 @@ private struct ConditionRow: View {
 
     var body: some View {
         DisclosureGroup {
-            DeviceCharacteristicPicker(
-                devices: devices,
-                selectedDeviceId: $condition.deviceId,
-                selectedServiceId: $condition.serviceId,
-                selectedCharacteristicType: $condition.characteristicType
-            )
-
-            ComparisonValueRow(
-                comparisonType: $condition.comparisonType,
-                value: $condition.comparisonValue,
-                characteristicType: condition.characteristicType,
-                devices: devices,
-                deviceId: condition.deviceId
-            )
+            conditionContent
 
             HStack {
                 Spacer()
@@ -67,13 +63,54 @@ private struct ConditionRow: View {
         }
     }
 
+    @ViewBuilder
+    private var conditionContent: some View {
+        switch condition.conditionDraftType {
+        case .deviceState:
+            DeviceCharacteristicPicker(
+                devices: devices,
+                selectedDeviceId: $condition.deviceId,
+                selectedServiceId: $condition.serviceId,
+                selectedCharacteristicType: $condition.characteristicType
+            )
+
+            ComparisonValueRow(
+                comparisonType: $condition.comparisonType,
+                value: $condition.comparisonValue,
+                characteristicType: condition.characteristicType,
+                devices: devices,
+                deviceId: condition.deviceId
+            )
+        case .sunEvent:
+            sunEventConditionContent
+        }
+    }
+
+    private var sunEventConditionContent: some View {
+        VStack(spacing: 12) {
+            Picker("Event", selection: $condition.sunEventType) {
+                ForEach(SunEventType.allCases) { eventType in
+                    Text(eventType.displayName).tag(eventType)
+                }
+            }
+            .pickerStyle(.segmented)
+
+            Picker("Timing", selection: $condition.sunEventComparison) {
+                ForEach(SunEventComparison.allCases) { comp in
+                    Text(comp.displayName).tag(comp)
+                }
+            }
+            .pickerStyle(.segmented)
+        }
+    }
+
     private var conditionLabel: some View {
         HStack(spacing: 8) {
-            Image(systemName: "shield.fill")
+            Image(systemName: condition.conditionDraftType.icon)
                 .font(.caption)
-                .foregroundColor(.indigo)
+                .foregroundColor(condition.conditionDraftType == .sunEvent ? .orange : .indigo)
             VStack(alignment: .leading, spacing: 2) {
-                Text("Condition")
+                Text(condition.conditionDraftType.displayName)
                     .font(.subheadline)
                     .fontWeight(.medium)
                 if isEditingName {

@@ -81,6 +81,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         Task {
             await container.workflowEngine.registerEvaluator(DeviceStateChangeTriggerEvaluator())
             await container.scheduleTriggerManager.setEngine(container.workflowEngine)
+            await container.scheduleTriggerManager.setStorage(container.storageService)
             let workflows = await container.workflowStorageService.getAllWorkflows()
             await container.scheduleTriggerManager.reloadSchedules(workflows: workflows)
         }

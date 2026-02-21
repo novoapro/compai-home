@@ -30,6 +30,35 @@ class SettingsViewModel: ObservableObject {
             storage.detailedLogsEnabled = detailedLogsEnabled
         }
     }
+    @Published var pollingEnabled: Bool {
+        didSet { storage.pollingEnabled = pollingEnabled }
+    }
+    @Published var pollingInterval: Int {
+        didSet { storage.pollingInterval = pollingInterval }
+    }
+
+    // MARK: - Location Properties
+
+    @Published var sunEventLatitude: Double {
+        didSet { storage.sunEventLatitude = sunEventLatitude }
+    }
+    @Published var sunEventLongitude: Double {
+        didSet { storage.sunEventLongitude = sunEventLongitude }
+    }
+
+    var hasValidCoordinates: Bool {
+        sunEventLatitude != 0.0 || sunEventLongitude != 0.0
+    }
+
+    var todaySunrise: Date? {
+        guard hasValidCoordinates else { return nil }
+        return SolarCalculator.sunrise(for: Date(), latitude: sunEventLatitude, longitude: sunEventLongitude)
+    }
+
+    var todaySunset: Date? {
+        guard hasValidCoordinates else { return nil }
+        return SolarCalculator.sunset(for: Date(), latitude: sunEventLatitude, longitude: sunEventLongitude)
+    }
 
     // MARK: - AI Properties
 
@@ -72,6 +101,10 @@ class SettingsViewModel: ObservableObject {
         self.webhookEnabled = storage.webhookEnabled
         self.hideRoomNameInTheApp = storage.hideRoomNameInTheApp
         self.detailedLogsEnabled = storage.detailedLogsEnabled
+        self.pollingEnabled = storage.pollingEnabled
+        self.pollingInterval = storage.pollingInterval
+        self.sunEventLatitude = storage.sunEventLatitude
+        self.sunEventLongitude = storage.sunEventLongitude
         self.aiEnabled = storage.aiEnabled
         self.aiProvider = storage.aiProvider
         self.aiModelId = storage.aiModelId

@@ -408,6 +408,26 @@ private struct WorkflowBuilderTriggerRow: View {
                     .foregroundColor(.secondary)
             }
             .padding(.vertical, 2)
+        case .sunEvent(let t):
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Image(systemName: "sunrise.fill")
+                        .font(.caption)
+                        .foregroundColor(.orange)
+                    Text(t.name ?? "Sunrise/Sunset")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                }
+                let offsetDesc: String = {
+                    if t.offsetMinutes == 0 { return "" }
+                    if t.offsetMinutes > 0 { return " +\(t.offsetMinutes)min" }
+                    return " \(t.offsetMinutes)min"
+                }()
+                Text("\(t.event.displayName)\(offsetDesc)")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            .padding(.vertical, 2)
         }
     }
 
@@ -461,6 +481,14 @@ private struct WorkflowBuilderConditionRow: View {
                     .font(.caption)
                     .foregroundColor(.secondary)
                 Text("\(CharacteristicTypes.displayName(for: c.characteristicType)) \(ConditionEvaluator.comparisonDescription(c.comparison))")
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+            }
+        case .sunEvent(let c):
+            HStack(spacing: 6) {
+                Image(systemName: "sunrise.fill")
+                    .foregroundStyle(.orange)
+                Text("\(c.comparison.displayName) \(c.event.displayName)")
                     .font(.subheadline)
                     .fontWeight(.medium)
             }

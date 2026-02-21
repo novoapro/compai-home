@@ -6,4 +6,6 @@ protocol WorkflowEngineProtocol: AnyObject, Sendable {
     func processStateChange(_ change: StateChange) async
     func triggerWorkflow(id: UUID) async -> WorkflowExecutionLog?
     func triggerWorkflow(id: UUID, triggerEvent: TriggerEvent) async -> WorkflowExecutionLog?
+    func cancelExecution(executionId: UUID) async
+    func cancelRunningExecutions(forWorkflow workflowId: UUID) async
 }

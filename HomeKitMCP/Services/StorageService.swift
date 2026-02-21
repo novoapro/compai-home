@@ -69,6 +69,18 @@ class StorageService: ObservableObject, StorageServiceProtocol {
     @Published var mcpServerBindAddress: String {
         didSet { defaults.set(mcpServerBindAddress, forKey: Keys.mcpServerBindAddress) }
     }
+    @Published var sunEventLatitude: Double {
+        didSet { defaults.set(sunEventLatitude, forKey: Keys.sunEventLatitude) }
+    }
+    @Published var sunEventLongitude: Double {
+        didSet { defaults.set(sunEventLongitude, forKey: Keys.sunEventLongitude) }
+    }
+    @Published var pollingEnabled: Bool {
+        didSet { defaults.set(pollingEnabled, forKey: Keys.pollingEnabled) }
+    }
+    @Published var pollingInterval: Int {
+        didSet { defaults.set(pollingInterval, forKey: Keys.pollingInterval) }
+    }
 
     init(keychainService: KeychainService = KeychainService()) {
         self.keychainService = keychainService
@@ -83,7 +95,9 @@ class StorageService: ObservableObject, StorageServiceProtocol {
             Keys.aiEnabled: false,
             Keys.aiProvider: AIProvider.claude.rawValue,
             Keys.aiModelId: "",
-            Keys.mcpServerBindAddress: "127.0.0.1"
+            Keys.mcpServerBindAddress: "127.0.0.1",
+            Keys.pollingEnabled: false,
+            Keys.pollingInterval: 30
         ])
 
         // Migrate webhook URL from UserDefaults to Keychain (one-time)
@@ -104,6 +118,10 @@ class StorageService: ObservableObject, StorageServiceProtocol {
         self.aiProvider = AIProvider(rawValue: defaults.string(forKey: Keys.aiProvider) ?? "") ?? .claude
         self.aiModelId = defaults.string(forKey: Keys.aiModelId) ?? ""
         self.mcpServerBindAddress = defaults.string(forKey: Keys.mcpServerBindAddress) ?? "127.0.0.1"
+        self.sunEventLatitude = defaults.double(forKey: Keys.sunEventLatitude)
+        self.sunEventLongitude = defaults.double(forKey: Keys.sunEventLongitude)
+        self.pollingEnabled = defaults.bool(forKey: Keys.pollingEnabled)
+        self.pollingInterval = defaults.integer(forKey: Keys.pollingInterval)
     }
 
     func isWebhookConfigured() -> Bool {
@@ -148,6 +166,23 @@ class StorageService: ObservableObject, StorageServiceProtocol {
         UserDefaults.standard.string(forKey: Keys.mcpServerBindAddress) ?? "127.0.0.1"
     }
 
+    nonisolated func readSunEventLatitude() -> Double {
+        UserDefaults.standard.double(forKey: Keys.sunEventLatitude)
+    }
+
+    nonisolated func readSunEventLongitude() -> Double {
+        UserDefaults.standard.double(forKey: Keys.sunEventLongitude)
+    }
+
+    nonisolated func readPollingEnabled() -> Bool {
+        UserDefaults.standard.bool(forKey: Keys.pollingEnabled)
+    }
+
+    nonisolated func readPollingInterval() -> Int {
+        let val = UserDefaults.standard.integer(forKey: Keys.pollingInterval)
+        return val > 0 ? val : 30
+    }
+
     private enum Keys {
         static let webhookURL = "webhookURL"
         static let mcpServerPort = "mcpServerPort"
@@ -159,5 +194,9 @@ class StorageService: ObservableObject, StorageServiceProtocol {
         static let aiProvider = "aiProvider"
         static let aiModelId = "aiModelId"
         static let mcpServerBindAddress = "mcpServerBindAddress"
+        static let sunEventLatitude = "sunEventLatitude"
+        static let sunEventLongitude = "sunEventLongitude"
+        static let pollingEnabled = "pollingEnabled"
+        static let pollingInterval = "pollingInterval"
     }
 }

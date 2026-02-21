@@ -14,6 +14,9 @@ protocol StorageServiceProtocol: AnyObject {
     var aiProvider: AIProvider { get set }
     var aiModelId: String { get set }
     var mcpServerBindAddress: String { get set }
+    var pollingEnabled: Bool { get set }
+    var pollingInterval: Int { get set }
+    var workflowsEnabled: Bool { get set }
 
     // MARK: - Derived
     func isWebhookConfigured() -> Bool
@@ -27,4 +30,6 @@ protocol StorageServiceProtocol: AnyObject {
     nonisolated func readAIProvider() -> AIProvider
     nonisolated func readAIModelId() -> String
     nonisolated func readBindAddress() -> String
+    nonisolated func readPollingEnabled() -> Bool
+    nonisolated func readPollingInterval() -> Int
 }

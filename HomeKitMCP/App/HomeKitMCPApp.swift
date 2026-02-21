@@ -216,7 +216,9 @@ struct ContentView: View {
             }
         case .nav(.logs):
             NavigationStack {
-                LogViewerView(viewModel: logViewModel)
+                LogViewerView(viewModel: logViewModel, onCancelExecution: { executionId in
+                    workflowViewModel.cancelExecution(executionId: executionId)
+                })
             }
         case .nav(.settings):
             NavigationStack {

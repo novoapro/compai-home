@@ -5,19 +5,23 @@ import SwiftUI
 struct WorkflowExecutionLogDetailView: View {
     private let logId: UUID
     private let staticLog: WorkflowExecutionLog?
+    private let onCancel: ((UUID) -> Void)?
     @ObservedObject private var viewModel: _LogViewModelProxy
+    @State private var showingKillConfirmation = false
 
     /// Live-updating initializer — used from LogViewerView.
-    init(logId: UUID, viewModel: LogViewModel) {
+    init(logId: UUID, viewModel: LogViewModel, onCancel: ((UUID) -> Void)? = nil) {
         self.logId = logId
         self.staticLog = nil
+        self.onCancel = onCancel
         self._viewModel = ObservedObject(wrappedValue: _LogViewModelProxy(viewModel: viewModel))
     }
 
     /// Static snapshot initializer — used from WorkflowDetailView.
-    init(log: WorkflowExecutionLog) {
+    init(log: WorkflowExecutionLog, onCancel: ((UUID) -> Void)? = nil) {
         self.logId = log.id
         self.staticLog = log
+        self.onCancel = onCancel
         self._viewModel = ObservedObject(wrappedValue: _LogViewModelProxy(viewModel: nil))
     }
 
@@ -65,6 +69,35 @@ struct WorkflowExecutionLogDetailView: View {
                         Text(error)
                             .font(.subheadline)
                             .foregroundColor(Theme.Status.error)
+                    }
+
+                    if log.status == .running, onCancel != nil {
+                        Button(role: .destructive) {
+                            showingKillConfirmation = true
+                        } label: {
+                            HStack(spacing: 6) {
+                                Image(systemName: "stop.circle.fill")
+                                Text("Kill Workflow")
+                            }
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 8)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(.red)
+                        .padding(.top, 4)
+                        .confirmationDialog(
+                            "Kill this workflow execution?",
+                            isPresented: $showingKillConfirmation,
+                            titleVisibility: .visible
+                        ) {
+                            Button("Kill Workflow", role: .destructive) {
+                                onCancel?(logId)
+                            }
+                        } message: {
+                            Text("This will immediately cancel the running workflow. Any in-progress actions may be left incomplete.")
+                        }
                     }
                 }
             }

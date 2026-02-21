@@ -4,9 +4,11 @@ import Foundation
 /// Used by the engine for pre-execution guards, conditional blocks, and repeatWhile blocks.
 struct ConditionEvaluator {
     private let homeKitManager: HomeKitManager
+    private let storage: StorageService?
 
-    init(homeKitManager: HomeKitManager) {
+    init(homeKitManager: HomeKitManager, storage: StorageService? = nil) {
         self.homeKitManager = homeKitManager
+        self.storage = storage
     }
 
     /// Evaluate a single condition. Returns true if the condition is met.
@@ -41,6 +43,8 @@ struct ConditionEvaluator {
         switch condition {
         case .deviceState(let cond):
             return await evaluateDeviceState(cond)
+        case .sunEvent(let cond):
+            return evaluateSunEvent(cond)
         case .and(let conditions):
             var allPassed = true
             var descriptions: [String] = []
@@ -77,6 +81,38 @@ struct ConditionEvaluator {
         let passed = Self.compare(currentValue as Any, using: condition.comparison)
         let compDesc = Self.comparisonDescription(condition.comparison)
         return (passed, "\(device.name).\(displayName) \(compDesc) = \(passed)")
+    }
+
+    private func evaluateSunEvent(_ condition: SunEventCondition) -> (Bool, String) {
+        let latitude = storage?.readSunEventLatitude() ?? 0
+        let longitude = storage?.readSunEventLongitude() ?? 0
+
+        guard latitude != 0 || longitude != 0 else {
+            return (false, "\(condition.comparison.displayName) \(condition.event.displayName): location not configured")
+        }
+
+        let now = Date()
+        let sunTime: Date?
+        switch condition.event {
+        case .sunrise:
+            sunTime = SolarCalculator.sunrise(for: now, latitude: latitude, longitude: longitude)
+        case .sunset:
+            sunTime = SolarCalculator.sunset(for: now, latitude: latitude, longitude: longitude)
+        }
+
+        guard let sunTime else {
+            return (false, "\(condition.comparison.displayName) \(condition.event.displayName): cannot compute (polar region)")
+        }
+
+        let passed: Bool
+        switch condition.comparison {
+        case .before:
+            passed = now < sunTime
+        case .after:
+            passed = now > sunTime
+        }
+
+        return (passed, "\(condition.comparison.displayName) \(condition.event.displayName) = \(passed)")
     }
 
     private func findCharacteristicValue(in device: DeviceModel, characteristicType: String, serviceId: String?) -> Any? {

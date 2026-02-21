@@ -30,6 +30,11 @@ class HomeKitManager: NSObject, ObservableObject, HomeKitManaging {
     /// Coalesces rapid objectWillChange signals during bulk reads.
     private var uiUpdateWorkItem: DispatchWorkItem?
 
+    /// Timer subscription for periodic state polling.
+    private var pollingTimerCancellable: AnyCancellable?
+    /// Tracks whether a poll cycle is currently in progress to prevent overlapping polls.
+    private var isPolling = false
+
     init(loggingService: LoggingService, webhookService: WebhookService, configService: DeviceConfigurationService, storage: StorageService) {
         self.loggingService = loggingService
         self.webhookService = webhookService
@@ -43,6 +48,7 @@ class HomeKitManager: NSObject, ObservableObject, HomeKitManaging {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
                 self?.rebuildDeviceCache()
+                self?.startPollingIfEnabled()
             }
             .store(in: &cancellables)
     }
@@ -248,6 +254,199 @@ class HomeKitManager: NSObject, ObservableObject, HomeKitManaging {
         }
     }
 
+    // MARK: - State Polling
+
+    /// Starts or restarts the polling timer based on current storage settings.
+    /// Safe to call repeatedly — always tears down before rebuilding.
+    private func startPollingIfEnabled() {
+        pollingTimerCancellable?.cancel()
+        pollingTimerCancellable = nil
+
+        guard storage.readPollingEnabled() else {
+            AppLogger.homeKit.info("State polling disabled")
+            return
+        }
+
+        let interval = TimeInterval(max(storage.readPollingInterval(), 10))
+        AppLogger.homeKit.info("State polling enabled with interval \(interval)s")
+
+        pollingTimerCancellable = Timer.publish(every: interval, on: .main, in: .common)
+            .autoconnect()
+            .sink { [weak self] _ in
+                self?.pollForStateChanges()
+            }
+    }
+
+    /// Reads all readable characteristics and compares against cached values.
+    /// Fires the state-change pipeline for any differences (missed delegate callbacks).
+    private func pollForStateChanges() {
+        guard !isPolling else {
+            AppLogger.homeKit.debug("Skipping poll — previous cycle still in progress")
+            return
+        }
+        guard isReady else { return }
+
+        isPolling = true
+        let accessories = allAccessories
+
+        var totalReads = 0
+        var completedReads = 0
+        let lock = NSLock()
+
+        for accessory in accessories where accessory.isReachable {
+            for service in accessory.services {
+                guard ServiceTypes.isSupported(service.serviceType) else { continue }
+                guard service.serviceType != HMServiceTypeAccessoryInformation else { continue }
+                for characteristic in service.characteristics {
+                    guard CharacteristicTypes.isSupported(characteristic.characteristicType) else { continue }
+                    guard characteristic.properties.contains(HMCharacteristicPropertyReadable) else { continue }
+                    totalReads += 1
+                }
+            }
+        }
+
+        guard totalReads > 0 else {
+            isPolling = false
+            return
+        }
+
+        for accessory in accessories where accessory.isReachable {
+            let deviceId = accessory.uniqueIdentifier.uuidString
+
+            for service in accessory.services {
+                guard ServiceTypes.isSupported(service.serviceType) else { continue }
+                guard service.serviceType != HMServiceTypeAccessoryInformation else { continue }
+
+                let serviceId = service.uniqueIdentifier.uuidString
+
+                for characteristic in service.characteristics {
+                    guard CharacteristicTypes.isSupported(characteristic.characteristicType) else { continue }
+                    guard characteristic.properties.contains(HMCharacteristicPropertyReadable) else { continue }
+
+                    let charId = characteristic.uniqueIdentifier.uuidString
+
+                    characteristic.readValue { [weak self] error in
+                        guard let self else { return }
+
+                        lock.lock()
+                        completedReads += 1
+                        let allDone = completedReads >= totalReads
+                        lock.unlock()
+
+                        if let error = error {
+                            AppLogger.homeKit.debug("Poll: failed to read \(characteristic.characteristicType) on \(accessory.name): \(error)")
+                            if allDone { self.isPolling = false }
+                            return
+                        }
+
+                        self.compareAndEmitIfChanged(
+                            accessory: accessory,
+                            service: service,
+                            characteristic: characteristic,
+                            deviceId: deviceId,
+                            serviceId: serviceId,
+                            charId: charId
+                        )
+
+                        if allDone {
+                            self.isPolling = false
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// Compares the freshly-read characteristic value against the cached value.
+    /// If different, runs the full state-change pipeline (log, webhook, publisher, cache update).
+    private func compareAndEmitIfChanged(
+        accessory: HMAccessory,
+        service: HMService,
+        characteristic: HMCharacteristic,
+        deviceId: String,
+        serviceId: String,
+        charId: String
+    ) {
+        let newValue = characteristic.value
+
+        // Look up cached value
+        deviceLookupLock.lock()
+        let cachedDevice = deviceLookup[deviceId]
+        deviceLookupLock.unlock()
+
+        let cachedValue: Any? = cachedDevice?.services
+            .first(where: { $0.id == serviceId })?
+            .characteristics
+            .first(where: { $0.id == charId })?
+            .value?.value
+
+        // Both nil means no change
+        if cachedValue == nil && newValue == nil { return }
+
+        // Compare using string representation (AnyCodable values lack Equatable)
+        let oldStr = cachedValue.map { "\($0)" } ?? "nil"
+        let newStr = newValue.map { "\($0)" } ?? "nil"
+        guard oldStr != newStr else { return }
+
+        // Mismatch detected: a delegate callback was missed
+        AppLogger.homeKit.warning(
+            "Poll detected missed state change: \(accessory.name) \(CharacteristicTypes.displayName(for: characteristic.characteristicType)): \(oldStr) -> \(newStr)"
+        )
+
+        let serviceName = ServiceTypes.displayName(for: service.serviceType)
+
+        Task {
+            let config = await self.configService.getConfig(
+                deviceId: deviceId,
+                serviceId: serviceId,
+                characteristicId: charId
+            )
+
+            let formattedName = DeviceNameFormatter.format(
+                deviceName: accessory.name,
+                roomName: accessory.room?.name,
+                hideRoomName: self.storage.readHideRoomName()
+            )
+
+            let logEntry = StateChangeLog(
+                id: UUID(),
+                timestamp: Date(),
+                deviceId: deviceId,
+                deviceName: formattedName,
+                serviceName: serviceName,
+                characteristicType: characteristic.characteristicType,
+                oldValue: cachedValue.map { AnyCodable($0) },
+                newValue: newValue.map { AnyCodable($0) },
+                category: .stateChange
+            )
+
+            let change = StateChange(
+                deviceId: deviceId,
+                deviceName: formattedName,
+                serviceId: serviceId,
+                serviceName: serviceName,
+                characteristicType: characteristic.characteristicType,
+                oldValue: cachedValue,
+                newValue: newValue
+            )
+
+            if config.webhookEnabled {
+                await self.loggingService.logEntry(logEntry)
+                await self.webhookService.sendStateChange(change)
+            }
+
+            await MainActor.run {
+                self.stateChangePublisher.send(change)
+                self.updateCachedCharacteristic(
+                    deviceId: deviceId,
+                    serviceId: serviceId,
+                    characteristicId: charId,
+                    newValue: newValue
+                )
+            }
+        }
+    }
+
     // MARK: - Helpers
 
     private func characteristicPermissions(_ characteristic: HMCharacteristic) -> [String] {
@@ -364,6 +563,7 @@ class HomeKitManager: NSObject, ObservableObject, HomeKitManaging {
                             if allDone {
                                 DispatchQueue.main.async {
                                     self.isReadingValues = false
+                                    self.startPollingIfEnabled()
                                 }
                             }
                         }

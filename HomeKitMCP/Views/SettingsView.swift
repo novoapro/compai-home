@@ -38,6 +38,10 @@ struct SettingsView: View {
             }
             loggingSection
                 .listRowBackground(Theme.contentBackground)
+            pollingSection
+                .listRowBackground(Theme.contentBackground)
+            locationSection
+                .listRowBackground(Theme.contentBackground)
             aiAssistantSection
                 .listRowBackground(Theme.contentBackground)
             webhookSection
@@ -111,6 +115,82 @@ struct SettingsView: View {
             Label("Logging", systemImage: "doc.text")
         } footer: {
             Text("When enabled, full request and response data is captured for MCP, REST, and webhook logs. Tap a log entry to expand details.")
+        }
+    }
+
+    private var pollingSection: some View {
+        Section {
+            Toggle("Enable State Polling", isOn: $viewModel.pollingEnabled)
+
+            Picker("Polling Interval", selection: $viewModel.pollingInterval) {
+                Text("10 seconds").tag(10)
+                Text("15 seconds").tag(15)
+                Text("30 seconds").tag(30)
+                Text("60 seconds").tag(60)
+                Text("120 seconds").tag(120)
+                Text("300 seconds").tag(300)
+            }
+            .disabled(!viewModel.pollingEnabled)
+            .opacity(viewModel.pollingEnabled ? 1 : 0.5)
+        } header: {
+            Label("State Polling", systemImage: "arrow.triangle.2.circlepath")
+        } footer: {
+            Text("Periodically reads device states from HomeKit to detect missed callbacks. Logs corrections when actual state differs from cached state.")
+        }
+    }
+
+    // MARK: - Location Section
+
+    private var locationSection: some View {
+        Section {
+            HStack {
+                Text("Latitude")
+                Spacer()
+                TextField("e.g. 37.7749", value: $viewModel.sunEventLatitude, format: .number)
+                    .multilineTextAlignment(.trailing)
+                    .frame(width: 120)
+                    .textFieldStyle(.roundedBorder)
+                    .keyboardType(.decimalPad)
+            }
+            HStack {
+                Text("Longitude")
+                Spacer()
+                TextField("e.g. -122.4194", value: $viewModel.sunEventLongitude, format: .number)
+                    .multilineTextAlignment(.trailing)
+                    .frame(width: 120)
+                    .textFieldStyle(.roundedBorder)
+                    .keyboardType(.decimalPad)
+            }
+            if viewModel.hasValidCoordinates {
+                HStack {
+                    Label("Sunrise", systemImage: "sunrise.fill")
+                        .foregroundStyle(.orange)
+                    Spacer()
+                    if let sunrise = viewModel.todaySunrise {
+                        Text(sunrise, format: .dateTime.month().day().hour().minute())
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Text("—")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                HStack {
+                    Label("Sunset", systemImage: "sunset.fill")
+                        .foregroundStyle(.orange)
+                    Spacer()
+                    if let sunset = viewModel.todaySunset {
+                        Text(sunset, format: .dateTime.month().day().hour().minute())
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Text("—")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+        } header: {
+            Label("Location", systemImage: "location")
+        } footer: {
+            Text("Required for sunrise/sunset workflow triggers. Find your coordinates at latlong.net.")
         }
     }
 

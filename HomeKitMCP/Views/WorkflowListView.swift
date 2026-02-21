@@ -83,6 +83,9 @@ struct WorkflowListView: View {
                     onTrigger: { viewModel.triggerWorkflow(id: workflowId) },
                     onUpdate: { draft in
                         viewModel.updateWorkflow(id: workflowId, from: draft)
+                    },
+                    onCancelExecution: { executionId in
+                        viewModel.cancelExecution(executionId: executionId)
                     }
                 )
             }

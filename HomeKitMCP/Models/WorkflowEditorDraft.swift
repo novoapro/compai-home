@@ -74,6 +74,7 @@ enum TriggerDraftType: String, CaseIterable, Identifiable {
     case schedule
     case webhook
     case workflow
+    case sunEvent
 
     var id: String {
         rawValue
@@ -85,6 +86,7 @@ enum TriggerDraftType: String, CaseIterable, Identifiable {
         case .schedule: return "Schedule"
         case .webhook: return "Webhook"
         case .workflow: return "Workflow"
+        case .sunEvent: return "Sunrise/Sunset"
         }
     }
 
@@ -94,6 +96,7 @@ enum TriggerDraftType: String, CaseIterable, Identifiable {
         case .schedule: return "clock.fill"
         case .webhook: return "arrow.down.circle.fill"
         case .workflow: return "arrow.triangle.turn.up.right.diamond"
+        case .sunEvent: return "sunrise.fill"
         }
     }
 }
@@ -153,6 +156,10 @@ struct TriggerDraft: Identifiable {
     /// Webhook fields
     var webhookToken: String = UUID().uuidString
 
+    /// Sun event fields
+    var sunEventType: SunEventType = .sunrise
+    var sunEventOffsetMinutes: Int = 0
+
     static func empty() -> TriggerDraft {
         TriggerDraft(id: UUID())
     }
@@ -167,6 +174,10 @@ struct TriggerDraft: Identifiable {
 
     static func emptyWorkflow() -> TriggerDraft {
         TriggerDraft(id: UUID(), triggerType: .workflow)
+    }
+
+    static func emptySunEvent() -> TriggerDraft {
+        TriggerDraft(id: UUID(), triggerType: .sunEvent)
     }
 }
 
@@ -226,6 +237,19 @@ extension TriggerDraft {
             return "Webhook Trigger"
         case .workflow:
             return "Workflow Trigger"
+        case .sunEvent:
+            return sunEventAutoName
+        }
+    }
+
+    private var sunEventAutoName: String {
+        let eventName = sunEventType.displayName
+        if sunEventOffsetMinutes == 0 {
+            return "At \(eventName)"
+        } else if sunEventOffsetMinutes > 0 {
+            return "\(sunEventOffsetMinutes)min after \(eventName)"
+        } else {
+            return "\(abs(sunEventOffsetMinutes))min before \(eventName)"
         }
     }
 
@@ -255,14 +279,19 @@ extension TriggerDraft {
 
 extension ConditionDraft {
     func autoName(devices: [DeviceModel]) -> String {
-        guard !deviceId.isEmpty else { return "New Condition" }
-        let device = devices.first(where: { $0.id == deviceId })
-        let room = device?.roomName ?? ""
-        let devName = device?.name ?? "Unknown"
-        let charName = characteristicType.isEmpty ? "" : CharacteristicTypes.displayName(for: characteristicType)
-        let comp = "\(comparisonType.displayName) \(comparisonValue)"
-        let parts = [room, devName, charName, comp].filter { !$0.isEmpty }
-        return parts.joined(separator: " ")
+        switch conditionDraftType {
+        case .deviceState:
+            guard !deviceId.isEmpty else { return "New Condition" }
+            let device = devices.first(where: { $0.id == deviceId })
+            let room = device?.roomName ?? ""
+            let devName = device?.name ?? "Unknown"
+            let charName = characteristicType.isEmpty ? "" : CharacteristicTypes.displayName(for: characteristicType)
+            let comp = "\(comparisonType.displayName) \(comparisonValue)"
+            let parts = [room, devName, charName, comp].filter { !$0.isEmpty }
+            return parts.joined(separator: " ")
+        case .sunEvent:
+            return "\(sunEventComparison.displayName) \(sunEventType.displayName)"
+        }
     }
 }
 
@@ -416,24 +445,68 @@ private extension ExecuteWorkflowDraft {
 
 // MARK: - Condition Draft
 
+enum ConditionDraftType: String, CaseIterable, Identifiable {
+    case deviceState
+    case sunEvent
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .deviceState: return "Device State"
+        case .sunEvent: return "Sunrise/Sunset"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .deviceState: return "shield.fill"
+        case .sunEvent: return "sunrise.fill"
+        }
+    }
+}
+
 struct ConditionDraft: Identifiable {
     let id: UUID
     var name: String = ""
+    var conditionDraftType: ConditionDraftType = .deviceState
+
+    // Device State fields
     var deviceId: String
     var serviceId: String?
     var characteristicType: String
     var comparisonType: ComparisonType
     var comparisonValue: String
 
+    // Sun Event fields
+    var sunEventType: SunEventType = .sunrise
+    var sunEventComparison: SunEventComparison = .after
+
     static func empty() -> ConditionDraft {
         ConditionDraft(
             id: UUID(),
             name: "",
+            conditionDraftType: .deviceState,
             deviceId: "",
             serviceId: nil,
             characteristicType: "",
             comparisonType: .equals,
             comparisonValue: ""
+        )
+    }
+
+    static func emptySunEvent() -> ConditionDraft {
+        ConditionDraft(
+            id: UUID(),
+            name: "",
+            conditionDraftType: .sunEvent,
+            deviceId: "",
+            serviceId: nil,
+            characteristicType: "",
+            comparisonType: .equals,
+            comparisonValue: "",
+            sunEventType: .sunset,
+            sunEventComparison: .after
         )
     }
 }
@@ -698,6 +771,8 @@ extension WorkflowDraft {
                 break // Token is auto-generated
             case .workflow:
                 break // No configuration needed
+            case .sunEvent:
+                break // No additional validation needed
             }
         }
         if blocks.isEmpty {
@@ -776,6 +851,14 @@ extension WorkflowDraft {
                 name: t.name ?? "",
                 triggerType: .workflow
             )
+        case let .sunEvent(t):
+            return TriggerDraft(
+                id: UUID(),
+                name: t.name ?? "",
+                triggerType: .sunEvent,
+                sunEventType: t.event,
+                sunEventOffsetMinutes: t.offsetMinutes
+            )
         case .compound:
             // Compound triggers not editable in the UI editor
             return nil
@@ -809,11 +892,24 @@ extension WorkflowDraft {
             let (compType, compValue) = convertComparison(c.comparison)
             return ConditionDraft(
                 id: UUID(),
+                conditionDraftType: .deviceState,
                 deviceId: c.deviceId,
                 serviceId: c.serviceId,
                 characteristicType: c.characteristicType,
                 comparisonType: compType,
                 comparisonValue: compValue
+            )
+        case let .sunEvent(c):
+            return ConditionDraft(
+                id: UUID(),
+                conditionDraftType: .sunEvent,
+                deviceId: "",
+                serviceId: nil,
+                characteristicType: "",
+                comparisonType: .equals,
+                comparisonValue: "",
+                sunEventType: c.event,
+                sunEventComparison: c.comparison
             )
         case .and, .or, .not:
             // Compound conditions not editable in the UI editor
@@ -988,6 +1084,12 @@ extension TriggerDraft {
             return .workflow(WorkflowCallTrigger(
                 name: name.isEmpty ? nil : name
             ))
+        case .sunEvent:
+            return .sunEvent(SunEventTrigger(
+                event: sunEventType,
+                offsetMinutes: sunEventOffsetMinutes,
+                name: name.isEmpty ? nil : name
+            ))
         }
     }
 
@@ -1029,12 +1131,20 @@ extension TriggerDraft {
 
 extension ConditionDraft {
     func toCondition() -> WorkflowCondition {
-        .deviceState(DeviceStateCondition(
-            deviceId: deviceId,
-            serviceId: serviceId,
-            characteristicType: characteristicType,
-            comparison: toComparison()
-        ))
+        switch conditionDraftType {
+        case .deviceState:
+            return .deviceState(DeviceStateCondition(
+                deviceId: deviceId,
+                serviceId: serviceId,
+                characteristicType: characteristicType,
+                comparison: toComparison()
+            ))
+        case .sunEvent:
+            return .sunEvent(SunEventCondition(
+                event: sunEventType,
+                comparison: sunEventComparison
+            ))
+        }
     }
 
     func toComparison() -> ComparisonOperator {

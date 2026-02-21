@@ -53,6 +53,7 @@
 		AEE5C04596D85BB802F0FE8D /* PreviewData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77E7DB8F5E5A2E47859F9BE1 /* PreviewData.swift */; };
 		AFA9259AC83BA0636FEC4710 /* BlockEditorSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 181A0EC78879A33D77F39CAC /* BlockEditorSection.swift */; };
 		B1C2D3E4F5A6B7C8D9E0F1A3 /* ScheduleTriggerManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1C2D3E4F5A6B7C8D9E0F1A2 /* ScheduleTriggerManager.swift */; };
+		C1D2E3F4A5B6C7D8E9F0A1B2 /* SolarCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1D2E3F4A5B6C7D8E9F0A1B3 /* SolarCalculator.swift */; };
 		BAB1C982CD4FB91A8E6E9DA6 /* TriggerEditorSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6BE5BD70C71A833414ADC790 /* TriggerEditorSection.swift */; };
 		BF2EED1AD5FA32AB19D6FA7B /* LogViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0AFB57519945EDEE09EC3F8A /* LogViewModel.swift */; };
 		C30AB123A24134510675441F /* WorkflowDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4DA321F46CBF451A377A513B /* WorkflowDetailView.swift */; };
@@ -144,6 +145,7 @@
 		AEBCBB6E23B0771DD6DEFFD0 /* KeychainService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainService.swift; sourceTree = "<group>"; };
 		AFE6A3FC9762EB4AC08D71D3 /* ValueEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ValueEditor.swift; sourceTree = "<group>"; };
 		B1C2D3E4F5A6B7C8D9E0F1A2 /* ScheduleTriggerManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduleTriggerManager.swift; sourceTree = "<group>"; };
+		C1D2E3F4A5B6C7D8E9F0A1B3 /* SolarCalculator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SolarCalculator.swift; sourceTree = "<group>"; };
 		B3E0E7001560CF7AC8B50C18 /* LogViewerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LogViewerView.swift; sourceTree = "<group>"; };
 		B40D3B40039E20BD2B504DCB /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		B464E4D9ACFF628B10360AFA /* HomeKitMCP.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = HomeKitMCP.entitlements; sourceTree = "<group>"; };
@@ -344,6 +346,7 @@
 				7CEF09F6533382426171A5CC /* ConditionEvaluator.swift */,
 				048FBDE0B4A68E50E00A22C9 /* DeviceStateChangeTriggerEvaluator.swift */,
 				B1C2D3E4F5A6B7C8D9E0F1A2 /* ScheduleTriggerManager.swift */,
+				C1D2E3F4A5B6C7D8E9F0A1B3 /* SolarCalculator.swift */,
 			);
 			path = Workflows;
 			sourceTree = "<group>";
@@ -520,6 +523,7 @@
 				05FE7A71EDD2732214277756 /* RESTModels.swift in Sources */,
 				FE6AC26441EC3EDDCA92C523 /* SceneDelegate.swift in Sources */,
 				B1C2D3E4F5A6B7C8D9E0F1A3 /* ScheduleTriggerManager.swift in Sources */,
+				C1D2E3F4A5B6C7D8E9F0A1B2 /* SolarCalculator.swift in Sources */,
 				E5AE103D5B42B9B3201D5801 /* ServiceTypes.swift in Sources */,
 				71A6034172C43EA290A3DA1B /* SettingsView.swift in Sources */,
 				70400A91CBCC20604DAE70F8 /* SettingsViewModel.swift in Sources */,

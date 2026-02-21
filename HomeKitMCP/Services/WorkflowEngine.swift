@@ -12,6 +12,11 @@ actor WorkflowEngine: WorkflowEngineProtocol {
     private var evaluators: [TriggerEvaluator] = []
 
     private var runningTasks: [UUID: Task<Void, Never>] = [:]
+    /// Maps execution log ID → workflow ID so we can cancel by execution ID.
+    private var executionToWorkflow: [UUID: UUID] = [:]
+    /// Tracks parent → children workflow IDs for inline executions,
+    /// so cancelling a parent also cancels its inline children.
+    private var inlineChildren: [UUID: Set<UUID>] = [:]
     /// Maximum number of workflows executing concurrently. When the limit is reached,
     /// additional triggered workflows are evaluated and then queued (not dropped).
     private let maxConcurrentExecutions = 20
@@ -58,7 +63,7 @@ actor WorkflowEngine: WorkflowEngineProtocol {
         self.loggingService = loggingService
         self.executionLogService = executionLogService
         self.storage = storage
-        self.conditionEvaluator = conditionEvaluator ?? ConditionEvaluator(homeKitManager: homeKitManager)
+        self.conditionEvaluator = conditionEvaluator ?? ConditionEvaluator(homeKitManager: homeKitManager, storage: storage)
     }
 
     /// Wire up the one-directional subscription to HomeKitManager's state changes.
@@ -153,7 +158,13 @@ actor WorkflowEngine: WorkflowEngineProtocol {
             await self?.removeRunning(id)
             return result
         }
-        runningTasks[id] = Task { _ = await task.value }
+        runningTasks[id] = Task {
+            await withTaskCancellationHandler {
+                _ = await task.value
+            } onCancel: {
+                task.cancel()
+            }
+        }
         return await task.value
     }
 
@@ -180,7 +191,13 @@ actor WorkflowEngine: WorkflowEngineProtocol {
             await self?.removeRunning(id)
             return result
         }
-        runningTasks[id] = Task { _ = await task.value }
+        runningTasks[id] = Task {
+            await withTaskCancellationHandler {
+                _ = await task.value
+            } onCancel: {
+                task.cancel()
+            }
+        }
         return await task.value
     }
 
@@ -216,8 +233,43 @@ actor WorkflowEngine: WorkflowEngineProtocol {
             await self?.removeRunning(id)
             return result
         }
-        runningTasks[id] = Task { _ = await task.value }
+        runningTasks[id] = Task {
+            await withTaskCancellationHandler {
+                _ = await task.value
+            } onCancel: {
+                task.cancel()
+            }
+        }
         return await task.value
+    }
+
+    // MARK: - Cancellation
+
+    /// Cancel a specific running execution by its execution log ID.
+    func cancelExecution(executionId: UUID) {
+        guard let workflowId = executionToWorkflow[executionId] else { return }
+        AppLogger.workflow.info("Cancelling execution \(executionId) for workflow \(workflowId)")
+        cancelWorkflowTree(workflowId)
+    }
+
+    /// Cancel all running executions for a specific workflow.
+    func cancelRunningExecutions(forWorkflow workflowId: UUID) {
+        AppLogger.workflow.info("Cancelling running execution for workflow \(workflowId)")
+        cancelWorkflowTree(workflowId)
+        // Also remove any pending queue entries for this workflow
+        pendingQueue.removeAll { $0.workflow.id == workflowId }
+    }
+
+    /// Recursively cancel a workflow and all its inline children.
+    private func cancelWorkflowTree(_ workflowId: UUID) {
+        // Cancel inline children first (depth-first)
+        if let children = inlineChildren[workflowId] {
+            for childId in children {
+                cancelWorkflowTree(childId)
+            }
+        }
+        // Cancel this workflow's task
+        runningTasks[workflowId]?.cancel()
     }
 
     // MARK: - Execution Slot Management
@@ -322,6 +374,9 @@ actor WorkflowEngine: WorkflowEngineProtocol {
             triggerEvent: event
         )
 
+        // Track execution → workflow mapping for cancellation by execution ID
+        executionToWorkflow[execLog.id] = workflow.id
+
         // Log immediately as running so it appears in the UI
         await executionLogService.log(execLog)
 
@@ -418,6 +473,9 @@ actor WorkflowEngine: WorkflowEngineProtocol {
     }
 
     private func finalizeExecution(_ execLog: WorkflowExecutionLog, workflow: Workflow, succeeded: Bool) async {
+        // Clean up execution → workflow mapping
+        executionToWorkflow.removeValue(forKey: execLog.id)
+
         // Update the existing running log entry with the final result
         await executionLogService.update(execLog)
 
@@ -922,7 +980,23 @@ actor WorkflowEngine: WorkflowEngineProtocol {
                 case .inline:
                     result.detail = "Executing '\(targetWorkflow.name)' inline..."
                     await onUpdate(result)
-                    let targetLog = await triggerWorkflow(id: targetWorkflow.id, triggerEvent: triggerEvent, callerContext: callerContext)
+
+                    // Track parent → child relationship for cascading cancellation
+                    let parentId = context.workflow.id
+                    let childId = targetWorkflow.id
+                    if inlineChildren[parentId] == nil {
+                        inlineChildren[parentId] = []
+                    }
+                    inlineChildren[parentId]?.insert(childId)
+
+                    let targetLog = await triggerWorkflow(id: childId, triggerEvent: triggerEvent, callerContext: callerContext)
+
+                    // Clean up parent → child tracking
+                    inlineChildren[parentId]?.remove(childId)
+                    if inlineChildren[parentId]?.isEmpty == true {
+                        inlineChildren.removeValue(forKey: parentId)
+                    }
+
                     if let log = targetLog {
                         result.detail = "Executed '\(targetWorkflow.name)': \(log.status.rawValue)"
                         result.status = (log.status == .success) ? .success : .failure

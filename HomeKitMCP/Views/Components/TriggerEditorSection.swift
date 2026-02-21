@@ -37,6 +37,9 @@ struct TriggerEditorSection: View {
                 Button { triggers.append(.emptyWorkflow()) } label: {
                     Label("Workflow", systemImage: "arrow.triangle.turn.up.right.diamond")
                 }
+                Button { triggers.append(.emptySunEvent()) } label: {
+                    Label("Sunrise/Sunset", systemImage: "sunrise.fill")
+                }
             } label: {
                 Label("Add Trigger", systemImage: "plus.circle")
             }
@@ -87,7 +90,7 @@ private struct TriggerRow: View {
         HStack(spacing: 8) {
             Image(systemName: trigger.triggerType.icon)
                 .font(.caption)
-                .foregroundColor(trigger.triggerType == .deviceStateChange ? Theme.Tint.main : .indigo)
+                .foregroundColor(trigger.triggerType == .deviceStateChange ? Theme.Tint.main : trigger.triggerType == .sunEvent ? .orange : .indigo)
             VStack(alignment: .leading, spacing: 2) {
                 Text(trigger.triggerType.displayName)
                     .font(.subheadline)
@@ -133,6 +136,8 @@ private struct TriggerRow: View {
             webhookTriggerContent
         case .workflow:
             workflowTriggerContent
+        case .sunEvent:
+            sunEventTriggerContent
         }
     }
 
@@ -334,6 +339,31 @@ private struct TriggerRow: View {
     @ViewBuilder
     private var workflowTriggerContent: some View {
         Text("This workflow can be launched from an Execute Workflow block in another workflow.")
+            .font(.caption)
+            .foregroundColor(Theme.Text.secondary)
+    }
+
+    // MARK: - Sun Event Trigger Content
+
+    @ViewBuilder
+    private var sunEventTriggerContent: some View {
+        Picker("Event", selection: $trigger.sunEventType) {
+            ForEach(SunEventType.allCases) { eventType in
+                Text(eventType.displayName).tag(eventType)
+            }
+        }
+
+        HStack {
+            Text("Offset (minutes)")
+            Spacer()
+            TextField("0", value: $trigger.sunEventOffsetMinutes, format: .number)
+                .keyboardType(.numberPad)
+                .multilineTextAlignment(.trailing)
+                .frame(width: 80)
+                .textFieldStyle(.roundedBorder)
+        }
+
+        Text("Negative = before, Positive = after. Set location in Settings.")
             .font(.caption)
             .foregroundColor(Theme.Text.secondary)
     }
