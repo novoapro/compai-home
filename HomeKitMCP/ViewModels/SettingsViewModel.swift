@@ -36,6 +36,9 @@ class SettingsViewModel: ObservableObject {
     @Published var pollingInterval: Int {
         didSet { storage.pollingInterval = pollingInterval }
     }
+    @Published var workflowsEnabled: Bool {
+        didSet { storage.workflowsEnabled = workflowsEnabled }
+    }
 
     // MARK: - Location Properties
 
@@ -103,6 +106,7 @@ class SettingsViewModel: ObservableObject {
         self.detailedLogsEnabled = storage.detailedLogsEnabled
         self.pollingEnabled = storage.pollingEnabled
         self.pollingInterval = storage.pollingInterval
+        self.workflowsEnabled = storage.workflowsEnabled
         self.sunEventLatitude = storage.sunEventLatitude
         self.sunEventLongitude = storage.sunEventLongitude
         self.aiEnabled = storage.aiEnabled

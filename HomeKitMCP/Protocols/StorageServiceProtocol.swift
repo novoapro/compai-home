@@ -32,4 +32,5 @@ protocol StorageServiceProtocol: AnyObject {
     nonisolated func readBindAddress() -> String
     nonisolated func readPollingEnabled() -> Bool
     nonisolated func readPollingInterval() -> Int
+    nonisolated func readWorkflowsEnabled() -> Bool
 }

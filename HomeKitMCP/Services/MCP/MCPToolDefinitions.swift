@@ -9,7 +9,10 @@ import Foundation
 enum MCPToolDefinitions {
 
     /// The complete list of tool definitions returned by the `tools/list` method.
-    static let all: [[String: Any]] = [
+    static let all: [[String: Any]] = deviceTools + workflowTools
+
+    /// Device, room, and log tools — always available.
+    static let deviceTools: [[String: Any]] = [
 
         // MARK: - Device Tools
 
@@ -135,6 +138,10 @@ enum MCPToolDefinitions {
                 ] as [String: Any]
             ] as [String: Any]
         ],
+    ]
+
+    /// Workflow tools — only available when workflows are enabled.
+    static let workflowTools: [[String: Any]] = [
 
         // MARK: - Workflow Tools
 

@@ -133,6 +133,7 @@ actor ScheduleTriggerManager {
 
     private func fireTrigger(workflowId: UUID, trigger: ScheduleTrigger) async {
         guard let engine else { return }
+        guard storage?.readWorkflowsEnabled() == true else { return }
         let description = Self.triggerDescription(trigger)
         let event = TriggerEvent(
             deviceId: nil,
@@ -279,6 +280,7 @@ actor ScheduleTriggerManager {
 
     private func fireSunEventTrigger(workflowId: UUID, trigger: SunEventTrigger) async {
         guard let engine else { return }
+        guard storage?.readWorkflowsEnabled() == true else { return }
         let description = Self.sunEventDescription(trigger)
         let event = TriggerEvent(
             deviceId: nil,

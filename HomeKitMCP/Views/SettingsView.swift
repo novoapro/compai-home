@@ -36,6 +36,13 @@ struct SettingsView: View {
             } header: {
                 Label("UI", systemImage: "paintbrush")
             }
+            Section {
+                Toggle("Enable Workflows", isOn: $viewModel.workflowsEnabled)
+            } header: {
+                Label("Workflows", systemImage: "bolt.fill")
+            } footer: {
+                Text("When disabled, all workflow tools, REST endpoints, triggers, and scheduled automations are deactivated. Existing workflow definitions are preserved.")
+            }
             loggingSection
                 .listRowBackground(Theme.contentBackground)
             pollingSection

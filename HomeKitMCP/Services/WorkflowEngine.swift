@@ -103,6 +103,8 @@ actor WorkflowEngine: WorkflowEngineProtocol {
 
     /// Main entry — called whenever HomeKitManager publishes a state change.
     func processStateChange(_ change: StateChange) async {
+        guard storage.readWorkflowsEnabled() else { return }
+
         // Notify any waitForState waiters first
         notifyStateWaiters(change)
 
@@ -137,6 +139,7 @@ actor WorkflowEngine: WorkflowEngineProtocol {
 
     /// Manual trigger for testing.
     func triggerWorkflow(id: UUID) async -> WorkflowExecutionLog? {
+        guard storage.readWorkflowsEnabled() else { return nil }
         guard let workflow = await workflowStorageService.getWorkflow(id: id) else { return nil }
 
         // Handle retrigger policy for manual trigger too
@@ -170,6 +173,7 @@ actor WorkflowEngine: WorkflowEngineProtocol {
 
     /// Trigger a workflow from a schedule or webhook with a custom trigger event.
     func triggerWorkflow(id: UUID, triggerEvent: TriggerEvent) async -> WorkflowExecutionLog? {
+        guard storage.readWorkflowsEnabled() else { return nil }
         guard let workflow = await workflowStorageService.getWorkflow(id: id) else { return nil }
         guard workflow.isEnabled else { return nil }
 

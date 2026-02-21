@@ -105,6 +105,42 @@ class MCPRequestHandler {
         return result
     }
 
+    /// Checks whether a specific device + characteristic is exposed for external access.
+    private func isCharacteristicExposed(deviceId: String, characteristicType: String, serviceId: String?) async -> Bool {
+        let resolvedType = CharacteristicTypes.characteristicType(forName: characteristicType) ?? characteristicType
+
+        let device: DeviceModel? = await MainActor.run { homeKitManager.getDeviceState(id: deviceId) }
+        guard let device else {
+            return false
+        }
+
+        let allConfigs = await configService.getAllConfigs()
+
+        let targetServices: [ServiceModel]
+        if let serviceId {
+            targetServices = device.services.filter { $0.id == serviceId }
+        } else {
+            targetServices = device.services
+        }
+
+        for service in targetServices {
+            for characteristic in service.characteristics where characteristic.type == resolvedType {
+                let key = "\(device.id):\(service.id):\(characteristic.id)"
+                if (allConfigs[key] ?? .default).externalAccessEnabled {
+                    return true
+                }
+            }
+        }
+        return false
+    }
+
+    /// Workflow tool names for guard checks when workflows are disabled.
+    private static let workflowToolNames: Set<String> = [
+        "list_workflows", "get_workflow", "create_workflow", "update_workflow",
+        "delete_workflow", "enable_workflow", "get_workflow_logs",
+        "trigger_workflow", "trigger_workflow_webhook"
+    ]
+
     // MARK: - Initialize
 
     private func handleInitialize(id: JSONRPCId?, params: AnyCodable?) -> JSONRPCResponse {
@@ -209,8 +245,11 @@ class MCPRequestHandler {
     // MARK: - Tools
 
     private func handleToolsList(id: JSONRPCId?) -> JSONRPCResponse {
-        // Tool definitions are declared in MCPToolDefinitions.swift.
-        let result: [String: Any] = ["tools": MCPToolDefinitions.all]
+        var tools = MCPToolDefinitions.deviceTools
+        if storage.readWorkflowsEnabled() {
+            tools += MCPToolDefinitions.workflowTools
+        }
+        let result: [String: Any] = ["tools": tools]
         return JSONRPCResponse.success(id: id, result: AnyCodable(result))
     }
 
@@ -225,6 +264,15 @@ class MCPRequestHandler {
         }
 
         let arguments = paramsDict["arguments"] as? [String: Any] ?? [:]
+
+        // Block workflow tools when workflows are globally disabled
+        if Self.workflowToolNames.contains(toolName) && !storage.readWorkflowsEnabled() {
+            return toolResult(
+                text: "Workflows are disabled. Enable them in Settings to use workflow tools.",
+                isError: true,
+                id: id
+            )
+        }
 
         switch toolName {
         case "list_devices":
@@ -289,6 +337,20 @@ class MCPRequestHandler {
         }
 
         let serviceId = arguments["service_id"] as? String
+
+        // Check device/characteristic exposure before allowing control
+        let exposed = await isCharacteristicExposed(
+            deviceId: deviceId,
+            characteristicType: characteristicType,
+            serviceId: serviceId
+        )
+        guard exposed else {
+            return toolResult(
+                text: "Device or characteristic not found or not exposed for external access.",
+                isError: true,
+                id: id
+            )
+        }
 
         do {
             try await homeKitManager.updateDevice(id: deviceId, characteristicType: characteristicType, value: value, serviceId: serviceId)

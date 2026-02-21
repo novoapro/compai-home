@@ -250,8 +250,16 @@ class MCPServer: ObservableObject, MCPServerProtocol {
         }
     }
     
+    // MARK: - REST Helpers
+
+    private func guardWorkflowsEnabled() throws {
+        guard storage.readWorkflowsEnabled() else {
+            throw Abort(.notFound)
+        }
+    }
+
     // MARK: - REST Handlers
-    
+
     private func handleRestGetDevices(_ req: Request) async throws -> Response {
         let allDevices = await MainActor.run { homeKitManager.getAllDevices() }
         let filteredDevices = await handler.filterDevicesByConfig(allDevices)
@@ -297,6 +305,7 @@ class MCPServer: ObservableObject, MCPServerProtocol {
     // MARK: - Workflow REST Handlers
 
     private func handleRestGetWorkflows(_ req: Request) async throws -> Response {
+        try guardWorkflowsEnabled()
         let workflows = await workflowStorageService.getAllWorkflows()
         let data = try Self.encoder.encode(workflows)
         logRESTCall(method: "GET", path: "/workflows", statusCode: 200,
@@ -307,6 +316,7 @@ class MCPServer: ObservableObject, MCPServerProtocol {
     }
 
     private func handleRestGetWorkflow(_ req: Request) async throws -> Response {
+        try guardWorkflowsEnabled()
         guard let idStr = req.parameters.get("workflowId"),
               let workflowId = UUID(uuidString: idStr) else {
             logRESTCall(method: "GET", path: "/workflows/:id", statusCode: 400, resultSummary: "Bad Request")
@@ -327,6 +337,7 @@ class MCPServer: ObservableObject, MCPServerProtocol {
     }
 
     private func handleRestCreateWorkflow(_ req: Request) async throws -> Response {
+        try guardWorkflowsEnabled()
         guard let body = req.body.data,
               let bodyData = body.getData(at: body.readerIndex, length: body.readableBytes) else {
             throw Abort(.badRequest, reason: "Missing request body")
@@ -375,6 +386,7 @@ class MCPServer: ObservableObject, MCPServerProtocol {
     }
 
     private func handleRestUpdateWorkflow(_ req: Request) async throws -> Response {
+        try guardWorkflowsEnabled()
         guard let idStr = req.parameters.get("workflowId"),
               let workflowId = UUID(uuidString: idStr) else {
             logRESTCall(method: "PUT", path: "/workflows/:id", statusCode: 400, resultSummary: "Bad Request")
@@ -449,6 +461,7 @@ class MCPServer: ObservableObject, MCPServerProtocol {
     }
 
     private func handleRestDeleteWorkflow(_ req: Request) async throws -> Response {
+        try guardWorkflowsEnabled()
         guard let idStr = req.parameters.get("workflowId"),
               let workflowId = UUID(uuidString: idStr) else {
             logRESTCall(method: "DELETE", path: "/workflows/:id", statusCode: 400, resultSummary: "Bad Request")
@@ -466,6 +479,7 @@ class MCPServer: ObservableObject, MCPServerProtocol {
     }
 
     private func handleRestTriggerWorkflow(_ req: Request) async throws -> Response {
+        try guardWorkflowsEnabled()
         guard let idStr = req.parameters.get("workflowId"),
               let workflowId = UUID(uuidString: idStr) else {
             logRESTCall(method: "POST", path: "/workflows/:id/trigger", statusCode: 400, resultSummary: "Bad Request")
@@ -488,6 +502,7 @@ class MCPServer: ObservableObject, MCPServerProtocol {
     }
 
     private func handleRestGetWorkflowLogs(_ req: Request) async throws -> Response {
+        try guardWorkflowsEnabled()
         guard let idStr = req.parameters.get("workflowId"),
               let workflowId = UUID(uuidString: idStr) else {
             logRESTCall(method: "GET", path: "/workflows/:id/logs", statusCode: 400, resultSummary: "Bad Request")
@@ -507,6 +522,7 @@ class MCPServer: ObservableObject, MCPServerProtocol {
     }
 
     private func handleRestWebhookTrigger(_ req: Request) async throws -> Response {
+        try guardWorkflowsEnabled()
         guard let token = req.parameters.get("token"), !token.isEmpty else {
             logRESTCall(method: "POST", path: "/workflows/webhook/:token", statusCode: 400, resultSummary: "Bad Request")
             throw Abort(.badRequest, reason: "Missing webhook token")

@@ -155,13 +155,20 @@ struct ContentView: View {
             detailView
         }
         .background(Theme.mainBackground)
+        .onChange(of: settingsViewModel.workflowsEnabled) { enabled in
+            if !enabled && selection == .nav(.workflows) {
+                selection = .nav(.devices)
+            }
+        }
         // Keyboard shortcuts for sidebar navigation (Cmd+1/2/3, Cmd+, for Settings)
         .background {
             VStack {
                 Button("") { selection = .nav(.devices) }
                     .keyboardShortcut("1", modifiers: .command)
-                Button("") { selection = .nav(.workflows) }
-                    .keyboardShortcut("2", modifiers: .command)
+                if settingsViewModel.workflowsEnabled {
+                    Button("") { selection = .nav(.workflows) }
+                        .keyboardShortcut("2", modifiers: .command)
+                }
                 Button("") { selection = .nav(.logs) }
                     .keyboardShortcut("3", modifiers: .command)
                 Button("") { selection = .nav(.settings) }
@@ -177,7 +184,10 @@ struct ContentView: View {
         List(selection: $selection) {
             // Main navigation items
             Section {
-                ForEach(NavigationItem.allCases) { item in
+                ForEach(NavigationItem.allCases.filter { item in
+                    if item == .workflows { return settingsViewModel.workflowsEnabled }
+                    return true
+                }) { item in
                     Label(item.label, systemImage: item.icon)
                         .tag(SidebarSelection.nav(item))
                 }

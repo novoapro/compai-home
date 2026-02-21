@@ -81,6 +81,9 @@ class StorageService: ObservableObject, StorageServiceProtocol {
     @Published var pollingInterval: Int {
         didSet { defaults.set(pollingInterval, forKey: Keys.pollingInterval) }
     }
+    @Published var workflowsEnabled: Bool {
+        didSet { defaults.set(workflowsEnabled, forKey: Keys.workflowsEnabled) }
+    }
 
     init(keychainService: KeychainService = KeychainService()) {
         self.keychainService = keychainService
@@ -97,7 +100,8 @@ class StorageService: ObservableObject, StorageServiceProtocol {
             Keys.aiModelId: "",
             Keys.mcpServerBindAddress: "127.0.0.1",
             Keys.pollingEnabled: false,
-            Keys.pollingInterval: 30
+            Keys.pollingInterval: 30,
+            Keys.workflowsEnabled: true
         ])
 
         // Migrate webhook URL from UserDefaults to Keychain (one-time)
@@ -122,6 +126,7 @@ class StorageService: ObservableObject, StorageServiceProtocol {
         self.sunEventLongitude = defaults.double(forKey: Keys.sunEventLongitude)
         self.pollingEnabled = defaults.bool(forKey: Keys.pollingEnabled)
         self.pollingInterval = defaults.integer(forKey: Keys.pollingInterval)
+        self.workflowsEnabled = defaults.bool(forKey: Keys.workflowsEnabled)
     }
 
     func isWebhookConfigured() -> Bool {
@@ -183,6 +188,10 @@ class StorageService: ObservableObject, StorageServiceProtocol {
         return val > 0 ? val : 30
     }
 
+    nonisolated func readWorkflowsEnabled() -> Bool {
+        UserDefaults.standard.bool(forKey: Keys.workflowsEnabled)
+    }
+
     private enum Keys {
         static let webhookURL = "webhookURL"
         static let mcpServerPort = "mcpServerPort"
@@ -198,5 +207,6 @@ class StorageService: ObservableObject, StorageServiceProtocol {
         static let sunEventLongitude = "sunEventLongitude"
         static let pollingEnabled = "pollingEnabled"
         static let pollingInterval = "pollingInterval"
+        static let workflowsEnabled = "workflowsEnabled"
     }
 }
