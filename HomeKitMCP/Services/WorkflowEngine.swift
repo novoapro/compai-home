@@ -432,10 +432,58 @@ actor WorkflowEngine {
         )
     }
 
+    /// Validates that a URL does not point to a private/internal IP address (SSRF protection).
+    private static func validateURLNotPrivate(_ url: URL) throws {
+        guard let host = url.host else { return }
+
+        let lowered = host.lowercased()
+        if lowered == "localhost" || lowered == "127.0.0.1" || lowered == "::1" {
+            return
+        }
+
+        let cfHost = CFHostCreateWithName(kCFAllocatorDefault, host as CFString).takeRetainedValue()
+        var resolved = DarwinBoolean(false)
+        CFHostStartInfoResolution(cfHost, .addresses, nil)
+        guard let addresses = CFHostGetAddressing(cfHost, &resolved)?.takeUnretainedValue() as? [Data], resolved.boolValue else {
+            return
+        }
+
+        for addressData in addresses {
+            let isPrivate = addressData.withUnsafeBytes { (pointer: UnsafeRawBufferPointer) -> Bool in
+                guard let sa = pointer.baseAddress?.assumingMemoryBound(to: sockaddr.self) else { return false }
+                if sa.pointee.sa_family == UInt8(AF_INET) {
+                    let sin = pointer.baseAddress!.assumingMemoryBound(to: sockaddr_in.self).pointee
+                    let addr = sin.sin_addr.s_addr
+                    let a = addr & 0xFF
+                    let b = (addr >> 8) & 0xFF
+                    if a == 10 { return true }
+                    if a == 172 && (b >= 16 && b <= 31) { return true }
+                    if a == 192 && b == 168 { return true }
+                    if a == 169 && b == 254 { return true }
+                    if a == 127 { return true }
+                    if addr == 0 { return true }
+                }
+                return false
+            }
+            if isPrivate {
+                throw WorkflowEngineError.ssrfBlocked(url.absoluteString)
+            }
+        }
+    }
+
+    /// Headers that must not be set by user-supplied workflow configurations.
+    private static let restrictedHeaders: Set<String> = [
+        "host", "transfer-encoding", "content-length", "connection",
+        "authorization", "cookie", "set-cookie", "proxy-authorization",
+        "te", "trailer", "upgrade"
+    ]
+
     private func executeWebhook(_ action: WebhookActionConfig) async throws {
         guard let url = URL(string: action.url) else {
             throw WorkflowEngineError.invalidURL(action.url)
         }
+
+        try Self.validateURLNotPrivate(url)
 
         var request = URLRequest(url: url)
         request.httpMethod = action.method
@@ -443,6 +491,7 @@ actor WorkflowEngine {
 
         if let headers = action.headers {
             for (key, value) in headers {
+                guard !Self.restrictedHeaders.contains(key.lowercased()) else { continue }
                 request.setValue(value, forHTTPHeaderField: key)
             }
         }
@@ -806,12 +855,14 @@ enum WorkflowEngineError: LocalizedError {
     case timeout
     case invalidURL(String)
     case webhookFailed(statusCode: Int)
+    case ssrfBlocked(String)
 
     var errorDescription: String? {
         switch self {
         case .timeout: return "Operation timed out"
         case let .invalidURL(url): return "Invalid URL: \(url)"
         case let .webhookFailed(code): return "Webhook failed with status \(code)"
+        case let .ssrfBlocked(url): return "Request blocked: URL '\(url)' resolves to a private/internal IP address"
         }
     }
 }

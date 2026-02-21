@@ -2,14 +2,14 @@ import UIKit
 import Combine
 
 class AppDelegate: UIResponder, UIApplicationDelegate {
-    let storageService = StorageService()
+    let keychainService = KeychainService()
+    lazy var storageService = StorageService(keychainService: keychainService)
     let loggingService = LoggingService()
     let configService = DeviceConfigurationService()
     let workflowStorageService = WorkflowStorageService()
     let workflowExecutionLogService = WorkflowExecutionLogService()
-    let keychainService = KeychainService()
     let scheduleTriggerManager = ScheduleTriggerManager()
-    lazy var webhookService = WebhookService(storage: storageService, loggingService: loggingService)
+    lazy var webhookService = WebhookService(storage: storageService, loggingService: loggingService, keychainService: keychainService)
     lazy var homeKitManager = HomeKitManager(loggingService: loggingService, webhookService: webhookService, configService: configService, storage: storageService)
     lazy var workflowEngine: WorkflowEngine = {
         let engine = WorkflowEngine(
@@ -25,7 +25,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     lazy var mcpServer = MCPServer(
         homeKitManager: homeKitManager, loggingService: loggingService, configService: configService, storage: storageService,
         workflowStorageService: workflowStorageService, workflowEngine: workflowEngine, workflowExecutionLogService: workflowExecutionLogService,
-        port: storageService.mcpServerPort
+        keychainService: keychainService, port: storageService.mcpServerPort
     )
     lazy var homeKitViewModel = HomeKitViewModel(homeKitManager: homeKitManager, configService: configService)
     lazy var logViewModel = LogViewModel(loggingService: loggingService, executionLogService: workflowExecutionLogService, storage: storageService)

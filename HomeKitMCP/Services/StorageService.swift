@@ -31,9 +31,16 @@ enum AIProvider: String, CaseIterable, Identifiable, Codable {
 @MainActor
 class StorageService: ObservableObject {
     private let defaults = UserDefaults.standard
+    let keychainService: KeychainService
 
     @Published var webhookURL: String? {
-        didSet { defaults.set(webhookURL, forKey: Keys.webhookURL) }
+        didSet {
+            if let url = webhookURL, !url.isEmpty {
+                keychainService.save(key: KeychainService.Keys.webhookURL, value: url)
+            } else {
+                keychainService.delete(key: KeychainService.Keys.webhookURL)
+            }
+        }
     }
     @Published var mcpServerPort: Int {
         didSet { defaults.set(mcpServerPort, forKey: Keys.mcpServerPort) }
@@ -60,7 +67,9 @@ class StorageService: ObservableObject {
         didSet { defaults.set(aiModelId, forKey: Keys.aiModelId) }
     }
 
-    init() {
+    init(keychainService: KeychainService = KeychainService()) {
+        self.keychainService = keychainService
+
         // Register defaults for keys that need non-nil/non-zero initial values
         defaults.register(defaults: [
             Keys.mcpServerPort: 3000,
@@ -73,7 +82,15 @@ class StorageService: ObservableObject {
             Keys.aiModelId: ""
         ])
 
-        self.webhookURL = defaults.string(forKey: Keys.webhookURL)
+        // Migrate webhook URL from UserDefaults to Keychain (one-time)
+        if let legacyURL = defaults.string(forKey: Keys.webhookURL), !legacyURL.isEmpty {
+            if keychainService.read(key: KeychainService.Keys.webhookURL) == nil {
+                keychainService.save(key: KeychainService.Keys.webhookURL, value: legacyURL)
+            }
+            defaults.removeObject(forKey: Keys.webhookURL)
+        }
+
+        self.webhookURL = keychainService.read(key: KeychainService.Keys.webhookURL)
         self.mcpServerPort = defaults.integer(forKey: Keys.mcpServerPort)
         self.webhookEnabled = defaults.bool(forKey: Keys.webhookEnabled)
         self.mcpServerEnabled = defaults.bool(forKey: Keys.mcpServerEnabled)
@@ -99,7 +116,7 @@ class StorageService: ObservableObject {
     }
 
     nonisolated func readWebhookURL() -> String? {
-        UserDefaults.standard.string(forKey: Keys.webhookURL)
+        keychainService.read(key: KeychainService.Keys.webhookURL)
     }
 
     nonisolated func readWebhookEnabled() -> Bool {

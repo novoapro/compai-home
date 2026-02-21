@@ -99,7 +99,7 @@ struct OpenAIClient: LLMClient {
 
 struct GeminiClient: LLMClient {
     func complete(systemPrompt: String, userMessage: String, apiKey: String, model: String) async throws -> String {
-        let urlString = "https://generativelanguage.googleapis.com/v1beta/models/\(model):generateContent?key=\(apiKey)"
+        let urlString = "https://generativelanguage.googleapis.com/v1beta/models/\(model):generateContent"
         guard let url = URL(string: urlString) else {
             throw AIWorkflowError.networkError("Invalid Gemini URL")
         }
@@ -107,6 +107,7 @@ struct GeminiClient: LLMClient {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(apiKey, forHTTPHeaderField: "x-goog-api-key")
         request.timeoutInterval = 60
 
         let body: [String: Any] = [

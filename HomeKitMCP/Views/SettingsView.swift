@@ -8,6 +8,8 @@ struct SettingsView: View {
     @State private var showingResetConfirmation = false
     @State private var aiApiKeyInput = ""
     @State private var showingAIApiKey = false
+    @State private var showingApiToken = false
+    @State private var showingRegenerateConfirmation = false
 
     private var urlIsValid: Bool {
         webhookURL.isEmpty || viewModel.isValidURL(webhookURL)
@@ -236,7 +238,10 @@ struct SettingsView: View {
         } header: {
             Text("Webhook Configuration")
         } footer: {
-            Text("Configure which devices trigger webhooks in the Devices tab.")
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Configure which devices trigger webhooks in the Devices tab.")
+                Text("Payloads are signed with HMAC-SHA256 in the X-Signature-256 header.")
+            }
         }
     }
 
@@ -319,13 +324,73 @@ struct SettingsView: View {
                 .multilineTextAlignment(.trailing)
                 .disabled(viewModel.mcpServerRunning)
             }
+
+            // API Token
+            VStack(alignment: .leading, spacing: 6) {
+                Text("API Token")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+
+                HStack {
+                    if showingApiToken {
+                        Text(viewModel.mcpApiToken)
+                            .font(.system(.caption, design: .monospaced))
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    } else {
+                        Text(String(repeating: "\u{2022}", count: 32))
+                            .font(.system(.caption, design: .monospaced))
+                            .foregroundColor(.secondary)
+                    }
+
+                    Spacer()
+
+                    Button {
+                        showingApiToken.toggle()
+                    } label: {
+                        Image(systemName: showingApiToken ? "eye.slash" : "eye")
+                            .foregroundColor(.secondary)
+                    }
+                    .buttonStyle(.plain)
+
+                    Button {
+                        #if targetEnvironment(macCatalyst)
+                        UIPasteboard.general.string = viewModel.mcpApiToken
+                        #endif
+                    } label: {
+                        Image(systemName: "doc.on.doc")
+                            .foregroundColor(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                HStack {
+                    Button("Regenerate", role: .destructive) {
+                        showingRegenerateConfirmation = true
+                    }
+                    .font(.subheadline)
+                }
+            }
+            .alert("Regenerate API Token?", isPresented: $showingRegenerateConfirmation) {
+                Button("Cancel", role: .cancel) { }
+                Button("Regenerate", role: .destructive) {
+                    viewModel.regenerateMCPApiToken()
+                    showingApiToken = true
+                }
+            } message: {
+                Text("All existing MCP clients will need to be updated with the new token. The server must be restarted for the new token to take effect.")
+            }
         } header: {
             Text("External Services (MCP & REST)")
         } footer: {
             VStack(alignment: .leading, spacing: 4) {
-                Text(verbatim: "MCP Streamable: http://\(viewModel.localIPAddress):\(viewModel.storage.mcpServerPort)/mcp")
-                Text(verbatim: "MCP Legacy SSE: http://\(viewModel.localIPAddress):\(viewModel.storage.mcpServerPort)/sse")
-                Text(verbatim: "REST API: http://\(viewModel.localIPAddress):\(viewModel.storage.mcpServerPort)/devices")
+                Text("All endpoints require an Authorization: Bearer <token> header.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .padding(.bottom, 2)
+                Text(verbatim: "MCP Streamable: http://127.0.0.1:\(viewModel.storage.mcpServerPort)/mcp")
+                Text(verbatim: "MCP Legacy SSE: http://127.0.0.1:\(viewModel.storage.mcpServerPort)/sse")
+                Text(verbatim: "REST API: http://127.0.0.1:\(viewModel.storage.mcpServerPort)/devices")
             }
             .font(.caption)
         }

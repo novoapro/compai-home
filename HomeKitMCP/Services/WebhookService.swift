@@ -1,9 +1,11 @@
 import Foundation
 import Combine
+import CommonCrypto
 
 actor WebhookService {
     private let storage: StorageService
     private let loggingService: LoggingService
+    private let keychainService: KeychainService
     private let maxRetries = 3
 
     /// Observable status published on the main actor for UI consumption.
@@ -15,9 +17,10 @@ actor WebhookService {
         return encoder
     }()
 
-    init(storage: StorageService, loggingService: LoggingService) {
+    init(storage: StorageService, loggingService: LoggingService, keychainService: KeychainService) {
         self.storage = storage
         self.loggingService = loggingService
+        self.keychainService = keychainService
     }
 
     func sendStateChange(_ change: StateChange) async {
@@ -216,13 +219,80 @@ actor WebhookService {
         storage.readDetailedLogsEnabled() ? value : nil
     }
 
+    /// Validates that a URL does not point to a private/internal IP address (SSRF protection).
+    private func validateURLNotPrivate(_ url: URL) throws {
+        guard let host = url.host else { return }
+
+        // Allow localhost only (for the app's own endpoints)
+        let lowered = host.lowercased()
+        if lowered == "localhost" || lowered == "127.0.0.1" || lowered == "::1" {
+            return
+        }
+
+        // Resolve the hostname and check against private ranges
+        let cfHost = CFHostCreateWithName(kCFAllocatorDefault, host as CFString).takeRetainedValue()
+        var resolved = DarwinBoolean(false)
+        CFHostStartInfoResolution(cfHost, .addresses, nil)
+        guard let addresses = CFHostGetAddressing(cfHost, &resolved)?.takeUnretainedValue() as? [Data], resolved.boolValue else {
+            return // If resolution fails, let the request fail naturally
+        }
+
+        for addressData in addresses {
+            let isPrivate = addressData.withUnsafeBytes { (pointer: UnsafeRawBufferPointer) -> Bool in
+                guard let sa = pointer.baseAddress?.assumingMemoryBound(to: sockaddr.self) else { return false }
+                if sa.pointee.sa_family == UInt8(AF_INET) {
+                    let sin = pointer.baseAddress!.assumingMemoryBound(to: sockaddr_in.self).pointee
+                    let addr = sin.sin_addr.s_addr
+                    let a = addr & 0xFF
+                    let b = (addr >> 8) & 0xFF
+                    // 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 169.254.0.0/16, 127.0.0.0/8
+                    if a == 10 { return true }
+                    if a == 172 && (b >= 16 && b <= 31) { return true }
+                    if a == 192 && b == 168 { return true }
+                    if a == 169 && b == 254 { return true }
+                    if a == 127 { return true }
+                    if addr == 0 { return true } // 0.0.0.0
+                }
+                return false
+            }
+            if isPrivate {
+                throw WebhookError.ssrfBlocked
+            }
+        }
+    }
+
     private func performRequest(url: URL, payload: WebhookPayload) async throws -> (Data, URLResponse) {
+        try validateURLNotPrivate(url)
+
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
         request.timeoutInterval = 10
-        request.httpBody = try Self.encoder.encode(payload)
+
+        let body = try Self.encoder.encode(payload)
+        request.httpBody = body
+
+        // Sign the payload with HMAC-SHA256
+        let secret = keychainService.getOrCreateWebhookSecret()
+        if let secretData = secret.data(using: .utf8) {
+            let signature = hmacSHA256(data: body, key: secretData)
+            request.addValue("sha256=\(signature)", forHTTPHeaderField: "X-Signature-256")
+        }
+
         return try await URLSession.shared.data(for: request)
+    }
+
+    private func hmacSHA256(data: Data, key: Data) -> String {
+        var hmac = [UInt8](repeating: 0, count: Int(CC_SHA256_DIGEST_LENGTH))
+        data.withUnsafeBytes { dataBytes in
+            key.withUnsafeBytes { keyBytes in
+                CCHmac(CCHmacAlgorithm(kCCHmacAlgSHA256),
+                        keyBytes.baseAddress, key.count,
+                        dataBytes.baseAddress, data.count,
+                        &hmac)
+            }
+        }
+        return hmac.map { String(format: "%02x", $0) }.joined()
     }
 }
 
@@ -250,11 +320,13 @@ enum WebhookStatus: Equatable {
 enum WebhookError: LocalizedError {
     case httpError(statusCode: Int)
     case noURL
+    case ssrfBlocked
 
     var errorDescription: String? {
         switch self {
         case .httpError(let code): return "HTTP error \(code)"
         case .noURL: return "No webhook URL configured"
+        case .ssrfBlocked: return "Request blocked: URL resolves to a private/internal IP address"
         }
     }
 }

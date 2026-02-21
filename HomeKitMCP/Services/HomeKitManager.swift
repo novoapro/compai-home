@@ -12,7 +12,9 @@ class HomeKitManager: NSObject, ObservableObject {
     /// Cached device models, rebuilt only when accessories or characteristic values change.
     @Published private(set) var cachedDevices: [DeviceModel] = []
     /// O(1) device lookup by ID, rebuilt alongside cachedDevices.
+    /// Access protected by `deviceLookupLock` for thread safety.
     private var deviceLookup: [String: DeviceModel] = [:]
+    private let deviceLookupLock = NSLock()
 
     private let homeManager = HMHomeManager()
     private let loggingService: LoggingService
@@ -88,8 +90,11 @@ class HomeKitManager: NSObject, ObservableObject {
     }
 
     /// O(1) device lookup by ID using the cached dictionary.
+    /// Thread-safe: protected by deviceLookupLock.
     func getDeviceState(id: String) -> DeviceModel? {
-        deviceLookup[id]
+        deviceLookupLock.lock()
+        defer { deviceLookupLock.unlock() }
+        return deviceLookup[id]
     }
 
     // MARK: - Device Cache
@@ -146,7 +151,9 @@ class HomeKitManager: NSObject, ObservableObject {
         }
 
         cachedDevices = devices
+        deviceLookupLock.lock()
         deviceLookup = Dictionary(uniqueKeysWithValues: devices.map { ($0.id, $0) })
+        deviceLookupLock.unlock()
         objectWillChange.send()
     }
 
@@ -154,13 +161,21 @@ class HomeKitManager: NSObject, ObservableObject {
 
     /// Coalesced UI update — waits for a brief quiet period before rebuilding the cache.
     /// This prevents hundreds of individual updates from each characteristic read.
+    /// Safe to call from any thread — always dispatches to main.
     private func scheduleUIUpdate() {
-        uiUpdateWorkItem?.cancel()
-        let workItem = DispatchWorkItem { [weak self] in
-            self?.rebuildDeviceCache()
+        let update = { [weak self] in
+            self?.uiUpdateWorkItem?.cancel()
+            let workItem = DispatchWorkItem { [weak self] in
+                self?.rebuildDeviceCache()
+            }
+            self?.uiUpdateWorkItem = workItem
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15, execute: workItem)
         }
-        uiUpdateWorkItem = workItem
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15, execute: workItem)
+        if Thread.isMainThread {
+            update()
+        } else {
+            DispatchQueue.main.async(execute: update)
+        }
     }
 
     // MARK: - Helpers
@@ -223,11 +238,14 @@ class HomeKitManager: NSObject, ObservableObject {
     /// Read current values for all readable characteristics on all accessories.
     /// Uses a concurrent counter to track completion and coalesces UI updates.
     private func readAllCharacteristicValues() {
+        // Snapshot the accessories array to avoid races with HomeKit delegate callbacks
+        let accessories = allAccessories
+
         var totalReads = 0
         var completedReads = 0
         let lock = NSLock()
 
-        for accessory in allAccessories where accessory.isReachable {
+        for accessory in accessories where accessory.isReachable {
             for service in accessory.services {
                 guard ServiceTypes.isSupported(service.serviceType) else { continue }
                 for characteristic in service.characteristics {
@@ -252,7 +270,7 @@ class HomeKitManager: NSObject, ObservableObject {
         // Build initial cache with stale/nil values while reads happen
         rebuildDeviceCache()
 
-        for accessory in allAccessories where accessory.isReachable {
+        for accessory in accessories where accessory.isReachable {
             for service in accessory.services {
                 guard ServiceTypes.isSupported(service.serviceType) else { continue }
                 for characteristic in service.characteristics {

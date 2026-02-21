@@ -18,6 +18,7 @@ class MCPServer: ObservableObject {
     private let workflowStorageService: WorkflowStorageService
     private let workflowEngine: WorkflowEngine
     private let workflowExecutionLogService: WorkflowExecutionLogService
+    private let keychainService: KeychainService
 
     private static let encoder: JSONEncoder = {
         let encoder = JSONEncoder()
@@ -33,6 +34,7 @@ class MCPServer: ObservableObject {
 
     init(homeKitManager: HomeKitManager, loggingService: LoggingService, configService: DeviceConfigurationService, storage: StorageService,
          workflowStorageService: WorkflowStorageService, workflowEngine: WorkflowEngine, workflowExecutionLogService: WorkflowExecutionLogService,
+         keychainService: KeychainService,
          port: Int = 3000) {
         self.homeKitManager = homeKitManager
         self.loggingService = loggingService
@@ -41,6 +43,7 @@ class MCPServer: ObservableObject {
         self.workflowStorageService = workflowStorageService
         self.workflowEngine = workflowEngine
         self.workflowExecutionLogService = workflowExecutionLogService
+        self.keychainService = keychainService
         self.handler = MCPRequestHandler(
             homeKitManager: homeKitManager, loggingService: loggingService, configService: configService, storage: storage,
             workflowStorageService: workflowStorageService, workflowEngine: workflowEngine, workflowExecutionLogService: workflowExecutionLogService
@@ -59,7 +62,7 @@ class MCPServer: ObservableObject {
             guard let self else { return }
             do {
                 let app = try await Application.make(env)
-                app.http.server.configuration.hostname = "0.0.0.0"
+                app.http.server.configuration.hostname = "127.0.0.1"
                 app.http.server.configuration.port = self.port
                 app.http.server.configuration.reuseAddress = true
                 app.logger.logLevel = .warning
@@ -127,89 +130,103 @@ class MCPServer: ObservableObject {
     // MARK: - Route Configuration
 
     private func configureRoutes(_ app: Application) {
-        // Streamable HTTP transport: single endpoint supporting POST, GET, and DELETE
-        app.on(.POST, "mcp", body: .collect(maxSize: "1mb")) { [weak self] req async throws -> Response in
-            guard let self else { throw Abort(.serviceUnavailable) }
-            return try await self.handleStreamablePost(req)
+        let apiToken = keychainService.getOrCreateMCPApiToken()
+        let authMiddleware = BearerAuthMiddleware(validToken: apiToken)
+
+        // CORS middleware — restrict to localhost origins only
+        let corsConfig = CORSMiddleware.Configuration(
+            allowedOrigin: .custom("http://127.0.0.1:\(port)"),
+            allowedMethods: [.GET, .POST, .PUT, .DELETE, .OPTIONS],
+            allowedHeaders: [.contentType, .authorization, .init("Mcp-Session-Id")]
+        )
+        app.middleware.use(CORSMiddleware(configuration: corsConfig))
+
+        // Health check — no auth required
+        app.on(.GET, "health") { _ -> String in
+            return "ok"
         }
 
-        app.on(.GET, "mcp") { [weak self] req async throws -> Response in
-            guard let self else { throw Abort(.serviceUnavailable) }
-            return self.handleStreamableGet(req)
-        }
-
-        app.on(.DELETE, "mcp") { [weak self] req async throws -> Response in
-            guard let self else { throw Abort(.serviceUnavailable) }
-            return await self.handleStreamableDelete(req)
-        }
-
-        // Legacy SSE transport (2024-11-05): separate /sse and /messages endpoints
-        app.on(.GET, "sse") { [weak self] req async throws -> Response in
-            guard let self else { throw Abort(.serviceUnavailable) }
-            return self.handleLegacySSE(req)
-        }
-
-        app.on(.POST, "messages", body: .collect(maxSize: "1mb")) { [weak self] req async throws -> Response in
-            guard let self else { throw Abort(.serviceUnavailable) }
-            return try await self.handleLegacyMessages(req)
-        }
-
-        // REST Endpoints
-        app.on(.GET, "devices") { [weak self] req async throws -> Response in
-            guard let self else { throw Abort(.serviceUnavailable) }
-            return try await self.handleRestGetDevices(req)
-        }
-        
-        app.on(.GET, "devices", ":deviceId") { [weak self] req async throws -> Response in
-            guard let self else { throw Abort(.serviceUnavailable) }
-            return try await self.handleRestGetDevice(req)
-        }
-
-        // Workflow REST Endpoints
-        app.on(.GET, "workflows") { [weak self] req async throws -> Response in
-            guard let self else { throw Abort(.serviceUnavailable) }
-            return try await self.handleRestGetWorkflows(req)
-        }
-
-        app.on(.GET, "workflows", ":workflowId") { [weak self] req async throws -> Response in
-            guard let self else { throw Abort(.serviceUnavailable) }
-            return try await self.handleRestGetWorkflow(req)
-        }
-
-        app.on(.POST, "workflows", body: .collect(maxSize: "1mb")) { [weak self] req async throws -> Response in
-            guard let self else { throw Abort(.serviceUnavailable) }
-            return try await self.handleRestCreateWorkflow(req)
-        }
-
-        app.on(.PUT, "workflows", ":workflowId", body: .collect(maxSize: "1mb")) { [weak self] req async throws -> Response in
-            guard let self else { throw Abort(.serviceUnavailable) }
-            return try await self.handleRestUpdateWorkflow(req)
-        }
-
-        app.on(.DELETE, "workflows", ":workflowId") { [weak self] req async throws -> Response in
-            guard let self else { throw Abort(.serviceUnavailable) }
-            return try await self.handleRestDeleteWorkflow(req)
-        }
-
-        app.on(.POST, "workflows", ":workflowId", "trigger") { [weak self] req async throws -> Response in
-            guard let self else { throw Abort(.serviceUnavailable) }
-            return try await self.handleRestTriggerWorkflow(req)
-        }
-
-        app.on(.GET, "workflows", ":workflowId", "logs") { [weak self] req async throws -> Response in
-            guard let self else { throw Abort(.serviceUnavailable) }
-            return try await self.handleRestGetWorkflowLogs(req)
-        }
-
-        // Webhook trigger endpoint
+        // Webhook trigger endpoint — uses its own token-based auth, no bearer required
         app.on(.POST, "workflows", "webhook", ":token", body: .collect(maxSize: "1mb")) { [weak self] req async throws -> Response in
             guard let self else { throw Abort(.serviceUnavailable) }
             return try await self.handleRestWebhookTrigger(req)
         }
 
-        // Health check
-        app.on(.GET, "health") { _ -> String in
-            return "ok"
+        // All other routes require bearer token auth
+        let protected = app.grouped(authMiddleware)
+
+        // Streamable HTTP transport: single endpoint supporting POST, GET, and DELETE
+        protected.on(.POST, "mcp", body: .collect(maxSize: "1mb")) { [weak self] req async throws -> Response in
+            guard let self else { throw Abort(.serviceUnavailable) }
+            return try await self.handleStreamablePost(req)
+        }
+
+        protected.on(.GET, "mcp") { [weak self] req async throws -> Response in
+            guard let self else { throw Abort(.serviceUnavailable) }
+            return self.handleStreamableGet(req)
+        }
+
+        protected.on(.DELETE, "mcp") { [weak self] req async throws -> Response in
+            guard let self else { throw Abort(.serviceUnavailable) }
+            return await self.handleStreamableDelete(req)
+        }
+
+        // Legacy SSE transport (2024-11-05): separate /sse and /messages endpoints
+        protected.on(.GET, "sse") { [weak self] req async throws -> Response in
+            guard let self else { throw Abort(.serviceUnavailable) }
+            return self.handleLegacySSE(req)
+        }
+
+        protected.on(.POST, "messages", body: .collect(maxSize: "1mb")) { [weak self] req async throws -> Response in
+            guard let self else { throw Abort(.serviceUnavailable) }
+            return try await self.handleLegacyMessages(req)
+        }
+
+        // REST Endpoints
+        protected.on(.GET, "devices") { [weak self] req async throws -> Response in
+            guard let self else { throw Abort(.serviceUnavailable) }
+            return try await self.handleRestGetDevices(req)
+        }
+
+        protected.on(.GET, "devices", ":deviceId") { [weak self] req async throws -> Response in
+            guard let self else { throw Abort(.serviceUnavailable) }
+            return try await self.handleRestGetDevice(req)
+        }
+
+        // Workflow REST Endpoints
+        protected.on(.GET, "workflows") { [weak self] req async throws -> Response in
+            guard let self else { throw Abort(.serviceUnavailable) }
+            return try await self.handleRestGetWorkflows(req)
+        }
+
+        protected.on(.GET, "workflows", ":workflowId") { [weak self] req async throws -> Response in
+            guard let self else { throw Abort(.serviceUnavailable) }
+            return try await self.handleRestGetWorkflow(req)
+        }
+
+        protected.on(.POST, "workflows", body: .collect(maxSize: "1mb")) { [weak self] req async throws -> Response in
+            guard let self else { throw Abort(.serviceUnavailable) }
+            return try await self.handleRestCreateWorkflow(req)
+        }
+
+        protected.on(.PUT, "workflows", ":workflowId", body: .collect(maxSize: "1mb")) { [weak self] req async throws -> Response in
+            guard let self else { throw Abort(.serviceUnavailable) }
+            return try await self.handleRestUpdateWorkflow(req)
+        }
+
+        protected.on(.DELETE, "workflows", ":workflowId") { [weak self] req async throws -> Response in
+            guard let self else { throw Abort(.serviceUnavailable) }
+            return try await self.handleRestDeleteWorkflow(req)
+        }
+
+        protected.on(.POST, "workflows", ":workflowId", "trigger") { [weak self] req async throws -> Response in
+            guard let self else { throw Abort(.serviceUnavailable) }
+            return try await self.handleRestTriggerWorkflow(req)
+        }
+
+        protected.on(.GET, "workflows", ":workflowId", "logs") { [weak self] req async throws -> Response in
+            guard let self else { throw Abort(.serviceUnavailable) }
+            return try await self.handleRestGetWorkflowLogs(req)
         }
     }
     
@@ -331,8 +348,9 @@ class MCPServer: ObservableObject {
             let normalizedData = try JSONSerialization.data(withJSONObject: dict)
             workflow = try Self.decoder.decode(Workflow.self, from: normalizedData)
         } catch {
-            logRESTCall(method: "POST", path: "/workflows", statusCode: 400, resultSummary: "Parse Error: \(error.localizedDescription)")
-            throw Abort(.badRequest, reason: "Invalid workflow JSON: \(error.localizedDescription)")
+            AppLogger.server.error("Workflow JSON parse error: \(error.localizedDescription)")
+            logRESTCall(method: "POST", path: "/workflows", statusCode: 400, resultSummary: "Parse Error")
+            throw Abort(.badRequest, reason: "Invalid workflow JSON")
         }
 
         let created = await workflowStorageService.createWorkflow(workflow)
@@ -417,7 +435,8 @@ class MCPServer: ObservableObject {
             throw error
         } catch {
             logRESTCall(method: "PUT", path: "/workflows/\(idStr)", statusCode: 400, resultSummary: "Parse Error")
-            throw Abort(.badRequest, reason: "Failed to parse workflow update: \(error.localizedDescription)")
+            AppLogger.server.error("Workflow update parse error: \(error.localizedDescription)")
+            throw Abort(.badRequest, reason: "Failed to parse workflow update")
         }
     }
 
@@ -568,6 +587,7 @@ class MCPServer: ObservableObject {
                 if !valid {
                     return Response(status: .notFound)
                 }
+                await connectionTracker.touchSession(sessionId)
             } else {
                 let hasSessions = await connectionTracker.hasAnySessions()
                 if hasSessions {
@@ -780,13 +800,52 @@ class MCPServer: ObservableObject {
     }
 }
 
+// MARK: - Bearer Auth Middleware
+
+/// Vapor middleware that validates `Authorization: Bearer <token>` on every request.
+private struct BearerAuthMiddleware: AsyncMiddleware {
+    let validToken: String
+
+    func respond(to request: Request, chainingTo next: any AsyncResponder) async throws -> Response {
+        guard let authHeader = request.headers.first(name: .authorization) else {
+            return Response(status: .unauthorized, body: .init(string: "{\"error\":\"Missing Authorization header\"}"))
+        }
+
+        let prefix = "Bearer "
+        guard authHeader.hasPrefix(prefix) else {
+            return Response(status: .unauthorized, body: .init(string: "{\"error\":\"Invalid Authorization scheme. Use Bearer.\"}"))
+        }
+
+        let token = String(authHeader.dropFirst(prefix.count))
+        guard token == validToken else {
+            return Response(status: .unauthorized, body: .init(string: "{\"error\":\"Invalid API token\"}"))
+        }
+
+        return try await next.respond(to: request)
+    }
+}
+
 // MARK: - Connection Tracker
 
-/// Actor that manages SSE connections and Streamable HTTP sessions,
-/// replacing the previous @unchecked Sendable + NSLock pattern.
+/// Actor that manages SSE connections and Streamable HTTP sessions
+/// with TTL-based expiration and idle timeout.
 private actor ConnectionTracker {
     private var sseConnections: [UUID: any AsyncBodyStreamWriter] = [:]
-    private var activeSessions: Set<String> = []
+
+    private struct SessionInfo {
+        let createdAt: Date
+        var lastActivity: Date
+    }
+
+    private var activeSessions: [String: SessionInfo] = [:]
+    private var cleanupTask: Task<Void, Never>?
+
+    /// Maximum session lifetime (24 hours).
+    private let sessionTTL: TimeInterval = 24 * 60 * 60
+    /// Idle timeout (1 hour).
+    private let idleTimeout: TimeInterval = 60 * 60
+    /// Cleanup sweep interval (5 minutes).
+    private let cleanupInterval: UInt64 = 5 * 60 * 1_000_000_000
 
     var sseConnectionCount: Int { sseConnections.count }
 
@@ -807,7 +866,14 @@ private actor ConnectionTracker {
     // MARK: - Streamable HTTP Sessions
 
     func hasSession(_ sessionId: String) -> Bool {
-        activeSessions.contains(sessionId)
+        guard let info = activeSessions[sessionId] else { return false }
+        let now = Date()
+        if now.timeIntervalSince(info.createdAt) > sessionTTL ||
+           now.timeIntervalSince(info.lastActivity) > idleTimeout {
+            activeSessions.removeValue(forKey: sessionId)
+            return false
+        }
+        return true
     }
 
     func hasAnySessions() -> Bool {
@@ -815,15 +881,51 @@ private actor ConnectionTracker {
     }
 
     func addSession(_ sessionId: String) {
-        activeSessions.insert(sessionId)
+        let now = Date()
+        activeSessions[sessionId] = SessionInfo(createdAt: now, lastActivity: now)
+        startCleanupIfNeeded()
+    }
+
+    func touchSession(_ sessionId: String) {
+        activeSessions[sessionId]?.lastActivity = Date()
     }
 
     func removeSession(_ sessionId: String) -> Bool {
-        activeSessions.remove(sessionId) != nil
+        activeSessions.removeValue(forKey: sessionId) != nil
     }
 
     func removeAll() {
         sseConnections.removeAll()
         activeSessions.removeAll()
+        cleanupTask?.cancel()
+        cleanupTask = nil
+    }
+
+    // MARK: - Session Cleanup
+
+    private func startCleanupIfNeeded() {
+        guard cleanupTask == nil else { return }
+        cleanupTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: self?.cleanupInterval ?? 300_000_000_000)
+                guard !Task.isCancelled else { break }
+                await self?.sweepExpiredSessions()
+            }
+        }
+    }
+
+    private func sweepExpiredSessions() {
+        let now = Date()
+        let expired = activeSessions.filter { (_, info) in
+            now.timeIntervalSince(info.createdAt) > sessionTTL ||
+            now.timeIntervalSince(info.lastActivity) > idleTimeout
+        }
+        for key in expired.keys {
+            activeSessions.removeValue(forKey: key)
+        }
+        if activeSessions.isEmpty {
+            cleanupTask?.cancel()
+            cleanupTask = nil
+        }
     }
 }

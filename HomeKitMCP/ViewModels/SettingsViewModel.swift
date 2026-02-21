@@ -45,6 +45,7 @@ class SettingsViewModel: ObservableObject {
     @Published var aiApiKeyConfigured: Bool = false
     @Published var aiTestResult: AITestResult?
     @Published var isTestingAI = false
+    @Published var mcpApiToken: String = ""
 
     let storage: StorageService
     private let webhookService: WebhookService
@@ -75,6 +76,7 @@ class SettingsViewModel: ObservableObject {
         self.aiProvider = storage.aiProvider
         self.aiModelId = storage.aiModelId
         self.aiApiKeyConfigured = keychainService.exists(key: KeychainService.Keys.aiApiKey)
+        self.mcpApiToken = keychainService.getOrCreateMCPApiToken()
 
         webhookService.statusSubject
             .receive(on: DispatchQueue.main)
@@ -179,6 +181,12 @@ class SettingsViewModel: ObservableObject {
         keychainService.delete(key: KeychainService.Keys.aiApiKey)
         aiApiKeyConfigured = false
         aiTestResult = nil
+    }
+
+    // MARK: - MCP API Token Methods
+
+    func regenerateMCPApiToken() {
+        mcpApiToken = keychainService.regenerateMCPApiToken()
     }
 
     func testAIConnection() {

@@ -25,6 +25,7 @@ actor WorkflowStorageService {
         let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         let appDir = appSupport.appendingPathComponent("HomeKitMCP")
         try? FileManager.default.createDirectory(at: appDir, withIntermediateDirectories: true)
+        try? FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: appDir.path)
         self.fileURL = appDir.appendingPathComponent("workflows.json")
 
         if let data = try? Data(contentsOf: fileURL),
@@ -116,6 +117,7 @@ actor WorkflowStorageService {
             let allWorkflows = getAllWorkflows()
             let data = try Self.encoder.encode(allWorkflows)
             try data.write(to: fileURL, options: .atomic)
+            try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: fileURL.path)
         } catch {
             AppLogger.general.error("Failed to save workflows: \(error)")
         }

@@ -564,7 +564,8 @@ class MCPRequestHandler {
             }
             return toolResult(text: message, id: id)
         } catch {
-            return toolResult(text: "Failed to control device: \(error.localizedDescription)", isError: true, id: id)
+            AppLogger.general.error("Device control failed: \(error.localizedDescription)")
+            return toolResult(text: "Failed to control device. Check server logs for details.", isError: true, id: id)
         }
     }
 
@@ -810,7 +811,8 @@ class MCPRequestHandler {
             let created = await workflowStorageService.createWorkflow(workflow)
             return toolResult(text: "Workflow created successfully.\nID: \(created.id.uuidString)\nName: \(created.name)", id: id)
         } catch {
-            return toolResult(text: "Failed to create workflow: \(error.localizedDescription)", isError: true, id: id)
+            AppLogger.general.error("Workflow creation failed: \(error.localizedDescription)")
+            return toolResult(text: "Failed to create workflow. Check server logs for details.", isError: true, id: id)
         }
     }
 
@@ -869,7 +871,8 @@ class MCPRequestHandler {
                 return toolResult(text: "Failed to update workflow", isError: true, id: id)
             }
         } catch {
-            return toolResult(text: "Failed to parse workflow update: \(error.localizedDescription)", isError: true, id: id)
+            AppLogger.general.error("Workflow update parse failed: \(error.localizedDescription)")
+            return toolResult(text: "Failed to parse workflow update. Check server logs for details.", isError: true, id: id)
         }
     }
 

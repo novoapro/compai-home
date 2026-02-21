@@ -79,5 +79,51 @@ class KeychainService {
 extension KeychainService {
     enum Keys {
         static let aiApiKey = "ai-api-key"
+        static let mcpApiToken = "mcp-api-token"
+        static let webhookSecret = "webhook-secret"
+        static let webhookURL = "webhook-url"
+    }
+
+    /// Returns the existing MCP API token, or generates and stores a new one.
+    func getOrCreateMCPApiToken() -> String {
+        if let existing = read(key: Keys.mcpApiToken), !existing.isEmpty {
+            return existing
+        }
+        let token = generateSecureToken()
+        _ = save(key: Keys.mcpApiToken, value: token)
+        return token
+    }
+
+    /// Generates a new MCP API token, replacing any existing one.
+    @discardableResult
+    func regenerateMCPApiToken() -> String {
+        let token = generateSecureToken()
+        _ = save(key: Keys.mcpApiToken, value: token)
+        return token
+    }
+
+    /// Returns the existing webhook secret, or generates and stores a new one.
+    func getOrCreateWebhookSecret() -> String {
+        if let existing = read(key: Keys.webhookSecret), !existing.isEmpty {
+            return existing
+        }
+        let secret = generateSecureToken()
+        _ = save(key: Keys.webhookSecret, value: secret)
+        return secret
+    }
+
+    /// Generates a new webhook secret, replacing any existing one.
+    @discardableResult
+    func regenerateWebhookSecret() -> String {
+        let secret = generateSecureToken()
+        _ = save(key: Keys.webhookSecret, value: secret)
+        return secret
+    }
+
+    /// Generates a cryptographically secure 32-byte hex token.
+    private func generateSecureToken() -> String {
+        var bytes = [UInt8](repeating: 0, count: 32)
+        _ = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
+        return bytes.map { String(format: "%02x", $0) }.joined()
     }
 }
