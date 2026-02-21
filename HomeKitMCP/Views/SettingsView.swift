@@ -16,7 +16,7 @@ struct SettingsView: View {
             // App Logo + Name header
             Section {
                 VStack(spacing: 12) {
-                    Image("AppLogo")
+                    Image("SidebarLogo")
                         .resizable()
                         .aspectRatio(contentMode: .fit)
                         .frame(width: 64, height: 64)
