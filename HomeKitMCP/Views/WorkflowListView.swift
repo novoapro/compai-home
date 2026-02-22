@@ -66,6 +66,7 @@ struct WorkflowListView: View {
                 WorkflowBuilderView(
                     aiWorkflowService: service,
                     devices: viewModel.devices,
+                    scenes: viewModel.scenes,
                     onSave: { workflow in
                         viewModel.saveGeneratedWorkflow(workflow)
                     }

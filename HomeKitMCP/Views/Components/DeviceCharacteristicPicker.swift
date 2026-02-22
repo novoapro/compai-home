@@ -6,38 +6,13 @@ struct DeviceCharacteristicPicker: View {
     @Binding var selectedServiceId: String?
     @Binding var selectedCharacteristicType: String
 
+    @State private var showDevicePicker = false
+
     var body: some View {
         HStack(spacing: 8) {
-            // Device menu
-            Menu {
-                Button("None") {
-                    selectedDeviceId = ""
-                    selectedCharacteristicType = ""
-                    selectedServiceId = nil
-                }
-                ForEach(devicesByRoom, id: \.roomName) { group in
-                    Section(group.roomName) {
-                        ForEach(group.devices) { device in
-                            Button {
-                                if selectedDeviceId != device.id {
-                                    selectedDeviceId = device.id
-                                    selectedCharacteristicType = ""
-                                    selectedServiceId = nil
-                                }
-                            } label: {
-                                Label {
-                                    if device.isReachable {
-                                        Text(device.name)
-                                    } else {
-                                        Text("\(device.name) (Offline)")
-                                    }
-                                } icon: {
-                                    Image(systemName: categoryIcon(for: device.categoryType))
-                                }
-                            }
-                        }
-                    }
-                }
+            // Device button — opens searchable sheet
+            Button {
+                showDevicePicker = true
             } label: {
                 HStack(spacing: 4) {
                     if let device = selectedDevice {
@@ -58,6 +33,16 @@ struct DeviceCharacteristicPicker: View {
                 .padding(.vertical, 6)
                 .background(Color(.tertiarySystemFill))
                 .cornerRadius(8)
+            }
+            .buttonStyle(.plain)
+            .sheet(isPresented: $showDevicePicker) {
+                DevicePickerSheet(
+                    devices: devices,
+                    selectedDeviceId: $selectedDeviceId,
+                    selectedServiceId: $selectedServiceId,
+                    selectedCharacteristicType: $selectedCharacteristicType,
+                    categoryIcon: categoryIcon
+                )
             }
 
             // Characteristic menu — only when a device is selected
@@ -186,6 +171,101 @@ struct DeviceCharacteristicPicker: View {
                     serviceName: service.effectiveDisplayName,
                     characteristic: characteristic
                 )
+            }
+        }
+    }
+}
+
+// MARK: - Searchable Device Picker Sheet
+
+private struct DevicePickerSheet: View {
+    let devices: [DeviceModel]
+    @Binding var selectedDeviceId: String
+    @Binding var selectedServiceId: String?
+    @Binding var selectedCharacteristicType: String
+    let categoryIcon: (String) -> String
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var searchText = ""
+
+    private struct DeviceGroup: Identifiable {
+        let roomName: String
+        var id: String { roomName }
+        let devices: [DeviceModel]
+    }
+
+    private var filteredDevicesByRoom: [DeviceGroup] {
+        let query = searchText.trimmingCharacters(in: .whitespaces).lowercased()
+        let filtered: [DeviceModel]
+        if query.isEmpty {
+            filtered = devices
+        } else {
+            filtered = devices.filter {
+                $0.name.lowercased().contains(query) ||
+                ($0.roomName ?? "").lowercased().contains(query)
+            }
+        }
+        let grouped = Dictionary(grouping: filtered) { $0.roomName ?? "No Room" }
+        return grouped
+            .sorted { $0.key < $1.key }
+            .map { DeviceGroup(roomName: $0.key, devices: $0.value.sorted { $0.name < $1.name }) }
+    }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Button {
+                    selectedDeviceId = ""
+                    selectedCharacteristicType = ""
+                    selectedServiceId = nil
+                    dismiss()
+                } label: {
+                    Label("None", systemImage: "minus.circle")
+                        .foregroundColor(Theme.Text.secondary)
+                }
+
+                ForEach(filteredDevicesByRoom) { group in
+                    Section(group.roomName) {
+                        ForEach(group.devices) { device in
+                            Button {
+                                if selectedDeviceId != device.id {
+                                    selectedDeviceId = device.id
+                                    selectedCharacteristicType = ""
+                                    selectedServiceId = nil
+                                }
+                                dismiss()
+                            } label: {
+                                HStack {
+                                    Label {
+                                        Text(device.name)
+                                            .foregroundColor(Theme.Text.primary)
+                                    } icon: {
+                                        Image(systemName: categoryIcon(device.categoryType))
+                                    }
+                                    Spacer()
+                                    if device.id == selectedDeviceId {
+                                        Image(systemName: "checkmark")
+                                            .foregroundColor(.accentColor)
+                                            .font(.caption)
+                                    }
+                                    if !device.isReachable {
+                                        Text("Offline")
+                                            .font(.caption2)
+                                            .foregroundColor(Theme.Text.secondary)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            .searchable(text: $searchText, prompt: "Search devices")
+            .navigationTitle("Select Device")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
             }
         }
     }

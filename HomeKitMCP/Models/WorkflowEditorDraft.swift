@@ -1175,18 +1175,27 @@ extension WorkflowDraft {
     }
 }
 
+// MARK: - Device Lookup Helper
+
+private func lookupDevice(_ deviceId: String, in devices: [DeviceModel]) -> (name: String?, room: String?) {
+    guard !deviceId.isEmpty, let device = devices.first(where: { $0.id == deviceId }) else {
+        return (nil, nil)
+    }
+    return (device.name, device.roomName)
+}
+
 // MARK: - Conversion: WorkflowDraft → Workflow
 
 extension WorkflowDraft {
-    func toWorkflow(existingMetadata: WorkflowMetadata?, createdAt: Date?) -> Workflow {
+    func toWorkflow(devices: [DeviceModel], existingMetadata: WorkflowMetadata?, createdAt: Date?) -> Workflow {
         Workflow(
             id: id,
             name: name.trimmingCharacters(in: .whitespaces),
             description: description.isEmpty ? nil : description,
             isEnabled: isEnabled,
-            triggers: triggers.map { $0.toTrigger() },
-            conditions: conditions.isEmpty ? nil : conditions.map { $0.toCondition() },
-            blocks: blocks.map { $0.toBlock() },
+            triggers: triggers.map { $0.toTrigger(devices: devices) },
+            conditions: conditions.isEmpty ? nil : conditions.map { $0.toCondition(devices: devices) },
+            blocks: blocks.map { $0.toBlock(devices: devices) },
             continueOnError: continueOnError,
             retriggerPolicy: retriggerPolicy,
             metadata: existingMetadata ?? .empty,
@@ -1197,15 +1206,18 @@ extension WorkflowDraft {
 }
 
 extension TriggerDraft {
-    func toTrigger() -> WorkflowTrigger {
+    func toTrigger(devices: [DeviceModel]) -> WorkflowTrigger {
         switch triggerType {
         case .deviceStateChange:
+            let (devName, devRoom) = lookupDevice(deviceId, in: devices)
             return .deviceStateChange(DeviceStateTrigger(
                 deviceId: deviceId,
                 serviceId: serviceId,
                 characteristicType: characteristicType,
                 condition: toTriggerCondition(),
-                name: name.isEmpty ? nil : name
+                name: name.isEmpty ? nil : name,
+                deviceName: devName,
+                roomName: devRoom
             ))
         case .schedule:
             return .schedule(ScheduleTrigger(
@@ -1267,14 +1279,17 @@ extension TriggerDraft {
 }
 
 extension ConditionDraft {
-    func toCondition() -> WorkflowCondition {
+    func toCondition(devices: [DeviceModel]) -> WorkflowCondition {
         switch conditionDraftType {
         case .deviceState:
+            let (devName, devRoom) = lookupDevice(deviceId, in: devices)
             return .deviceState(DeviceStateCondition(
                 deviceId: deviceId,
                 serviceId: serviceId,
                 characteristicType: characteristicType,
-                comparison: toComparison()
+                comparison: toComparison(),
+                deviceName: devName,
+                roomName: devRoom
             ))
         case .sunEvent:
             return .sunEvent(SunEventCondition(
@@ -1308,15 +1323,18 @@ extension ComparisonType {
 }
 
 extension BlockDraft {
-    func toBlock() -> WorkflowBlock {
+    func toBlock(devices: [DeviceModel]) -> WorkflowBlock {
         switch blockType {
         case let .controlDevice(d):
+            let (devName, devRoom) = lookupDevice(d.deviceId, in: devices)
             return .action(.controlDevice(ControlDeviceAction(
                 deviceId: d.deviceId,
                 serviceId: d.serviceId,
                 characteristicType: d.characteristicType,
                 value: parseValue(d.value),
-                name: d.name.isEmpty ? nil : d.name
+                name: d.name.isEmpty ? nil : d.name,
+                deviceName: devName,
+                roomName: devRoom
             )))
         case let .webhook(d):
             return .action(.webhook(WebhookActionConfig(
@@ -1336,23 +1354,29 @@ extension BlockDraft {
         case let .delay(d):
             return .flowControl(.delay(DelayBlock(seconds: d.seconds, name: d.name.isEmpty ? nil : d.name)))
         case let .waitForState(d):
+            let (devName, devRoom) = lookupDevice(d.deviceId, in: devices)
             return .flowControl(.waitForState(WaitForStateBlock(
                 deviceId: d.deviceId,
                 serviceId: d.serviceId,
                 characteristicType: d.characteristicType,
                 condition: d.comparisonType.toOperator(value: d.comparisonValue),
                 timeoutSeconds: d.timeoutSeconds,
-                name: d.name.isEmpty ? nil : d.name
+                name: d.name.isEmpty ? nil : d.name,
+                deviceName: devName,
+                roomName: devRoom
             )))
         case let .conditional(d):
             let condition: WorkflowCondition = {
                 switch d.conditionKind {
                 case .deviceState:
+                    let (devName, devRoom) = lookupDevice(d.conditionDeviceId, in: devices)
                     return .deviceState(DeviceStateCondition(
                         deviceId: d.conditionDeviceId,
                         serviceId: d.conditionServiceId,
                         characteristicType: d.conditionCharacteristicType,
-                        comparison: d.comparisonType.toOperator(value: d.comparisonValue)
+                        comparison: d.comparisonType.toOperator(value: d.comparisonValue),
+                        deviceName: devName,
+                        roomName: devRoom
                     ))
                 case .sceneActive:
                     return .sceneActive(SceneActiveCondition(
@@ -1363,14 +1387,14 @@ extension BlockDraft {
             }()
             return .flowControl(.conditional(ConditionalBlock(
                 condition: condition,
-                thenBlocks: d.thenBlocks.map { $0.toBlock() },
-                elseBlocks: d.elseBlocks.isEmpty ? nil : d.elseBlocks.map { $0.toBlock() },
+                thenBlocks: d.thenBlocks.map { $0.toBlock(devices: devices) },
+                elseBlocks: d.elseBlocks.isEmpty ? nil : d.elseBlocks.map { $0.toBlock(devices: devices) },
                 name: d.name.isEmpty ? nil : d.name
             )))
         case let .repeatBlock(d):
             return .flowControl(.repeat(RepeatBlock(
                 count: d.count,
-                blocks: d.blocks.map { $0.toBlock() },
+                blocks: d.blocks.map { $0.toBlock(devices: devices) },
                 delayBetweenSeconds: d.delayBetweenSeconds > 0 ? d.delayBetweenSeconds : nil,
                 name: d.name.isEmpty ? nil : d.name
             )))
@@ -1378,11 +1402,14 @@ extension BlockDraft {
             let condition: WorkflowCondition = {
                 switch d.conditionKind {
                 case .deviceState:
+                    let (devName, devRoom) = lookupDevice(d.conditionDeviceId, in: devices)
                     return .deviceState(DeviceStateCondition(
                         deviceId: d.conditionDeviceId,
                         serviceId: d.conditionServiceId,
                         characteristicType: d.conditionCharacteristicType,
-                        comparison: d.comparisonType.toOperator(value: d.comparisonValue)
+                        comparison: d.comparisonType.toOperator(value: d.comparisonValue),
+                        deviceName: devName,
+                        roomName: devRoom
                     ))
                 case .sceneActive:
                     return .sceneActive(SceneActiveCondition(
@@ -1393,7 +1420,7 @@ extension BlockDraft {
             }()
             return .flowControl(.repeatWhile(RepeatWhileBlock(
                 condition: condition,
-                blocks: d.blocks.map { $0.toBlock() },
+                blocks: d.blocks.map { $0.toBlock(devices: devices) },
                 maxIterations: d.maxIterations,
                 delayBetweenSeconds: d.delayBetweenSeconds > 0 ? d.delayBetweenSeconds : nil,
                 name: d.name.isEmpty ? nil : d.name
@@ -1401,7 +1428,7 @@ extension BlockDraft {
         case let .group(d):
             return .flowControl(.group(GroupBlock(
                 label: d.label.isEmpty ? nil : d.label,
-                blocks: d.blocks.map { $0.toBlock() },
+                blocks: d.blocks.map { $0.toBlock(devices: devices) },
                 name: d.name.isEmpty ? nil : d.name
             )))
         case let .stop(d):

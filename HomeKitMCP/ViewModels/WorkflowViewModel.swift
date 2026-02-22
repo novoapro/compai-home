@@ -103,7 +103,7 @@ class WorkflowViewModel: ObservableObject {
 
     func createWorkflow(from draft: WorkflowDraft) {
         Task {
-            let workflow = draft.toWorkflow(existingMetadata: nil, createdAt: nil)
+            let workflow = draft.toWorkflow(devices: devices, existingMetadata: nil, createdAt: nil)
             await storageService.createWorkflow(workflow)
         }
     }
@@ -111,7 +111,7 @@ class WorkflowViewModel: ObservableObject {
     func updateWorkflow(id: UUID, from draft: WorkflowDraft) {
         Task {
             guard let existing = await storageService.getWorkflow(id: id) else { return }
-            let workflow = draft.toWorkflow(existingMetadata: existing.metadata, createdAt: existing.createdAt)
+            let workflow = draft.toWorkflow(devices: devices, existingMetadata: existing.metadata, createdAt: existing.createdAt)
             await storageService.updateWorkflow(id: id) { $0 = workflow }
         }
     }

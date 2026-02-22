@@ -3,6 +3,7 @@ import SwiftUI
 struct WorkflowBuilderView: View {
     let aiWorkflowService: AIWorkflowService
     let devices: [DeviceModel]
+    var scenes: [SceneModel] = []
     let onSave: (Workflow) -> Void
 
     @Environment(\.dismiss) private var dismiss
@@ -192,7 +193,7 @@ struct WorkflowBuilderView: View {
                 if let conditions = workflow.conditions, !conditions.isEmpty {
                     Section {
                         ForEach(Array(conditions.enumerated()), id: \.offset) { _, condition in
-                            WorkflowBuilderConditionRow(condition: condition, devices: devices)
+                            WorkflowBuilderConditionRow(condition: condition, devices: devices, scenes: scenes)
                         }
                     } header: {
                         Text("Guard Conditions")
@@ -203,7 +204,7 @@ struct WorkflowBuilderView: View {
                 // Blocks
                 Section {
                     ForEach(Array(workflow.blocks.enumerated()), id: \.offset) { index, block in
-                        WorkflowBuilderBlockRow(block: block, index: index, depth: 0, devices: devices)
+                        WorkflowBuilderBlockRow(block: block, index: index, depth: 0, devices: devices, scenes: scenes)
                     }
                 } header: {
                     Text("Blocks (\(workflow.blocks.count))")
@@ -499,6 +500,7 @@ private struct WorkflowBuilderTriggerRow: View {
 private struct WorkflowBuilderConditionRow: View {
     let condition: WorkflowCondition
     let devices: [DeviceModel]
+    var scenes: [SceneModel] = []
 
     var body: some View {
         switch condition {
@@ -523,7 +525,8 @@ private struct WorkflowBuilderConditionRow: View {
             HStack(spacing: 6) {
                 Image(systemName: "play.rectangle.fill")
                     .foregroundStyle(.green)
-                Text("Scene \(c.sceneId) \(c.isActive ? "active" : "not active")")
+                let sceneName = scenes.first(where: { $0.id == c.sceneId })?.name ?? c.sceneId
+                Text("Scene \"\(sceneName)\" \(c.isActive ? "active" : "not active")")
                     .font(.subheadline)
                     .fontWeight(.medium)
             }
@@ -547,13 +550,14 @@ private struct WorkflowBuilderBlockRow: View {
     let index: Int
     let depth: Int
     let devices: [DeviceModel]
+    var scenes: [SceneModel] = []
 
     var body: some View {
         switch block {
         case .action(let action):
-            BuilderActionBlockRow(action: action, depth: depth, devices: devices)
+            BuilderActionBlockRow(action: action, depth: depth, devices: devices, scenes: scenes)
         case .flowControl(let flowControl):
-            BuilderFlowControlBlockRow(flowControl: flowControl, depth: depth, devices: devices)
+            BuilderFlowControlBlockRow(flowControl: flowControl, depth: depth, devices: devices, scenes: scenes)
         }
     }
 }
@@ -562,6 +566,7 @@ private struct BuilderActionBlockRow: View {
     let action: WorkflowAction
     let depth: Int
     let devices: [DeviceModel]
+    var scenes: [SceneModel] = []
 
     var body: some View {
         HStack(spacing: 4) {
@@ -616,7 +621,8 @@ private struct BuilderActionBlockRow: View {
         case .log(let a):
             return a.message
         case .runScene(let a):
-            return "Run scene \(a.sceneId)"
+            let sceneName = scenes.first(where: { $0.id == a.sceneId })?.name ?? a.sceneId
+            return "Run scene \"\(sceneName)\""
         }
     }
 }
@@ -625,6 +631,7 @@ private struct BuilderFlowControlBlockRow: View {
     let flowControl: FlowControlBlock
     let depth: Int
     let devices: [DeviceModel]
+    var scenes: [SceneModel] = []
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -646,7 +653,7 @@ private struct BuilderFlowControlBlockRow: View {
 
             if let nestedBlocks = flowControlNestedBlocks {
                 ForEach(Array(nestedBlocks.enumerated()), id: \.offset) { i, nested in
-                    WorkflowBuilderBlockRow(block: nested, index: i, depth: depth + 1, devices: devices)
+                    WorkflowBuilderBlockRow(block: nested, index: i, depth: depth + 1, devices: devices, scenes: scenes)
                 }
             }
         }

@@ -33,7 +33,10 @@ struct BlockEditorSection: View {
             .onMove { from, to in
                 blocks.move(fromOffsets: from, toOffset: to)
             }
-            .onDelete { blocks.remove(atOffsets: $0) }
+            .onDelete { offsets in
+                let idsToRemove = offsets.map { blocks[$0].id }
+                blocks.removeAll { idsToRemove.contains($0.id) }
+            }
             .moveDisabled(!isReorderMode)
 
             // Use a Menu instead of confirmationDialog — works correctly both in

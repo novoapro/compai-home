@@ -126,7 +126,7 @@ struct WorkflowDetailView: View {
     private func conditionsSection(_ conditions: [WorkflowCondition]) -> some View {
         Section {
             ForEach(Array(conditions.enumerated()), id: \.offset) { _, condition in
-                WorkflowConditionRow(condition: condition, devices: devices)
+                WorkflowConditionRow(condition: condition, devices: devices, scenes: scenes)
             }
         } header: {
             Text("Guard Conditions")
@@ -141,7 +141,7 @@ struct WorkflowDetailView: View {
     private var blocksSection: some View {
         Section {
             ForEach(Array(workflow.blocks.enumerated()), id: \.offset) { index, block in
-                WorkflowBlockRow(block: block, index: index, depth: 0, devices: devices)
+                WorkflowBlockRow(block: block, index: index, depth: 0, devices: devices, scenes: scenes)
             }
         } header: {
             Text("Blocks (\(workflow.blocks.count))")
@@ -361,6 +361,7 @@ private struct WorkflowTriggerRow: View {
 private struct WorkflowConditionRow: View {
     let condition: WorkflowCondition
     let devices: [DeviceModel]
+    var scenes: [SceneModel] = []
 
     var body: some View {
         switch condition {
@@ -394,7 +395,8 @@ private struct WorkflowConditionRow: View {
             HStack(spacing: 6) {
                 Image(systemName: "play.rectangle.fill")
                     .foregroundStyle(.green)
-                Text("Scene \(c.isActive ? "Active" : "Not Active"): \(c.sceneId)")
+                let sceneName = scenes.first(where: { $0.id == c.sceneId })?.name ?? c.sceneId
+                Text("Scene \(c.isActive ? "Active" : "Not Active"): \(sceneName)")
                     .font(.subheadline)
                     .fontWeight(.medium)
             }
@@ -409,13 +411,14 @@ private struct WorkflowBlockRow: View {
     let index: Int
     let depth: Int
     let devices: [DeviceModel]
+    var scenes: [SceneModel] = []
 
     var body: some View {
         switch block {
         case let .action(action):
-            ActionBlockRow(action: action, depth: depth, devices: devices)
+            ActionBlockRow(action: action, depth: depth, devices: devices, scenes: scenes)
         case let .flowControl(flowControl):
-            FlowControlBlockRow(flowControl: flowControl, depth: depth, devices: devices)
+            FlowControlBlockRow(flowControl: flowControl, depth: depth, devices: devices, scenes: scenes)
         }
     }
 }
@@ -426,6 +429,7 @@ private struct ActionBlockRow: View {
     let action: WorkflowAction
     let depth: Int
     let devices: [DeviceModel]
+    var scenes: [SceneModel] = []
 
     var body: some View {
         HStack(spacing: 4) {
@@ -485,7 +489,8 @@ private struct ActionBlockRow: View {
         case let .log(a):
             return a.message
         case let .runScene(a):
-            return "Scene: \(a.sceneId)"
+            let sceneName = scenes.first(where: { $0.id == a.sceneId })?.name ?? a.sceneId
+            return "Scene: \(sceneName)"
         }
     }
 }
@@ -496,6 +501,7 @@ private struct FlowControlBlockRow: View {
     let flowControl: FlowControlBlock
     let depth: Int
     let devices: [DeviceModel]
+    var scenes: [SceneModel] = []
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -535,7 +541,7 @@ private struct FlowControlBlockRow: View {
                     .foregroundColor(Theme.Text.tertiary)
                     .padding(.leading, CGFloat((depth + 1) * 7))
                 ForEach(Array(b.thenBlocks.enumerated()), id: \.offset) { i, nested in
-                    WorkflowBlockRow(block: nested, index: i, depth: depth + 1, devices: devices)
+                    WorkflowBlockRow(block: nested, index: i, depth: depth + 1, devices: devices, scenes: scenes)
                 }
             }
             if let elseBlocks = b.elseBlocks, !elseBlocks.isEmpty {
@@ -545,13 +551,13 @@ private struct FlowControlBlockRow: View {
                     .foregroundColor(Theme.Text.tertiary)
                     .padding(.leading, CGFloat((depth + 1) * 7))
                 ForEach(Array(elseBlocks.enumerated()), id: \.offset) { i, nested in
-                    WorkflowBlockRow(block: nested, index: i, depth: depth + 1, devices: devices)
+                    WorkflowBlockRow(block: nested, index: i, depth: depth + 1, devices: devices, scenes: scenes)
                 }
             }
         default:
             if let nestedBlocks = flowControlNestedBlocks {
                 ForEach(Array(nestedBlocks.enumerated()), id: \.offset) { i, nested in
-                    WorkflowBlockRow(block: nested, index: i, depth: depth + 1, devices: devices)
+                    WorkflowBlockRow(block: nested, index: i, depth: depth + 1, devices: devices, scenes: scenes)
                 }
             }
         }

@@ -83,6 +83,8 @@ enum WorkflowMigrationService {
         let serviceId: String?
         /// Context for matching: the device name if stored alongside the ID.
         let contextName: String?
+        /// Context for matching: the room name if stored alongside the ID.
+        let contextRoom: String?
 
         func hash(into hasher: inout Hasher) {
             hasher.combine(deviceId)
@@ -100,7 +102,7 @@ enum WorkflowMigrationService {
         for trigger in workflow.triggers {
             switch trigger {
             case let .deviceStateChange(t):
-                refs.insert(DeviceRef(deviceId: t.deviceId, serviceId: t.serviceId, contextName: nil))
+                refs.insert(DeviceRef(deviceId: t.deviceId, serviceId: t.serviceId, contextName: t.deviceName, contextRoom: t.roomName))
             case let .compound(c):
                 collectCompoundTriggerRefs(c.triggers, into: &refs)
             default:
@@ -127,7 +129,7 @@ enum WorkflowMigrationService {
         for trigger in triggers {
             switch trigger {
             case let .deviceStateChange(t):
-                refs.insert(DeviceRef(deviceId: t.deviceId, serviceId: t.serviceId, contextName: nil))
+                refs.insert(DeviceRef(deviceId: t.deviceId, serviceId: t.serviceId, contextName: t.deviceName, contextRoom: t.roomName))
             case let .compound(c):
                 collectCompoundTriggerRefs(c.triggers, into: &refs)
             default:
@@ -139,7 +141,7 @@ enum WorkflowMigrationService {
     private static func collectConditionRefs(_ condition: WorkflowCondition, into refs: inout Set<DeviceRef>) {
         switch condition {
         case let .deviceState(c):
-            refs.insert(DeviceRef(deviceId: c.deviceId, serviceId: c.serviceId, contextName: nil))
+            refs.insert(DeviceRef(deviceId: c.deviceId, serviceId: c.serviceId, contextName: c.deviceName, contextRoom: c.roomName))
         case let .and(conditions):
             for c in conditions { collectConditionRefs(c, into: &refs) }
         case let .or(conditions):
@@ -156,14 +158,14 @@ enum WorkflowMigrationService {
         case let .action(action):
             switch action {
             case let .controlDevice(a):
-                refs.insert(DeviceRef(deviceId: a.deviceId, serviceId: a.serviceId, contextName: nil))
+                refs.insert(DeviceRef(deviceId: a.deviceId, serviceId: a.serviceId, contextName: a.deviceName, contextRoom: a.roomName))
             default:
                 break
             }
         case let .flowControl(fc):
             switch fc {
             case let .waitForState(b):
-                refs.insert(DeviceRef(deviceId: b.deviceId, serviceId: b.serviceId, contextName: nil))
+                refs.insert(DeviceRef(deviceId: b.deviceId, serviceId: b.serviceId, contextName: b.deviceName, contextRoom: b.roomName))
             case let .conditional(b):
                 collectConditionRefs(b.condition, into: &refs)
                 for nested in b.thenBlocks { collectBlockRefs(nested, into: &refs) }
@@ -205,23 +207,29 @@ enum WorkflowMigrationService {
     }
 
     /// Try to find a device matching the orphaned reference.
-    /// Strategy: since we don't have the old device name stored in the workflow JSON,
-    /// we try all devices and see if exactly one matches by elimination.
-    /// In practice, workflow JSONs only store UUIDs, so we need the current device list
-    /// to find a plausible match. We use a heuristic: find a device that has the same
-    /// characteristic types referenced in the workflow.
+    /// Uses the stored deviceName + roomName metadata to find the device by name+room lookup.
+    /// Falls back to name-only matching if no room was stored or room lookup fails.
     private static func findMatch(for ref: DeviceRef, in devices: [DeviceModel], lookup: [DeviceKey: DeviceModel]) -> DeviceModel? {
-        // If we have a context name, try name+room matching first
-        if let name = ref.contextName {
-            for device in devices {
-                if device.name.lowercased() == name.lowercased() {
-                    return device
-                }
+        guard let name = ref.contextName else {
+            // Without a stored name, we can't match — return nil to mark as orphaned
+            return nil
+        }
+
+        // Try exact name+room lookup first (most precise)
+        if let room = ref.contextRoom {
+            let key = DeviceKey(name: name.lowercased(), room: room.lowercased())
+            if let match = lookup[key] {
+                return match
             }
         }
 
-        // Without a name, we can't match — the workflow only stores UUIDs
-        // Return nil to mark as orphaned (user will fix manually)
+        // Fall back to name-only matching (less precise, but still useful)
+        let nameMatches = devices.filter { $0.name.lowercased() == name.lowercased() }
+        if nameMatches.count == 1 {
+            return nameMatches[0]
+        }
+
+        // Multiple devices with the same name but no room match — ambiguous
         return nil
     }
 
