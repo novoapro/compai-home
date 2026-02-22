@@ -235,7 +235,9 @@ actor AIWorkflowService {
 
         let duration = CFAbsoluteTimeGetCurrent() - startTime
         do {
-            let workflow = try parseWorkflowFromResponse(response)
+            var workflow = try parseWorkflowFromResponse(response)
+            let devices = await MainActor.run { homeKitManager.cachedDevices }
+            workflow = WorkflowMigrationService.enrichDeviceMetadata(in: workflow, using: devices)
             await interactionLog.log(AIInteractionLog(
                 id: UUID(), timestamp: Date(),
                 provider: provider.rawValue, model: model,
@@ -293,7 +295,9 @@ actor AIWorkflowService {
 
         let duration = CFAbsoluteTimeGetCurrent() - startTime
         do {
-            let refined = try parseWorkflowFromResponse(response)
+            var refined = try parseWorkflowFromResponse(response)
+            let devices = await MainActor.run { homeKitManager.cachedDevices }
+            refined = WorkflowMigrationService.enrichDeviceMetadata(in: refined, using: devices)
             await interactionLog.log(AIInteractionLog(
                 id: UUID(), timestamp: Date(),
                 provider: provider.rawValue, model: model,
@@ -484,6 +488,8 @@ actor AIWorkflowService {
           "type": "deviceStateChange",
           "name": "optional label",
           "deviceId": "device-uuid",
+          "deviceName": "Living Room Light",
+          "roomName": "Living Room",
           "serviceId": "optional-service-uuid",
           "characteristicType": "Power",
           "condition": { "type": "equals", "value": true }
@@ -533,7 +539,7 @@ actor AIWorkflowService {
         ### Action Blocks
 
         ```json
-        { "block": "action", "type": "controlDevice", "name": "optional", "deviceId": "...", "serviceId": "optional-service-uuid", "characteristicType": "Power", "value": true }
+        { "block": "action", "type": "controlDevice", "name": "optional", "deviceId": "...", "deviceName": "Living Room Light", "roomName": "Living Room", "serviceId": "optional-service-uuid", "characteristicType": "Power", "value": true }
         { "block": "action", "type": "runScene", "name": "optional", "sceneId": "scene-uuid" }
         { "block": "action", "type": "webhook", "name": "optional", "url": "https://...", "method": "POST", "headers": {}, "body": {} }
         { "block": "action", "type": "log", "name": "optional", "message": "Something happened" }
@@ -543,7 +549,7 @@ actor AIWorkflowService {
 
         ```json
         { "block": "flowControl", "type": "delay", "name": "optional", "seconds": 5.0 }
-        { "block": "flowControl", "type": "waitForState", "name": "optional", "deviceId": "...", "serviceId": "optional", "characteristicType": "Power", "condition": { "type": "equals", "value": true }, "timeoutSeconds": 60 }
+        { "block": "flowControl", "type": "waitForState", "name": "optional", "deviceId": "...", "deviceName": "Living Room Light", "roomName": "Living Room", "serviceId": "optional", "characteristicType": "Power", "condition": { "type": "equals", "value": true }, "timeoutSeconds": 60 }
         { "block": "flowControl", "type": "conditional", "name": "optional", "condition": { ... }, "thenBlocks": [ ... ], "elseBlocks": [ ... ] }
         { "block": "flowControl", "type": "repeat", "name": "optional", "count": 3, "blocks": [ ... ], "delayBetweenSeconds": 1.0 }
         { "block": "flowControl", "type": "repeatWhile", "name": "optional", "condition": { ... }, "blocks": [ ... ], "maxIterations": 10, "delayBetweenSeconds": 1.0 }
@@ -573,7 +579,7 @@ actor AIWorkflowService {
         Guard conditions are checked before the workflow runs. If any fail, the workflow is skipped.
 
         ```json
-        { "type": "deviceState", "deviceId": "...", "serviceId": "optional", "characteristicType": "Power", "comparison": { "type": "equals", "value": true } }
+        { "type": "deviceState", "deviceId": "...", "deviceName": "Living Room Light", "roomName": "Living Room", "serviceId": "optional", "characteristicType": "Power", "comparison": { "type": "equals", "value": true } }
         { "type": "sunEvent", "event": "sunrise", "sunComparison": "after" }
         { "type": "sceneActive", "sceneId": "scene-uuid", "isActive": true }
         { "type": "and", "conditions": [ ... ] }
@@ -601,6 +607,7 @@ actor AIWorkflowService {
         - Blocks and triggers can optionally include a "name" field for readability. \
         Use short, descriptive names like "Turn on lamp", "Wait for door", "Check temperature"
         - The "serviceId" field is optional; use it only for devices with multiple services of the same type
+        - Always include "deviceName" and "roomName" alongside "deviceId" in triggers, conditions, and blocks — copy them from the available devices list. This metadata enables cross-device migration
         - Do not include "id", "createdAt", "updatedAt", or "metadata" — they are auto-generated
         """
 

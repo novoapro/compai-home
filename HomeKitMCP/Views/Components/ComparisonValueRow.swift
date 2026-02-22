@@ -29,76 +29,96 @@ struct ComparisonValueRow: View {
     }
 
     var body: some View {
-        switch inputControlType {
-        case .toggle:
-            HStack {
-                comparisonMenu
-                Spacer()
-                Toggle("", isOn: boolBinding)
-                    .labelsHidden()
-                    .tint(Theme.Tint.main)
-            }
-
-        case let .slider(min, max, step, unit):
-            VStack(spacing: 4) {
+        Group {
+            switch inputControlType {
+            case .toggle:
                 HStack {
                     comparisonMenu
                     Spacer()
-                    Text("\(Int(doubleValue))\(unit ?? "")")
-                        .font(.system(.body, design: .monospaced))
-                        .foregroundColor(Theme.Text.secondary)
+                    Toggle("", isOn: boolBinding)
+                        .labelsHidden()
+                        .tint(Theme.Tint.main)
                 }
-                Slider(
-                    value: doubleBinding,
-                    in: min...max,
-                    step: step
-                )
-                .tint(Theme.Tint.main)
-                .simultaneousGesture(
-                    DragGesture()
-                        .onChanged { _ in }
-                        .onEnded { _ in }
-                )
-            }
 
-        case let .picker(options):
-            HStack {
-                comparisonMenu
-                Spacer()
-                Menu {
-                    ForEach(options, id: \.value) { option in
-                        Button(option.label) {
-                            value = option.value
-                        }
-                    }
-                } label: {
-                    HStack(spacing: 4) {
-                        Text(currentPickerLabel(options) ?? "Select…")
-                        Image(systemName: "chevron.up.chevron.down")
-                            .font(.caption2)
+            case let .slider(min, max, step, unit):
+                VStack(spacing: 4) {
+                    HStack {
+                        comparisonMenu
+                        Spacer()
+                        Text("\(Int(doubleValue))\(unit ?? "")")
+                            .font(.system(.body, design: .monospaced))
                             .foregroundColor(Theme.Text.secondary)
                     }
-                    .font(.subheadline)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(Color(.tertiarySystemFill))
-                    .cornerRadius(8)
+                    Slider(
+                        value: doubleBinding,
+                        in: min...max,
+                        step: step
+                    )
+                    .tint(Theme.Tint.main)
+                    .simultaneousGesture(
+                        DragGesture()
+                            .onChanged { _ in }
+                            .onEnded { _ in }
+                    )
+                }
+
+            case let .picker(options):
+                HStack {
+                    comparisonMenu
+                    Spacer()
+                    Menu {
+                        ForEach(options, id: \.value) { option in
+                            Button(option.label) {
+                                value = option.value
+                            }
+                        }
+                    } label: {
+                        HStack(spacing: 4) {
+                            Text(currentPickerLabel(options) ?? "Select…")
+                            Image(systemName: "chevron.up.chevron.down")
+                                .font(.caption2)
+                                .foregroundColor(Theme.Text.secondary)
+                        }
+                        .font(.subheadline)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(Color(.tertiarySystemFill))
+                        .cornerRadius(8)
+                    }
+                }
+
+            case let .textField(inputType):
+                HStack {
+                    comparisonMenu
+                    Spacer()
+                    TextField(
+                        inputType == .decimal ? "0.0" : "0",
+                        text: $value
+                    )
+                    .keyboardType(keyboardType(for: inputType))
+                    .multilineTextAlignment(.trailing)
+                    .frame(width: 80)
+                    .textFieldStyle(.roundedBorder)
                 }
             }
+        }
+        .onAppear { initializeDefaultIfNeeded() }
+        .onChange(of: characteristicType) { _ in initializeDefaultIfNeeded() }
+    }
 
-        case let .textField(inputType):
-            HStack {
-                comparisonMenu
-                Spacer()
-                TextField(
-                    inputType == .decimal ? "0.0" : "0",
-                    text: $value
-                )
-                .keyboardType(keyboardType(for: inputType))
-                .multilineTextAlignment(.trailing)
-                .frame(width: 80)
-                .textFieldStyle(.roundedBorder)
+    private func initializeDefaultIfNeeded() {
+        guard value.isEmpty, !characteristicType.isEmpty else { return }
+        switch inputControlType {
+        case .toggle:
+            value = "false"
+        case let .slider(min, _, _, _):
+            value = min == min.rounded() ? "\(Int(min))" : String(format: "%.1f", min)
+        case let .picker(options):
+            if let first = options.first {
+                value = first.value
             }
+        case .textField:
+            break
         }
     }
 

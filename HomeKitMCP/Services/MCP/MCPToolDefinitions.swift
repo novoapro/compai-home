@@ -199,18 +199,69 @@ enum MCPToolDefinitions {
         [
             "name": "create_workflow",
             "description": """
-                Create a new automation workflow from a JSON definition. The workflow JSON should include: \
-                name (required), description, triggers (array of trigger objects), conditions (optional array of guard conditions), \
-                blocks (array of action/flow-control block objects), continueOnError (bool, default false), enabled (bool, default true), \
-                retriggerPolicy (string, 'ignoreNew', 'cancelAndRestart', or 'queueAndExecute', default 'ignoreNew'). \
-                Triggers use type 'deviceStateChange' with deviceId, characteristicType, and condition. \
-                Blocks use 'block' discriminator ('action' or 'flowControl') and 'type' for the specific kind. \
-                Action types: controlDevice, runScene, webhook, log. \
-                Flow control types: delay, waitForState, conditional, repeat, repeatWhile, group, stop, executeWorkflow. \
-                Conditions support compound operators: \
-                {"type":"and","conditions":[...]}, {"type":"or","conditions":[...]}, {"type":"not","condition":{...}}. \
-                These work in guard conditions, conditional block conditions, and repeatWhile block conditions, \
-                and can be nested to any depth.
+                Create a new automation workflow from a JSON definition.
+
+                TOP-LEVEL FIELDS: name (required), description, isEnabled (bool, default true), \
+                continueOnError (bool, default false), \
+                retriggerPolicy ("ignoreNew"|"cancelAndRestart"|"queueAndExecute", default "ignoreNew"), \
+                triggers (array), conditions (optional guard array), blocks (array). \
+                Omit id, createdAt, updatedAt, metadata — they are auto-generated.
+
+                TRIGGER TYPES (triggers array):
+                • deviceStateChange — { "type":"deviceStateChange", "name":"optional", "deviceId":"uuid", \
+                "deviceName":"Room Light", "roomName":"Living Room", "serviceId":"optional-uuid", \
+                "characteristicType":"Power", "condition":{"type":"equals","value":true} } \
+                Trigger condition types: "changed" (no value), "equals"/"notEquals"/"greaterThan"/"lessThan"/ \
+                "greaterThanOrEqual"/"lessThanOrEqual" (with "value"), \
+                "transitioned" (required "to", optional "from").
+                • schedule — { "type":"schedule", "name":"optional", "scheduleType":{ ... } } \
+                scheduleType formats: {"type":"once","date":"ISO8601"}, \
+                {"type":"daily","time":{"hour":7,"minute":30}}, \
+                {"type":"weekly","time":{"hour":7,"minute":30},"days":[2,3,4,5,6]} (1=Sun…7=Sat), \
+                {"type":"interval","seconds":300}.
+                • sunEvent — { "type":"sunEvent", "name":"optional", "event":"sunrise"|"sunset", "offsetMinutes":-15 } \
+                offsetMinutes: negative=before, positive=after, 0=exact.
+                • compound — { "type":"compound", "name":"optional", "operator":"and"|"or", "triggers":[...] }
+                • webhook — { "type":"webhook", "name":"optional", "token":"unique-string" }
+                • workflow — { "type":"workflow", "name":"optional" } (makes this workflow callable by others)
+
+                BLOCK TYPES (blocks array, use "block" discriminator):
+                Action blocks: { "block":"action", "type":"controlDevice"|"runScene"|"webhook"|"log", ... }
+                • controlDevice: + deviceId, deviceName, roomName, serviceId?, characteristicType, value
+                • runScene: + sceneId
+                • webhook: + url, method, headers?, body?
+                • log: + message
+                Flow control blocks: { "block":"flowControl", "type":"...", ... }
+                • delay: + seconds
+                • waitForState: + deviceId, deviceName, roomName, serviceId?, characteristicType, \
+                condition (ComparisonOperator: equals/notEquals/greaterThan/lessThan/greaterThanOrEqual/ \
+                lessThanOrEqual, each with "value"), timeoutSeconds
+                • conditional: + condition (WorkflowCondition, see below), thenBlocks, elseBlocks?
+                • repeat: + count, blocks, delayBetweenSeconds?
+                • repeatWhile: + condition (WorkflowCondition), blocks, maxIterations, delayBetweenSeconds?
+                • group: + label?, blocks
+                • stop: + outcome ("success"|"error"|"cancelled"), message?
+                • executeWorkflow: + targetWorkflowId (UUID), executionMode ("inline"|"parallel"|"delegate")
+                All blocks accept an optional "name" field.
+
+                GUARD CONDITION TYPES (workflow-level "conditions" array and block condition fields). \
+                All condition objects are WorkflowCondition and support nesting to any depth:
+                • { "type":"deviceState", "deviceId":"uuid", "deviceName":"Room Light", "roomName":"Living Room", \
+                "serviceId":"optional", "characteristicType":"Power", \
+                "comparison":{"type":"equals","value":true} }
+                  comparison types: equals/notEquals/greaterThan/lessThan/greaterThanOrEqual/lessThanOrEqual (with "value")
+                • { "type":"sunEvent", "event":"sunrise"|"sunset", "sunComparison":"before"|"after" }
+                • { "type":"sceneActive", "sceneId":"uuid", "isActive":true }
+                • { "type":"and", "conditions":[...] } — all must pass
+                • { "type":"or",  "conditions":[...] } — any must pass
+                • { "type":"not", "condition":{...} } — negates inner condition
+                Guard conditions can be nested inside and/or/not to any depth. The same WorkflowCondition \
+                format is used in the top-level "conditions" array, in "conditional" block "condition" \
+                fields, and in "repeatWhile" block "condition" fields.
+
+                DEVICE METADATA: Always include "deviceName" and "roomName" alongside "deviceId" in \
+                triggers, guard conditions, and blocks. This enables cross-machine migration when HomeKit \
+                reassigns UUIDs.
                 """,
             "inputSchema": [
                 "type": "object",
@@ -225,7 +276,24 @@ enum MCPToolDefinitions {
         ],
         [
             "name": "update_workflow",
-            "description": "Update an existing workflow. Provide the workflow_id and a partial or full workflow JSON. Only provided fields are updated; omitted fields remain unchanged.",
+            "description": """
+                Update an existing workflow. Provide the workflow_id and a partial or full workflow JSON. \
+                Only top-level fields that are present in the submitted object are replaced; omitted fields \
+                remain unchanged. Triggers, conditions, and blocks arrays are replaced wholesale when provided.
+
+                Updatable fields: name, description, isEnabled, continueOnError, \
+                retriggerPolicy ("ignoreNew"|"cancelAndRestart"|"queueAndExecute"), \
+                triggers, conditions, blocks.
+
+                The schema for triggers, blocks, and conditions is identical to create_workflow. \
+                Trigger types: deviceStateChange, schedule, sunEvent, compound, webhook, workflow. \
+                Block types (use "block":"action"|"flowControl" discriminator): \
+                controlDevice, runScene, webhook, log, delay, waitForState, conditional, repeat, \
+                repeatWhile, group, stop, executeWorkflow. \
+                Guard/block condition types (WorkflowCondition, nestable via and/or/not): \
+                deviceState, sunEvent, sceneActive, and, or, not. \
+                Always include "deviceName" and "roomName" alongside "deviceId" wherever device references appear.
+                """,
             "inputSchema": [
                 "type": "object",
                 "properties": [
@@ -235,7 +303,7 @@ enum MCPToolDefinitions {
                     ],
                     "workflow": [
                         "type": "object",
-                        "description": "Partial or full workflow JSON with fields to update (name, description, triggers, conditions, blocks, continueOnError, isEnabled, retriggerPolicy ('ignoreNew', 'cancelAndRestart', or 'queueAndExecute')). Conditions support compound operators: {\"type\":\"and\",\"conditions\":[...]}, {\"type\":\"or\",\"conditions\":[...]}, {\"type\":\"not\",\"condition\":{...}} — usable in guard conditions, conditional blocks, and repeatWhile blocks."
+                        "description": "Partial or full workflow JSON. See create_workflow for the complete schema."
                     ]
                 ] as [String: Any],
                 "required": ["workflow_id", "workflow"]

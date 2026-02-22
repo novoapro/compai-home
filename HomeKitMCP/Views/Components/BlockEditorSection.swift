@@ -83,8 +83,11 @@ struct BlockEditorSection: View {
                         }
                     }
                 } label: {
-                    Label("Add Block", systemImage: "plus.circle")
-                        .foregroundColor(Theme.Tint.main)
+                    HStack(spacing: 4) {
+                        Image(systemName: "plus.circle")
+                        Text("Add Block")
+                    }
+                    .foregroundColor(Theme.Tint.main)
                 }
             }
         } header: {
@@ -118,6 +121,7 @@ struct BlockEditorSection: View {
 
     private func blockEditorRow(for block: Binding<BlockDraft>) -> BlockEditorRow {
         let blockId = block.wrappedValue.id
+        let targets = Self.containerTargets(excluding: blockId, in: blocks)
         return BlockEditorRow(
             block: block,
             devices: devices,
@@ -138,9 +142,79 @@ struct BlockEditorSection: View {
                     blocks.insert(copy, at: idx + 1)
                 }
             },
+            moveTargets: targets,
+            onMoveToContainer: targets.isEmpty ? nil : { targetId, targetLabel in
+                withAnimation(.easeInOut(duration: 0.25)) {
+                    Self.moveBlockToContainer(
+                        blockId: blockId,
+                        targetContainerId: targetId,
+                        targetLabel: targetLabel,
+                        blocks: &blocks
+                    )
+                }
+            },
             isReorderMode: isReorderMode,
             workflows: workflows
         )
+    }
+}
+
+// MARK: - Move-to-Container Helpers
+
+struct MoveTarget: Identifiable {
+    var id: String { "\(containerBlockId.uuidString)-\(label)" }
+    let containerBlockId: UUID
+    let label: String
+    let description: String
+    let icon: String
+}
+
+extension BlockEditorSection {
+    /// Returns available container targets at the same level for a given block.
+    static func containerTargets(excluding blockId: UUID, in blocks: [BlockDraft]) -> [MoveTarget] {
+        var targets: [MoveTarget] = []
+        for block in blocks where block.id != blockId {
+            switch block.blockType {
+            case .conditional(let d):
+                let name = d.name.isEmpty ? "If/Else" : d.name
+                targets.append(MoveTarget(containerBlockId: block.id, label: "then", description: "\(name) → Then", icon: block.blockType.icon))
+                targets.append(MoveTarget(containerBlockId: block.id, label: "else", description: "\(name) → Else", icon: block.blockType.icon))
+            case .repeatBlock(let d):
+                let name = d.name.isEmpty ? "Repeat" : d.name
+                targets.append(MoveTarget(containerBlockId: block.id, label: "blocks", description: "\(name) → Blocks", icon: block.blockType.icon))
+            case .repeatWhile(let d):
+                let name = d.name.isEmpty ? "Repeat While" : d.name
+                targets.append(MoveTarget(containerBlockId: block.id, label: "blocks", description: "\(name) → Blocks", icon: block.blockType.icon))
+            case .group(let d):
+                let name = d.name.isEmpty ? (d.label.isEmpty ? "Group" : d.label) : d.name
+                targets.append(MoveTarget(containerBlockId: block.id, label: "blocks", description: "\(name) → Blocks", icon: block.blockType.icon))
+            default:
+                break
+            }
+        }
+        return targets
+    }
+
+    /// Moves a block from its current position into a target container's nested blocks.
+    static func moveBlockToContainer(
+        blockId: UUID,
+        targetContainerId: UUID,
+        targetLabel: String,
+        blocks: inout [BlockDraft]
+    ) {
+        guard let sourceIndex = blocks.firstIndex(where: { $0.id == blockId }) else { return }
+        let block = blocks.remove(at: sourceIndex)
+
+        // Re-find target index after removal (it may have shifted)
+        guard let targetIndex = blocks.firstIndex(where: { $0.id == targetContainerId }) else {
+            // Safety: put block back if target disappeared
+            blocks.insert(block, at: min(sourceIndex, blocks.count))
+            return
+        }
+
+        var nested = getNestedBlocks(from: blocks[targetIndex], label: targetLabel)
+        nested.append(block)
+        setNestedBlocks(on: &blocks[targetIndex], label: targetLabel, blocks: nested)
     }
 }
 

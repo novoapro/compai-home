@@ -8,6 +8,8 @@ struct BlockEditorRow: View {
     let onEditNestedBlocks: ((String, [BlockDraft]) -> Void)?
     let onDelete: (() -> Void)?
     var onDuplicate: (() -> Void)?
+    var moveTargets: [MoveTarget] = []
+    var onMoveToContainer: ((UUID, String) -> Void)?
     var isReorderMode: Bool = false
     var workflows: [Workflow] = []
     @State private var isExpanded: Bool = true
@@ -96,6 +98,25 @@ struct BlockEditorRow: View {
                         }
                         .buttonStyle(.plain)
                         .accessibilityLabel("Duplicate")
+                    }
+
+                    if let onMoveToContainer, !moveTargets.isEmpty {
+                        Menu {
+                            ForEach(moveTargets) { target in
+                                Button {
+                                    onMoveToContainer(target.containerBlockId, target.label)
+                                } label: {
+                                    Label(target.description, systemImage: target.icon)
+                                }
+                            }
+                        } label: {
+                            Image(systemName: "arrow.right.square")
+                                .font(.subheadline)
+                                .foregroundColor(Theme.Text.secondary)
+                                .frame(width: 32, height: 32)
+                                .contentShape(Rectangle())
+                        }
+                        .accessibilityLabel("Move to")
                     }
 
                     if let onDelete {

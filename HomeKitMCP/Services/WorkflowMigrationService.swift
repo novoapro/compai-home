@@ -299,6 +299,90 @@ enum WorkflowMigrationService {
     }
 }
 
+// MARK: - Device Metadata Enrichment
+
+extension WorkflowMigrationService {
+    /// Fill in missing `deviceName` / `roomName` metadata on device references in a workflow.
+    ///
+    /// Workflows created via AI or MCP may omit this metadata. Without it, cross-machine migration
+    /// cannot resolve orphaned UUIDs. This method walks the workflow's JSON representation and
+    /// fills any missing `deviceName`/`roomName` fields from the current device list.
+    static func enrichDeviceMetadata(in workflow: Workflow, using devices: [DeviceModel]) -> Workflow {
+        guard !devices.isEmpty else { return workflow }
+
+        // Build deviceId → (name, room) lookup
+        var lookup: [String: (name: String, room: String?)] = [:]
+        for device in devices {
+            lookup[device.id] = (device.name, device.roomName)
+        }
+
+        // Encode to JSON dict
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        guard let data = try? encoder.encode(workflow),
+              var dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return workflow
+        }
+
+        var changed = false
+        enrichDict(&dict, using: lookup, changed: &changed)
+
+        guard changed else { return workflow }
+
+        // Decode back
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        guard let enrichedData = try? JSONSerialization.data(withJSONObject: dict),
+              let enriched = try? decoder.decode(Workflow.self, from: enrichedData) else {
+            return workflow
+        }
+        return enriched
+    }
+
+    /// Recursively walk a JSON dict tree, filling `deviceName`/`roomName` wherever a `deviceId` is present.
+    private static func enrichDict(_ dict: inout [String: Any], using lookup: [String: (name: String, room: String?)], changed: inout Bool) {
+        if let deviceId = dict["deviceId"] as? String,
+           let info = lookup[deviceId] {
+            if dict["deviceName"] == nil || (dict["deviceName"] as? String)?.isEmpty == true {
+                dict["deviceName"] = info.name
+                changed = true
+            }
+            if dict["roomName"] == nil || (dict["roomName"] as? String)?.isEmpty == true {
+                if let room = info.room {
+                    dict["roomName"] = room
+                    changed = true
+                }
+            }
+        }
+
+        // Recurse into nested dicts and arrays
+        for key in dict.keys {
+            if var nested = dict[key] as? [String: Any] {
+                enrichDict(&nested, using: lookup, changed: &changed)
+                dict[key] = nested
+            } else if var array = dict[key] as? [[String: Any]] {
+                for i in array.indices {
+                    enrichDict(&array[i], using: lookup, changed: &changed)
+                }
+                dict[key] = array
+            } else if let mixedArray = dict[key] as? [Any] {
+                var modified = false
+                var newArray = mixedArray
+                for i in newArray.indices {
+                    if var nested = newArray[i] as? [String: Any] {
+                        enrichDict(&nested, using: lookup, changed: &changed)
+                        newArray[i] = nested
+                        modified = true
+                    }
+                }
+                if modified {
+                    dict[key] = newArray
+                }
+            }
+        }
+    }
+}
+
 // MARK: - Batch Migration
 
 extension WorkflowMigrationService {

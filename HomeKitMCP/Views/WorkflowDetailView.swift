@@ -10,11 +10,14 @@ struct WorkflowDetailView: View {
     let onDelete: () -> Void
     let onTrigger: () -> Void
     let onUpdate: (WorkflowDraft) -> Void
+    var onClone: (() -> Void)?
     var onCancelExecution: ((UUID) -> Void)?
 
     @State private var showingDeleteConfirmation = false
     @State private var showingEditor = false
     @State private var isEnabled: Bool = false
+    @State private var showClonedToast = false
+    @State private var clonedToastTask: Task<Void, Never>?
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -59,6 +62,25 @@ struct WorkflowDetailView: View {
         } message: {
             Text("This will permanently delete \"\(workflow.name)\" and its execution history.")
         }
+        .overlay(alignment: .bottom) {
+            if showClonedToast {
+                HStack(spacing: 6) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundColor(.green)
+                    Text("Workflow duplicated")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background(.regularMaterial, in: Capsule())
+                .shadow(color: .black.opacity(0.15), radius: 8, y: 4)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .padding(.bottom, 24)
+                .allowsHitTesting(false)
+            }
+        }
+        .animation(.spring(response: 0.35, dampingFraction: 0.8), value: showClonedToast)
     }
 
     // MARK: - Status Section
@@ -174,6 +196,22 @@ struct WorkflowDetailView: View {
                 onTrigger()
             } label: {
                 Label("Test Run", systemImage: "play.circle")
+            }
+
+            if let onClone {
+                Button {
+                    onClone()
+                    clonedToastTask?.cancel()
+                    showClonedToast = true
+                    clonedToastTask = Task {
+                        try? await Task.sleep(for: .seconds(2))
+                        if !Task.isCancelled {
+                            showClonedToast = false
+                        }
+                    }
+                } label: {
+                    Label("Duplicate Workflow", systemImage: "doc.on.doc")
+                }
             }
 
             Button(role: .destructive) {

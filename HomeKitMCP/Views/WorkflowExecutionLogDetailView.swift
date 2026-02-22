@@ -47,8 +47,17 @@ struct WorkflowExecutionLogDetailView: View {
                     HStack {
                         Image(systemName: statusIcon(log.status))
                             .foregroundColor(statusColor(log.status))
+                            .accessibilityLabel(log.status.displayName)
                         Text(log.workflowName)
                             .font(.headline)
+                        Text(log.status.displayName)
+                            .font(.caption)
+                            .fontWeight(.medium)
+                            .foregroundColor(statusColor(log.status))
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(statusColor(log.status).opacity(0.12))
+                            .cornerRadius(4)
                         Spacer()
                         if let duration = executionDuration(log) {
                             Text(duration)
@@ -223,11 +232,13 @@ struct WorkflowExecutionLogDetailView: View {
                         ProgressView()
                             .scaleEffect(0.6)
                             .frame(width: 16, height: 16)
+                            .accessibilityLabel(ExecutionStatus.running.displayName)
                     } else {
                         Image(systemName: stepIcon(result.status))
                             .font(.subheadline)
                             .foregroundColor(statusColor(result.status))
                             .frame(width: 16)
+                            .accessibilityLabel(result.status.displayName)
                     }
 
                     VStack(alignment: .leading, spacing: 4) {

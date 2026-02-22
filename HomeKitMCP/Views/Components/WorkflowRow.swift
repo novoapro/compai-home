@@ -4,6 +4,7 @@ struct WorkflowRow: View {
     let workflow: Workflow
     let recentLogs: [WorkflowExecutionLog]
     let onToggle: () -> Void
+    var onClone: (() -> Void)?
 
     @State private var isEnabled: Bool = false
     @State private var isHovered = false
@@ -128,6 +129,14 @@ struct WorkflowRow: View {
             isHovered = hovering
         }
         .contextMenu {
+            if let onClone {
+                Button {
+                    onClone()
+                } label: {
+                    Label("Duplicate Workflow", systemImage: "doc.on.doc")
+                }
+            }
+
             Button {
                 onToggle()
             } label: {

@@ -31,7 +31,10 @@ struct TriggerEditorSection: View {
                     Label("Sunrise/Sunset", systemImage: "sunrise.fill")
                 }
             } label: {
-                Label("Add Trigger", systemImage: "plus.circle")
+                HStack(spacing: 4) {
+                    Image(systemName: "plus.circle")
+                    Text("Add Trigger")
+                }
             }
         } header: {
             Text("Triggers (\(triggers.count))")

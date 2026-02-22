@@ -1321,6 +1321,17 @@ enum ExecutionStatus: String, Codable {
     case skipped
     case conditionNotMet
     case cancelled
+
+    var displayName: String {
+        switch self {
+        case .running: return "Running"
+        case .success: return "Success"
+        case .failure: return "Failure"
+        case .skipped: return "Skipped"
+        case .conditionNotMet: return "Condition Not Met"
+        case .cancelled: return "Cancelled"
+        }
+    }
 }
 
 // MARK: - Trigger Result (Fire-and-Forget)

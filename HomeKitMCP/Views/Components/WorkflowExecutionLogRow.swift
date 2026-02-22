@@ -32,7 +32,7 @@ struct WorkflowExecutionLogRow: View {
                             .foregroundColor(.blue)
                             .fontWeight(.medium)
                     } else {
-                        Text(log.status.rawValue.capitalized)
+                        Text(log.status.displayName)
                             .font(.caption)
                             .fontWeight(.medium)
                             .foregroundColor(statusTextColor)

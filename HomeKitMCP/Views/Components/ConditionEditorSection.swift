@@ -37,25 +37,43 @@ struct ConditionGroupEditor: View {
     let depth: Int
 
     var body: some View {
-        // Operator picker + NOT toggle — always visible at every depth
-        HStack(spacing: 12) {
-            Picker("Match", selection: $group.logicOperator) {
-                Text("All conditions (AND)").tag(LogicOperator.and)
-                Text("Any condition (OR)").tag(LogicOperator.or)
+        // Compact operator row
+        HStack(spacing: 8) {
+            Picker("", selection: $group.logicOperator) {
+                Text("AND").tag(LogicOperator.and)
+                Text("OR").tag(LogicOperator.or)
             }
+            .pickerStyle(.segmented)
+            .frame(maxWidth: 120)
+
+            if group.isNegated {
+                Text("NOT")
+                    .font(.caption2)
+                    .fontWeight(.bold)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 3)
+                    .background(Color.red.opacity(0.15))
+                    .foregroundColor(.red)
+                    .cornerRadius(4)
+            }
+
+            Button {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    group.isNegated.toggle()
+                }
+            } label: {
+                Image(systemName: group.isNegated ? "exclamationmark.circle.fill" : "exclamationmark.circle")
+                    .font(.subheadline)
+                    .foregroundColor(group.isNegated ? .red : Theme.Text.tertiary)
+                    .frame(width: 28, height: 28)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
 
             Spacer()
-
-            Toggle(isOn: $group.isNegated) {
-                Text("NOT")
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-            }
-            .toggleStyle(.button)
-            .tint(group.isNegated ? .red : nil)
         }
 
-        // Children with operator separators
+        // Children — compact rows, no operator separators
         ForEach(Array(group.children.enumerated()), id: \.element.id) { index, node in
             switch node {
             case .leaf:
@@ -81,15 +99,6 @@ struct ConditionGroupEditor: View {
                     }
                 }
             }
-
-            // Operator separator between children
-            if index < group.children.count - 1 {
-                Text(group.logicOperator.symbol)
-                    .font(.caption2)
-                    .fontWeight(.bold)
-                    .foregroundColor(Theme.Text.tertiary)
-                    .frame(maxWidth: .infinity, alignment: .center)
-            }
         }
 
         // Add buttons
@@ -99,7 +108,7 @@ struct ConditionGroupEditor: View {
     // MARK: - Add Condition Menu
 
     private var addConditionMenu: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 20) {
             Menu {
                 Button {
                     group.children.append(.leaf(.empty()))
@@ -117,13 +126,25 @@ struct ConditionGroupEditor: View {
                     Label("Scene Active", systemImage: "play.rectangle.fill")
                 }
             } label: {
-                Label("Add Condition", systemImage: "plus.circle")
+                HStack(spacing: 4) {
+                    Image(systemName: "plus.circle")
+                    Text("Condition")
+                }
+                .foregroundColor(Theme.Tint.main)
+                .padding(.vertical, 4)
+                .contentShape(Rectangle())
             }
 
             Button {
                 group.children.append(.group(.withOneLeaf(operator: group.logicOperator == .and ? .or : .and)))
             } label: {
-                Label("Add Group", systemImage: "folder.badge.plus")
+                HStack(spacing: 4) {
+                    Image(systemName: "plus.circle")
+                    Text("Group")
+                }
+                .foregroundColor(Theme.Tint.main)
+                .padding(.vertical, 4)
+                .contentShape(Rectangle())
             }
         }
     }
@@ -161,9 +182,9 @@ struct ConditionGroupEditor: View {
                 group.children.remove(at: index)
             } label: {
                 Image(systemName: "trash")
-                    .font(.subheadline)
+                    .font(.caption)
                     .foregroundColor(.red)
-                    .frame(width: 32, height: 32)
+                    .frame(width: 28, height: 28)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -195,20 +216,97 @@ struct ConditionGroupEditor: View {
     }
 }
 
-// MARK: - Condition Leaf Row (single condition with NOT toggle)
+// MARK: - Compact Condition Leaf Row (summary line + edit sheet)
 
 private struct ConditionLeafRow: View {
     @Binding var condition: ConditionDraft
     let devices: [DeviceModel]
     var scenes: [SceneModel] = []
     let onDelete: () -> Void
-    @State private var isEditingName: Bool = false
+    @State private var showingEditSheet = false
 
     var body: some View {
-        DisclosureGroup {
-            conditionContent
-        } label: {
-            conditionLabel
+        HStack(spacing: 8) {
+            Image(systemName: condition.conditionDraftType.icon)
+                .font(.caption2)
+                .foregroundColor(conditionIconColor)
+                .frame(width: 20)
+
+            Text(condition.name.isEmpty ? condition.autoName(devices: devices, scenes: scenes) : condition.name)
+                .font(.caption)
+                .foregroundColor(Theme.Text.primary)
+                .lineLimit(1)
+
+            Spacer()
+
+            Button(role: .destructive) {
+                onDelete()
+            } label: {
+                Image(systemName: "trash")
+                    .font(.caption)
+                    .foregroundColor(.red)
+                    .frame(width: 28, height: 28)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Remove Condition")
+
+            Image(systemName: "chevron.right")
+                .font(.caption2)
+                .foregroundColor(Theme.Text.tertiary)
+        }
+        .padding(.vertical, 4)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            showingEditSheet = true
+        }
+        .sheet(isPresented: $showingEditSheet) {
+            ConditionLeafEditSheet(
+                condition: $condition,
+                devices: devices,
+                scenes: scenes
+            )
+        }
+    }
+
+    private var conditionIconColor: Color {
+        switch condition.conditionDraftType {
+        case .deviceState: return .indigo
+        case .sunEvent: return .orange
+        case .sceneActive: return .green
+        }
+    }
+}
+
+// MARK: - Condition Leaf Edit Sheet
+
+private struct ConditionLeafEditSheet: View {
+    @Binding var condition: ConditionDraft
+    let devices: [DeviceModel]
+    var scenes: [SceneModel] = []
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Configuration") {
+                    conditionContent
+                }
+
+                Section("Name") {
+                    TextField("Custom name (optional)", text: $condition.name)
+                }
+            }
+            .formStyle(.grouped)
+            .scrollContentBackground(.hidden)
+            .background(Theme.mainBackground)
+            .navigationTitle(condition.conditionDraftType.displayName)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
         }
     }
 
@@ -231,14 +329,6 @@ private struct ConditionLeafRow: View {
                 deviceId: condition.deviceId
             )
         case .sunEvent:
-            sunEventConditionContent
-        case .sceneActive:
-            sceneActiveConditionContent
-        }
-    }
-
-    private var sunEventConditionContent: some View {
-        VStack(spacing: 12) {
             Picker("Event", selection: $condition.sunEventType) {
                 ForEach(SunEventType.allCases) { eventType in
                     Text(eventType.displayName).tag(eventType)
@@ -252,11 +342,7 @@ private struct ConditionLeafRow: View {
                 }
             }
             .pickerStyle(.segmented)
-        }
-    }
-
-    private var sceneActiveConditionContent: some View {
-        VStack(spacing: 12) {
+        case .sceneActive:
             Picker("Scene", selection: $condition.sceneId) {
                 Text("Select scene\u{2026}").tag("")
                 ForEach(scenes) { scene in
@@ -269,67 +355,6 @@ private struct ConditionLeafRow: View {
                 Text("Is Not Active").tag(false)
             }
             .pickerStyle(.segmented)
-        }
-    }
-
-    private var conditionLabel: some View {
-        HStack(spacing: 8) {
-            Image(systemName: condition.conditionDraftType.icon)
-                .font(.caption)
-                .foregroundColor(conditionIconColor)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(condition.conditionDraftType.displayName)
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-
-                if isEditingName {
-                    TextField("Name", text: $condition.name)
-                        .font(.caption)
-                        .textFieldStyle(.roundedBorder)
-                        .onSubmit { isEditingName = false }
-                } else {
-                    Text(condition.name.isEmpty ? condition.autoName(devices: devices, scenes: scenes) : condition.name)
-                        .font(.caption)
-                        .foregroundColor(Theme.Text.secondary)
-                        .lineLimit(1)
-                }
-            }
-
-            Spacer()
-
-            HStack(spacing: 4) {
-                Button {
-                    isEditingName.toggle()
-                } label: {
-                    Image(systemName: isEditingName ? "checkmark.circle.fill" : "pencil")
-                        .font(.subheadline)
-                        .foregroundColor(Theme.Text.secondary)
-                        .frame(width: 32, height: 32)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-
-                Button(role: .destructive) {
-                    onDelete()
-                } label: {
-                    Image(systemName: "trash")
-                        .font(.subheadline)
-                        .foregroundColor(.red)
-                        .frame(width: 32, height: 32)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Remove Condition")
-            }
-        }
-    }
-
-    private var conditionIconColor: Color {
-        switch condition.conditionDraftType {
-        case .deviceState: return .indigo
-        case .sunEvent: return .orange
-        case .sceneActive: return .green
         }
     }
 }

@@ -28,62 +28,82 @@ struct ValueEditor: View {
     }
 
     var body: some View {
-        switch inputControlType {
-        case .toggle:
-            Toggle("Value", isOn: boolBinding)
-                .tint(Theme.Tint.main)
+        Group {
+            switch inputControlType {
+            case .toggle:
+                Toggle("Value", isOn: boolBinding)
+                    .tint(Theme.Tint.main)
 
-        case let .slider(min, max, step, unit):
-            VStack(spacing: 4) {
+            case let .slider(min, max, step, unit):
+                VStack(spacing: 4) {
+                    HStack {
+                        Text("Value")
+                        Spacer()
+                        Text("\(Int(doubleValue))\(unit ?? "")")
+                            .font(.system(.body, design: .monospaced))
+                            .foregroundColor(Theme.Text.secondary)
+                    }
+                    Slider(
+                        value: doubleBinding,
+                        in: min...max,
+                        step: step
+                    )
+                    .tint(Theme.Tint.main)
+                    .simultaneousGesture(
+                        DragGesture()
+                            .onChanged { _ in }
+                            .onEnded { _ in }
+                    )
+                }
+
+            case let .picker(options):
                 HStack {
                     Text("Value")
                     Spacer()
-                    Text("\(Int(doubleValue))\(unit ?? "")")
-                        .font(.system(.body, design: .monospaced))
-                        .foregroundColor(Theme.Text.secondary)
-                }
-                Slider(
-                    value: doubleBinding,
-                    in: min...max,
-                    step: step
-                )
-                .tint(Theme.Tint.main)
-                .simultaneousGesture(
-                    DragGesture()
-                        .onChanged { _ in }
-                        .onEnded { _ in }
-                )
-            }
-
-        case let .picker(options):
-            HStack {
-                Text("Value")
-                Spacer()
-                Menu {
-                    ForEach(options, id: \.value) { option in
-                        Button(option.label) {
-                            value = option.value
+                    Menu {
+                        ForEach(options, id: \.value) { option in
+                            Button(option.label) {
+                                value = option.value
+                            }
                         }
+                    } label: {
+                        Text(currentPickerLabel(options) ?? "Select...")
+                            .foregroundColor(.primary)
                     }
-                } label: {
-                    Text(currentPickerLabel(options) ?? "Select...")
-                        .foregroundColor(.primary)
+                }
+
+            case let .textField(inputType):
+                HStack {
+                    Text("Value")
+                    Spacer()
+                    TextField(
+                        inputType == .decimal ? "0.0" : "0",
+                        text: $value
+                    )
+                    .keyboardType(keyboardType(for: inputType))
+                    .multilineTextAlignment(.trailing)
+                    .frame(width: 80)
+                    .textFieldStyle(.roundedBorder)
                 }
             }
+        }
+        .onAppear { initializeDefaultIfNeeded() }
+        .onChange(of: characteristicType) { _ in initializeDefaultIfNeeded() }
+    }
 
-        case let .textField(inputType):
-            HStack {
-                Text("Value")
-                Spacer()
-                TextField(
-                    inputType == .decimal ? "0.0" : "0",
-                    text: $value
-                )
-                .keyboardType(keyboardType(for: inputType))
-                .multilineTextAlignment(.trailing)
-                .frame(width: 80)
-                .textFieldStyle(.roundedBorder)
+    private func initializeDefaultIfNeeded() {
+        guard value.isEmpty, !characteristicType.isEmpty else { return }
+        switch inputControlType {
+        case .toggle:
+            value = "false"
+        case let .slider(min, _, _, _):
+            value = min == min.rounded() ? "\(Int(min))" : String(format: "%.1f", min)
+        case let .picker(options):
+            if let first = options.first {
+                value = first.value
             }
+        case .textField:
+            break // Leave empty; user must type a value
         }
     }
 

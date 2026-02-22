@@ -38,6 +38,7 @@ The app has four layers:
 ## Build & Run
 
 This is an Xcode project (Mac Catalyst). Build and run with:
+
 ```bash
 xcodebuild -scheme HomeKitMCP -destination 'platform=macOS,variant=Mac Catalyst' build
 ```
@@ -45,6 +46,7 @@ xcodebuild -scheme HomeKitMCP -destination 'platform=macOS,variant=Mac Catalyst'
 ### Dependencies
 
 Managed via Swift Package Manager. Primary dependency:
+
 ```
 vapor/vapor 4.89.0+
 ```
@@ -58,3 +60,19 @@ vapor/vapor 4.89.0+
 ## Implementation Plan
 
 See `homekit-mcp-implementation-plan.md` for the full phased implementation plan with detailed specifications for each component.
+
+Everytime you are complete with a task, run the following command:
+
+```bash
+pkill -9 -f HomeKitMCP
+```
+
+```bash
+xcodebuild -scheme HomeKitMCP -destination 'platform=macOS,variant=Mac Catalyst' build
+```
+
+And then run the following command:
+
+```bash
+open /Users/manuel/Library/Developer/Xcode/DerivedData/HomeKitMCP-byyskooslqggvmgrsoyhqtmgtepf/Build/Products/Debug-maccatalyst/HomeKitMCP.app
+```

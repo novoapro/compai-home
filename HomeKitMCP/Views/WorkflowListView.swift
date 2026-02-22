@@ -19,7 +19,8 @@ struct WorkflowListView: View {
                             WorkflowRow(
                                 workflow: workflow,
                                 recentLogs: viewModel.executionLogs(for: workflow.id),
-                                onToggle: { viewModel.toggleEnabled(id: workflow.id) }
+                                onToggle: { viewModel.toggleEnabled(id: workflow.id) },
+                                onClone: { viewModel.cloneWorkflow(id: workflow.id) }
                             )
                         }
                         .listRowBackground(Theme.contentBackground)
@@ -31,6 +32,25 @@ struct WorkflowListView: View {
             .background(Theme.mainBackground)
         }
         .background(Theme.mainBackground)
+        .overlay(alignment: .bottom) {
+            if viewModel.showClonedToast {
+                HStack(spacing: 6) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundColor(.green)
+                    Text("Workflow duplicated")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background(.regularMaterial, in: Capsule())
+                .shadow(color: .black.opacity(0.15), radius: 8, y: 4)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .padding(.bottom, 24)
+                .allowsHitTesting(false)
+            }
+        }
+        .animation(.spring(response: 0.35, dampingFraction: 0.8), value: viewModel.showClonedToast)
         .searchable(text: $viewModel.searchText, placement: .navigationBarDrawer, prompt: "Search workflows")
         .navigationTitle("Workflows (\(viewModel.workflows.count))")
         .toolbar {
@@ -87,6 +107,7 @@ struct WorkflowListView: View {
                     onUpdate: { draft in
                         viewModel.updateWorkflow(id: workflowId, from: draft)
                     },
+                    onClone: { viewModel.cloneWorkflow(id: workflowId) },
                     onCancelExecution: { executionId in
                         viewModel.cancelExecution(executionId: executionId)
                     }

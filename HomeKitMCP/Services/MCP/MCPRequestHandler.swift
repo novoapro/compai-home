@@ -697,7 +697,9 @@ class MCPRequestHandler {
         }
 
         do {
-            let workflow = try parseWorkflowFromDict(workflowDict)
+            var workflow = try parseWorkflowFromDict(workflowDict)
+            let devices = await MainActor.run { homeKitManager.cachedDevices }
+            workflow = WorkflowMigrationService.enrichDeviceMetadata(in: workflow, using: devices)
             let created = await workflowStorageService.createWorkflow(workflow)
             return toolResult(text: "Workflow created successfully.\nID: \(created.id.uuidString)\nName: \(created.name)", id: id)
         } catch {
@@ -743,6 +745,9 @@ class MCPRequestHandler {
                 let data = try JSONSerialization.data(withJSONObject: blocksArray)
                 merged.blocks = try Self.decoder.decode([WorkflowBlock].self, from: data)
             }
+
+            let devices = await MainActor.run { homeKitManager.cachedDevices }
+            merged = WorkflowMigrationService.enrichDeviceMetadata(in: merged, using: devices)
 
             let updated = await workflowStorageService.updateWorkflow(id: workflowId) { workflow in
                 workflow.name = merged.name

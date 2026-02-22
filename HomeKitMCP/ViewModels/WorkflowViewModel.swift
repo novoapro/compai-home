@@ -6,12 +6,14 @@ class WorkflowViewModel: ObservableObject {
     @Published var workflows: [Workflow] = []
     @Published var executionLogs: [WorkflowExecutionLog] = []
     @Published var searchText = ""
+    @Published var showClonedToast = false
 
     private let storageService: WorkflowStorageService
     private let executionLogService: WorkflowExecutionLogService
     private let workflowEngine: WorkflowEngine
     let homeKitManager: HomeKitManager
     private var cancellables = Set<AnyCancellable>()
+    private var clonedToastTask: Task<Void, Never>?
 
     var devices: [DeviceModel] { homeKitManager.cachedDevices }
     var scenes: [SceneModel] { homeKitManager.getAllScenes() }
@@ -113,6 +115,41 @@ class WorkflowViewModel: ObservableObject {
             guard let existing = await storageService.getWorkflow(id: id) else { return }
             let workflow = draft.toWorkflow(devices: devices, existingMetadata: existing.metadata, createdAt: existing.createdAt)
             await storageService.updateWorkflow(id: id) { $0 = workflow }
+        }
+    }
+
+    func cloneWorkflow(id: UUID) {
+        Task {
+            guard let original = await storageService.getWorkflow(id: id) else { return }
+            var draft = WorkflowDraft(from: original)
+            draft.id = UUID()
+            draft.name = "\(original.name) (Copy)"
+            draft.isEnabled = false
+            // Regenerate webhook trigger tokens to avoid collisions
+            for i in draft.triggers.indices where draft.triggers[i].triggerType == .webhook {
+                draft.triggers[i].webhookToken = UUID().uuidString
+            }
+            let clonedMetadata = WorkflowMetadata(
+                createdBy: original.metadata.createdBy,
+                tags: original.metadata.tags,
+                lastTriggeredAt: nil,
+                totalExecutions: 0,
+                consecutiveFailures: 0
+            )
+            let cloned = draft.toWorkflow(devices: devices, existingMetadata: clonedMetadata, createdAt: nil)
+            await storageService.createWorkflow(cloned)
+            showCloneToast()
+        }
+    }
+
+    private func showCloneToast() {
+        clonedToastTask?.cancel()
+        showClonedToast = true
+        clonedToastTask = Task {
+            try? await Task.sleep(for: .seconds(2))
+            if !Task.isCancelled {
+                showClonedToast = false
+            }
         }
     }
 
