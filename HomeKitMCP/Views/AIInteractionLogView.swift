@@ -73,7 +73,7 @@ private struct AIInteractionLogRow: View {
                         .font(.caption)
                         .foregroundColor(.secondary)
                     Text(log.model)
-                        .font(.caption2)
+                        .font(.caption)
                         .foregroundColor(.secondary)
                         .lineLimit(1)
                 }
@@ -91,7 +91,7 @@ private struct AIInteractionLogRow: View {
 
                 if let error = log.errorMessage {
                     Text(error)
-                        .font(.caption2)
+                        .font(.caption)
                         .foregroundColor(.red)
                         .lineLimit(1)
                 }
@@ -215,7 +215,7 @@ private struct CopyButton: View {
             }
         } label: {
             Label(copied ? "Copied" : "Copy", systemImage: copied ? "checkmark" : "doc.on.doc")
-                .font(.caption2)
+                .font(.caption)
         }
     }
 }

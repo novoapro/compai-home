@@ -7,6 +7,7 @@ struct WebhookSettingsView: View {
     @State private var webhookURL: String
     @State private var hasEdited = false
     @State private var showingSaveAlert = false
+    @State private var newAllowlistEntry = ""
 
     init(viewModel: SettingsViewModel) {
         self.viewModel = viewModel
@@ -25,7 +26,49 @@ struct WebhookSettingsView: View {
     var body: some View {
         Form {
             Section {
-                Toggle("Enable Webhook Notifications", isOn: $viewModel.webhookEnabled)
+                Label("App-wide setting — applies to all webhook calls, including device state notifications and workflow actions.", systemImage: "globe")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+
+                ForEach(viewModel.webhookPrivateIPAllowlist, id: \.self) { entry in
+                    HStack {
+                        Text(entry)
+                            .font(.system(.body, design: .monospaced))
+                        Spacer()
+                        Button(role: .destructive) {
+                            viewModel.webhookPrivateIPAllowlist.removeAll { $0 == entry }
+                        } label: {
+                            Image(systemName: "minus.circle.fill")
+                                .foregroundStyle(.red)
+                        }
+                        .buttonStyle(.borderless)
+                    }
+                }
+
+                HStack {
+                    TextField("192.168.1.100 or myserver.local", text: $newAllowlistEntry)
+                        .textFieldStyle(.roundedBorder)
+                        .autocorrectionDisabled()
+                        .keyboardType(.URL)
+                        .autocapitalization(.none)
+                    Button("Add") {
+                        let trimmed = newAllowlistEntry.trimmingCharacters(in: .whitespaces)
+                        guard !trimmed.isEmpty,
+                              !viewModel.webhookPrivateIPAllowlist.contains(trimmed) else { return }
+                        viewModel.webhookPrivateIPAllowlist.append(trimmed)
+                        newAllowlistEntry = ""
+                    }
+                    .buttonStyle(.borderless)
+                    .disabled(newAllowlistEntry.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+            } header: {
+                Label("Private Network Allow List", systemImage: "network.badge.shield.half.filled")
+            } footer: {
+                Text("By default, webhooks to private IP ranges (192.168.x.x, 10.x.x.x, etc.) are blocked. Add a host here to allow it. Matches the exact hostname or IP used in the URL.")
+            }
+
+            Section {
+                Toggle("Enable Device State Notifications", isOn: $viewModel.webhookEnabled)
 
                 Group {
                     TextField("https://example.com/webhook", text: $webhookURL)
@@ -74,10 +117,10 @@ struct WebhookSettingsView: View {
                 .disabled(!viewModel.webhookEnabled)
                 .opacity(viewModel.webhookEnabled ? 1 : 0.5)
             } header: {
-                Label("Configuration", systemImage: "paperplane")
+                Label("Device State Notifications", systemImage: "paperplane")
             } footer: {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Configure which devices trigger webhooks in the Devices tab.")
+                    Text("Posts a signed payload to this URL whenever a device state changes. Configure which devices trigger notifications in the Devices tab.")
                     Text("Payloads are signed with HMAC-SHA256 in the X-Signature-256 header.")
                 }
             }

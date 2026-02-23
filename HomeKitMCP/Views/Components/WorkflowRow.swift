@@ -54,7 +54,7 @@ struct WorkflowRow: View {
 
                     if !workflow.isEnabled {
                         Text("Disabled")
-                            .font(.caption2)
+                            .font(.caption)
                             .fontWeight(.medium)
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
@@ -68,7 +68,7 @@ struct WorkflowRow: View {
                     // Trigger type pill
                     if let firstTrigger = workflow.triggers.first {
                         Text(triggerTypeLabel(firstTrigger))
-                            .font(.caption2)
+                            .font(.caption)
                             .fontWeight(.medium)
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
@@ -104,7 +104,7 @@ struct WorkflowRow: View {
 
                 if let lastTriggered = workflow.metadata.lastTriggeredAt {
                     Text("Last triggered \(lastTriggered, style: .relative) ago")
-                        .font(.caption2)
+                        .font(.caption)
                         .foregroundColor(Theme.Text.tertiary)
                 }
             }

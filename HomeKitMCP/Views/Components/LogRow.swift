@@ -309,7 +309,7 @@ struct LogRow: View {
                             UIPasteboard.general.string = detailedReq
                         } label: {
                             Label("Copy", systemImage: "doc.on.doc")
-                                .font(.caption2)
+                                .font(.caption)
                         }
                         .buttonStyle(.plain)
                         .foregroundColor(Theme.Tint.main)
@@ -330,7 +330,7 @@ struct LogRow: View {
                             UIPasteboard.general.string = detailedResp
                         } label: {
                             Label("Copy", systemImage: "doc.on.doc")
-                                .font(.caption2)
+                                .font(.caption)
                         }
                         .buttonStyle(.plain)
                         .foregroundColor(Theme.Tint.main)

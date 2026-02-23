@@ -250,7 +250,7 @@ private struct DevicePickerSheet: View {
                                     }
                                     if !device.isReachable {
                                         Text("Offline")
-                                            .font(.caption2)
+                                            .font(.caption)
                                             .foregroundColor(Theme.Text.secondary)
                                     }
                                 }

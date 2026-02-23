@@ -44,7 +44,7 @@ struct SceneRow: View {
 
                 HStack(spacing: 8) {
                     Text(scene.type)
-                        .font(.caption2)
+                        .font(.caption)
                         .fontWeight(.medium)
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)

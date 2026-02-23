@@ -141,7 +141,7 @@ struct LogViewerView: View {
                     .fontWeight(.medium)
 
                 Image(systemName: "chevron.down")
-                    .font(.system(size: 8, weight: .bold))
+                    .font(.system(size: 10, weight: .bold))
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
@@ -192,7 +192,7 @@ struct LogViewerView: View {
                     }
                 }
             }
-            .frame(width: 220)
+            .frame(width: 230)
         }
     }
 
@@ -211,7 +211,7 @@ struct LogViewerView: View {
                     .font(.caption)
                     .fontWeight(.medium)
                 Image(systemName: "chevron.down")
-                    .font(.system(size: 8, weight: .bold))
+                    .font(.system(size: 10, weight: .bold))
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
@@ -271,7 +271,7 @@ struct LogViewerView: View {
                 }
                 .frame(maxHeight: 300)
             }
-            .frame(width: 200)
+            .frame(width: 210)
         }
     }
 
@@ -290,7 +290,7 @@ struct LogViewerView: View {
                     .font(.caption)
                     .fontWeight(.medium)
                 Image(systemName: "chevron.down")
-                    .font(.system(size: 8, weight: .bold))
+                    .font(.system(size: 10, weight: .bold))
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
@@ -350,7 +350,7 @@ struct LogViewerView: View {
                 }
                 .frame(maxHeight: 300)
             }
-            .frame(width: 200)
+            .frame(width: 210)
         }
     }
 }

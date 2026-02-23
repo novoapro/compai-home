@@ -43,6 +43,9 @@ class SettingsViewModel: ObservableObject {
     @Published var deviceStateLoggingEnabled: Bool {
         didSet { storage.deviceStateLoggingEnabled = deviceStateLoggingEnabled }
     }
+    @Published var webhookPrivateIPAllowlist: [String] {
+        didSet { storage.webhookPrivateIPAllowlist = webhookPrivateIPAllowlist }
+    }
 
     // MARK: - Location Properties
 
@@ -132,6 +135,7 @@ class SettingsViewModel: ObservableObject {
         self.pollingInterval = storage.pollingInterval
         self.workflowsEnabled = storage.workflowsEnabled
         self.deviceStateLoggingEnabled = storage.deviceStateLoggingEnabled
+        self.webhookPrivateIPAllowlist = storage.webhookPrivateIPAllowlist
         self.sunEventLatitude = storage.sunEventLatitude
         self.sunEventLongitude = storage.sunEventLongitude
         self.sunEventZipCode = storage.sunEventZipCode

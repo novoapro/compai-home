@@ -68,7 +68,7 @@ struct WorkflowExecutionLogRow: View {
 
                 if let duration = displayedDuration {
                     Text(duration)
-                        .font(.caption2)
+                        .font(.caption)
                         .foregroundColor(Theme.Text.tertiary)
                 }
             }

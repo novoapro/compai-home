@@ -793,10 +793,16 @@ actor WorkflowEngine: WorkflowEngineProtocol {
     }
 
     /// Validates that a URL does not point to a private/internal IP address (SSRF protection).
-    private static func validateURLNotPrivate(_ url: URL) throws {
+    private static func validateURLNotPrivate(_ url: URL, allowlist: [String]) throws {
         guard let host = url.host else { return }
 
         let lowered = host.lowercased()
+
+        // Allow hosts explicitly listed in the user-configured allow list
+        if allowlist.contains(where: { $0.lowercased() == lowered }) {
+            return
+        }
+
         if lowered == "localhost" || lowered == "127.0.0.1" || lowered == "::1" {
             return
         }
@@ -843,7 +849,7 @@ actor WorkflowEngine: WorkflowEngineProtocol {
             throw WorkflowEngineError.invalidURL(action.url)
         }
 
-        try Self.validateURLNotPrivate(url)
+        try Self.validateURLNotPrivate(url, allowlist: storage.readWebhookPrivateIPAllowlist())
 
         var request = URLRequest(url: url)
         request.httpMethod = action.method

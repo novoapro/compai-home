@@ -208,7 +208,7 @@ struct ServerSettingsView: View {
                     .fontWeight(.medium)
                 Spacer()
                 Text(apiToken.createdAt, style: .date)
-                    .font(.caption2)
+                    .font(.caption)
                     .foregroundColor(Theme.Text.tertiary)
             }
 

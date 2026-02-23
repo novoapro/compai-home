@@ -62,7 +62,7 @@ struct DeviceRow: View {
 
                         if !device.isReachable {
                             Text("No Response")
-                                .font(.caption2)
+                                .font(.caption)
                                 .fontWeight(.bold)
                                 .padding(.horizontal, 6)
                                 .padding(.vertical, 2)
@@ -171,7 +171,7 @@ struct DeviceRow: View {
                             } label: {
                                 HStack(spacing: 4) {
                                     Image(systemName: showGranularControls ? "chevron.down" : "chevron.right")
-                                        .font(.system(size: 10, weight: .bold))
+                                        .font(.system(size: 12, weight: .bold))
                                     Text(showGranularControls ? "Hide Granular Controls" : "Show Granular Controls")
                                         .font(.caption)
                                         .fontWeight(.medium)
@@ -233,18 +233,18 @@ struct DeviceRow: View {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(CharacteristicTypes.displayName(for: char.type))
-                        .font(.system(size: 13, weight: .medium))
+                        .font(.system(size: 14, weight: .medium))
                         .foregroundColor(Theme.Text.primary)
                         .lineLimit(1)
 
                     if let value = char.value {
                         Text(CharacteristicTypes.formatValue(value.value, characteristicType: char.type))
-                            .font(.system(size: 13))
+                            .font(.system(size: 14))
                             .foregroundColor(Theme.Text.secondary)
                             .lineLimit(1)
                     } else {
                         Text("--")
-                            .font(.system(size: 13))
+                            .font(.system(size: 14))
                             .foregroundColor(Theme.Text.secondary)
                     }
                 }
@@ -386,7 +386,7 @@ struct MiniToggle: View {
         Button(action: { isOn.toggle() }) {
             HStack(spacing: 6) {
                Text(label)
-                    .font(.system(size: 12, weight: .bold))
+                    .font(.system(size: 13, weight: .bold))
                     .foregroundColor(isOn ? Theme.Text.primary : Theme.Text.secondary)
 
                Image(systemName: isOn ? "checkmark.circle.fill" : "circle")

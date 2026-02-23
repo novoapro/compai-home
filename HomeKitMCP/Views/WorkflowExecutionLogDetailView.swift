@@ -255,11 +255,11 @@ struct WorkflowExecutionLogDetailView: View {
                             Spacer()
                             if let dur {
                                 Text(dur)
-                                    .font(.caption2)
+                                    .font(.caption)
                                     .foregroundColor(Theme.Text.tertiary)
                             } else if result.status == .running {
                                 LiveElapsedText(since: result.startedAt)
-                                    .font(.caption2)
+                                    .font(.caption)
                                     .foregroundColor(.blue)
                             }
                         }

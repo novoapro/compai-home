@@ -615,7 +615,7 @@ private struct FlowControlBlockRow: View {
         case let .conditional(b):
             if !b.thenBlocks.isEmpty {
                 Text("Then")
-                    .font(.caption2)
+                    .font(.caption)
                     .fontWeight(.semibold)
                     .foregroundColor(Theme.Text.tertiary)
                     .padding(.leading, CGFloat((depth + 1) * 7))
@@ -625,7 +625,7 @@ private struct FlowControlBlockRow: View {
             }
             if let elseBlocks = b.elseBlocks, !elseBlocks.isEmpty {
                 Text("Else")
-                    .font(.caption2)
+                    .font(.caption)
                     .fontWeight(.semibold)
                     .foregroundColor(Theme.Text.tertiary)
                     .padding(.leading, CGFloat((depth + 1) * 7))

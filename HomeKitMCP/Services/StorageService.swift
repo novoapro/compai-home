@@ -105,6 +105,13 @@ class StorageService: ObservableObject, StorageServiceProtocol {
     @Published var deviceStateLoggingEnabled: Bool {
         didSet { defaults.set(deviceStateLoggingEnabled, forKey: Keys.deviceStateLoggingEnabled) }
     }
+    @Published var webhookPrivateIPAllowlist: [String] {
+        didSet {
+            if let data = try? JSONEncoder().encode(webhookPrivateIPAllowlist) {
+                defaults.set(data, forKey: Keys.webhookPrivateIPAllowlist)
+            }
+        }
+    }
 
     init(keychainService: KeychainService = KeychainService()) {
         self.keychainService = keychainService
@@ -160,6 +167,12 @@ class StorageService: ObservableObject, StorageServiceProtocol {
         self.workflowsEnabled = defaults.bool(forKey: Keys.workflowsEnabled)
         self.autoBackupEnabled = defaults.bool(forKey: Keys.autoBackupEnabled)
         self.deviceStateLoggingEnabled = defaults.bool(forKey: Keys.deviceStateLoggingEnabled)
+        if let data = defaults.data(forKey: Keys.webhookPrivateIPAllowlist),
+           let list = try? JSONDecoder().decode([String].self, from: data) {
+            self.webhookPrivateIPAllowlist = list
+        } else {
+            self.webhookPrivateIPAllowlist = []
+        }
     }
 
     func isWebhookConfigured() -> Bool {
@@ -249,6 +262,11 @@ class StorageService: ObservableObject, StorageServiceProtocol {
         UserDefaults.standard.bool(forKey: Keys.deviceStateLoggingEnabled)
     }
 
+    nonisolated func readWebhookPrivateIPAllowlist() -> [String] {
+        guard let data = UserDefaults.standard.data(forKey: Keys.webhookPrivateIPAllowlist) else { return [] }
+        return (try? JSONDecoder().decode([String].self, from: data)) ?? []
+    }
+
     private enum Keys {
         static let webhookURL = "webhookURL"
         static let mcpServerPort = "mcpServerPort"
@@ -272,5 +290,6 @@ class StorageService: ObservableObject, StorageServiceProtocol {
         static let workflowsEnabled = "workflowsEnabled"
         static let autoBackupEnabled = "autoBackupEnabled"
         static let deviceStateLoggingEnabled = "deviceStateLoggingEnabled"
+        static let webhookPrivateIPAllowlist = "webhookPrivateIPAllowlist"
     }
 }

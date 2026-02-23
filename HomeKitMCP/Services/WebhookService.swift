@@ -223,8 +223,15 @@ actor WebhookService: WebhookServiceProtocol {
     private func validateURLNotPrivate(_ url: URL) throws {
         guard let host = url.host else { return }
 
-        // Allow localhost only (for the app's own endpoints)
         let lowered = host.lowercased()
+
+        // Allow hosts explicitly listed in the user-configured allow list
+        let allowlist = storage.readWebhookPrivateIPAllowlist()
+        if allowlist.contains(where: { $0.lowercased() == lowered }) {
+            return
+        }
+
+        // Allow localhost (for the app's own endpoints)
         if lowered == "localhost" || lowered == "127.0.0.1" || lowered == "::1" {
             return
         }

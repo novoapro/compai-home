@@ -48,7 +48,7 @@ struct ConditionGroupEditor: View {
 
             if group.isNegated {
                 Text("NOT")
-                    .font(.caption2)
+                    .font(.caption)
                     .fontWeight(.bold)
                     .padding(.horizontal, 6)
                     .padding(.vertical, 3)
@@ -162,7 +162,7 @@ struct ConditionGroupEditor: View {
                     HStack(spacing: 4) {
                         if subGroup.isNegated {
                             Text("NOT")
-                                .font(.caption2)
+                                .font(.caption)
                                 .fontWeight(.bold)
                                 .foregroundStyle(.red)
                         }

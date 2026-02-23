@@ -269,7 +269,7 @@ struct DeviceListView: View {
                     .font(.caption)
                     .fontWeight(.medium)
                 Image(systemName: "chevron.down")
-                    .font(.system(size: 8, weight: .bold))
+                    .font(.system(size: 10, weight: .bold))
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
@@ -307,7 +307,7 @@ struct DeviceListView: View {
                 }
                 .frame(maxHeight: 300)
             }
-            .frame(width: 220)
+            .frame(width: 230)
             .padding(.vertical, 4)
         }
     }
@@ -327,7 +327,7 @@ struct DeviceListView: View {
                     .font(.caption)
                     .fontWeight(.medium)
                 Image(systemName: "chevron.down")
-                    .font(.system(size: 8, weight: .bold))
+                    .font(.system(size: 10, weight: .bold))
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
@@ -364,7 +364,7 @@ struct DeviceListView: View {
                 }
                 .frame(maxHeight: 300)
             }
-            .frame(width: 220)
+            .frame(width: 230)
             .padding(.vertical, 4)
         }
     }
@@ -379,7 +379,7 @@ struct DeviceListView: View {
                     .font(.caption)
                     .fontWeight(.medium)
                 Image(systemName: "chevron.down")
-                    .font(.system(size: 8, weight: .bold))
+                    .font(.system(size: 10, weight: .bold))
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
@@ -400,7 +400,7 @@ struct DeviceListView: View {
                     }
                 }
             }
-            .frame(width: 200)
+            .frame(width: 210)
             .padding(.vertical, 4)
         }
     }
@@ -415,7 +415,7 @@ struct DeviceListView: View {
                     .font(.caption)
                     .fontWeight(.medium)
                 Image(systemName: "chevron.down")
-                    .font(.system(size: 8, weight: .bold))
+                    .font(.system(size: 10, weight: .bold))
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
@@ -436,7 +436,7 @@ struct DeviceListView: View {
                     }
                 }
             }
-            .frame(width: 220)
+            .frame(width: 230)
             .padding(.vertical, 4)
         }
     }
@@ -446,11 +446,11 @@ struct DeviceListView: View {
             HStack(spacing: 8) {
                 if isSelected {
                     Image(systemName: "checkmark")
-                        .font(.system(size: 10, weight: .bold))
+                        .font(.system(size: 12, weight: .bold))
                         .foregroundColor(Theme.Text.primary)
-                        .frame(width: 12)
+                        .frame(width: 14)
                 } else {
-                    Color.clear.frame(width: 12, height: 10)
+                    Color.clear.frame(width: 14, height: 12)
                 }
 
                 if let icon = icon {

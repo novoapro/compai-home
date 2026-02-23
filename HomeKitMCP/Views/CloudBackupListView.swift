@@ -121,7 +121,7 @@ struct CloudBackupListView: View {
                         .font(.caption)
                         .foregroundColor(.red)
                     Text(error)
-                        .font(.caption2)
+                        .font(.caption)
                         .foregroundColor(.red)
                         .multilineTextAlignment(.center)
                         .frame(maxWidth: 300)

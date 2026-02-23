@@ -137,7 +137,7 @@ private struct TriggerRow: View {
                 VStack(alignment: .leading) {
                     Text(policy.displayName)
                     Text(policy.description)
-                        .font(.caption2)
+                        .font(.caption)
                         .foregroundColor(.secondary)
                 }
                 .tag(policy)
