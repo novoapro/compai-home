@@ -3,7 +3,7 @@ import Vapor
 import NIOCore
 import Combine
 
-class MCPServer: ObservableObject, MCPServerProtocol {
+class MCPServer: ObservableObject, MCPServerProtocol, @unchecked Sendable {
     @Published var isRunning = false
     @Published var connectedClients = 0
     @Published var lastError: String?

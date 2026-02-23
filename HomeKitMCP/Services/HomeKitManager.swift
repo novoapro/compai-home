@@ -476,21 +476,20 @@ class HomeKitManager: NSObject, ObservableObject, HomeKitManaging {
 
                         if let error = error {
                             AppLogger.homeKit.debug("Poll: failed to read \(characteristic.characteristicType) on \(accessory.name): \(error)")
-                            if allDone { self.isPolling = false }
+                            if allDone { DispatchQueue.main.async { self.isPolling = false } }
                             return
                         }
 
-                        self.compareAndEmitIfChanged(
-                            accessory: accessory,
-                            service: service,
-                            characteristic: characteristic,
-                            deviceId: deviceId,
-                            serviceId: serviceId,
-                            charId: charId
-                        )
-
-                        if allDone {
-                            self.isPolling = false
+                        DispatchQueue.main.async {
+                            self.compareAndEmitIfChanged(
+                                accessory: accessory,
+                                service: service,
+                                characteristic: characteristic,
+                                deviceId: deviceId,
+                                serviceId: serviceId,
+                                charId: charId
+                            )
+                            if allDone { self.isPolling = false }
                         }
                     }
                 }
@@ -718,10 +717,9 @@ class HomeKitManager: NSObject, ObservableObject, HomeKitManaging {
                             lock.unlock()
 
                             // Coalesce cache rebuilds — don't fire for every single read
-                            self.scheduleUIUpdate()
-
-                            if allDone {
-                                DispatchQueue.main.async {
+                            DispatchQueue.main.async {
+                                self.scheduleUIUpdate()
+                                if allDone {
                                     self.isReadingValues = false
                                     self.startPollingIfEnabled()
                                 }

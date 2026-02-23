@@ -6,6 +6,7 @@ class KeychainService {
     private let service = "com.novoa.HomeKitMCP"
 
     /// Save or update a value in the Keychain.
+    @discardableResult
     func save(key: String, value: String) -> Bool {
         guard let data = value.data(using: .utf8) else { return false }
 

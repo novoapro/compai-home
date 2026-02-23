@@ -31,7 +31,7 @@ enum AIProvider: String, CaseIterable, Identifiable, Codable {
 @MainActor
 class StorageService: ObservableObject, StorageServiceProtocol {
     private let defaults = UserDefaults.standard
-    let keychainService: KeychainService
+    nonisolated let keychainService: KeychainService
 
     @Published var webhookURL: String? {
         didSet {

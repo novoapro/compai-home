@@ -139,9 +139,11 @@ extension AppleSignInService: ASAuthorizationControllerDelegate {
 
 extension AppleSignInService: ASAuthorizationControllerPresentationContextProviding {
     nonisolated func presentationAnchor(for controller: ASAuthorizationController) -> ASPresentationAnchor {
-        // Return the key window for Mac Catalyst
-        let scenes = UIApplication.shared.connectedScenes
-        let windowScene = scenes.first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene
-        return windowScene?.windows.first(where: { $0.isKeyWindow }) ?? ASPresentationAnchor()
+        // This delegate method is always called on the main thread by the system.
+        MainActor.assumeIsolated {
+            let scenes = UIApplication.shared.connectedScenes
+            let windowScene = scenes.first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene
+            return windowScene?.windows.first(where: { $0.isKeyWindow }) ?? ASPresentationAnchor()
+        }
     }
 }

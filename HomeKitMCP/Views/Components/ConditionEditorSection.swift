@@ -53,8 +53,8 @@ struct ConditionGroupEditor: View {
                     .padding(.horizontal, 6)
                     .padding(.vertical, 3)
                     .background(Color.red.opacity(0.15))
-                    .foregroundColor(.red)
-                    .cornerRadius(4)
+                    .foregroundStyle(.red)
+                    .clipShape(RoundedRectangle(cornerRadius: 4))
             }
 
             Button {
@@ -64,7 +64,7 @@ struct ConditionGroupEditor: View {
             } label: {
                 Image(systemName: group.isNegated ? "exclamationmark.circle.fill" : "exclamationmark.circle")
                     .font(.subheadline)
-                    .foregroundColor(group.isNegated ? .red : Theme.Text.tertiary)
+                    .foregroundStyle(group.isNegated ? .red : Theme.Text.tertiary)
                     .frame(width: 28, height: 28)
                     .contentShape(Rectangle())
             }
@@ -130,7 +130,7 @@ struct ConditionGroupEditor: View {
                     Image(systemName: "plus.circle")
                     Text("Condition")
                 }
-                .foregroundColor(Theme.Tint.main)
+                .foregroundStyle(Theme.Tint.main)
                 .padding(.vertical, 4)
                 .contentShape(Rectangle())
             }
@@ -142,7 +142,7 @@ struct ConditionGroupEditor: View {
                     Image(systemName: "plus.circle")
                     Text("Group")
                 }
-                .foregroundColor(Theme.Tint.main)
+                .foregroundStyle(Theme.Tint.main)
                 .padding(.vertical, 4)
                 .contentShape(Rectangle())
             }
@@ -155,7 +155,7 @@ struct ConditionGroupEditor: View {
         HStack(spacing: 8) {
             Image(systemName: "folder")
                 .font(.caption)
-                .foregroundColor(Theme.Tint.secondary)
+                .foregroundStyle(Theme.Tint.secondary)
 
             if case .group(let subGroup) = group.children[index] {
                 VStack(alignment: .leading, spacing: 2) {
@@ -164,7 +164,7 @@ struct ConditionGroupEditor: View {
                             Text("NOT")
                                 .font(.caption2)
                                 .fontWeight(.bold)
-                                .foregroundColor(.red)
+                                .foregroundStyle(.red)
                         }
                         Text("\(subGroup.logicOperator.displayName) Group")
                             .font(.subheadline)
@@ -172,7 +172,7 @@ struct ConditionGroupEditor: View {
                     }
                     Text("\(subGroup.leafCount) conditions")
                         .font(.caption)
-                        .foregroundColor(Theme.Text.secondary)
+                        .foregroundStyle(Theme.Text.secondary)
                 }
             }
 
@@ -183,7 +183,7 @@ struct ConditionGroupEditor: View {
             } label: {
                 Image(systemName: "trash")
                     .font(.caption)
-                    .foregroundColor(.red)
+                    .foregroundStyle(.red)
                     .frame(width: 28, height: 28)
                     .contentShape(Rectangle())
             }
@@ -229,12 +229,12 @@ private struct ConditionLeafRow: View {
         HStack(spacing: 8) {
             Image(systemName: condition.conditionDraftType.icon)
                 .font(.caption2)
-                .foregroundColor(conditionIconColor)
+                .foregroundStyle(conditionIconColor)
                 .frame(width: 20)
 
             Text(condition.name.isEmpty ? condition.autoName(devices: devices, scenes: scenes) : condition.name)
                 .font(.caption)
-                .foregroundColor(Theme.Text.primary)
+                .foregroundStyle(Theme.Text.primary)
                 .lineLimit(1)
 
             Spacer()
@@ -244,7 +244,7 @@ private struct ConditionLeafRow: View {
             } label: {
                 Image(systemName: "trash")
                     .font(.caption)
-                    .foregroundColor(.red)
+                    .foregroundStyle(.red)
                     .frame(width: 28, height: 28)
                     .contentShape(Rectangle())
             }
@@ -253,7 +253,7 @@ private struct ConditionLeafRow: View {
 
             Image(systemName: "chevron.right")
                 .font(.caption2)
-                .foregroundColor(Theme.Text.tertiary)
+                .foregroundStyle(Theme.Text.tertiary)
         }
         .padding(.vertical, 4)
         .contentShape(Rectangle())
@@ -323,16 +323,16 @@ private struct ConditionLeafEditSheet: View {
             if let result = testResult {
                 HStack(spacing: 10) {
                     Image(systemName: result.passed ? "checkmark.circle.fill" : "xmark.circle.fill")
-                        .foregroundColor(result.passed ? .green : .red)
+                        .foregroundStyle(result.passed ? .green : .red)
                         .font(.title3)
                     VStack(alignment: .leading, spacing: 2) {
                         Text(result.passed ? "Passed" : "Failed")
                             .font(.subheadline)
                             .fontWeight(.semibold)
-                            .foregroundColor(result.passed ? .green : .red)
+                            .foregroundStyle(result.passed ? Color.green : Color.red)
                         Text(result.conditionDescription)
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                             .lineLimit(3)
                     }
                 }
@@ -398,7 +398,7 @@ private struct ConditionLeafEditSheet: View {
             if condition.timeConditionMode.requiresLocation {
                 Text("Requires location configured in Settings")
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
             }
         case .sceneActive:
             Picker("Scene", selection: $condition.sceneId) {
@@ -440,7 +440,7 @@ private struct ConditionLeafEditSheet: View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Start Time")
                 .font(.subheadline)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
             HStack(spacing: 4) {
                 Picker("Hour", selection: startHour) {
                     ForEach(0..<24, id: \.self) { h in
@@ -461,7 +461,7 @@ private struct ConditionLeafEditSheet: View {
         VStack(alignment: .leading, spacing: 8) {
             Text("End Time")
                 .font(.subheadline)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
             HStack(spacing: 4) {
                 Picker("Hour", selection: endHour) {
                     ForEach(0..<24, id: \.self) { h in
@@ -482,7 +482,7 @@ private struct ConditionLeafEditSheet: View {
         if condition.timeRangeStart.totalMinutes > condition.timeRangeEnd.totalMinutes {
             Label("Spans midnight", systemImage: "moon.fill")
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
         }
     }
 }

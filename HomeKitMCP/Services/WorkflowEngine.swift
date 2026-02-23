@@ -515,7 +515,7 @@ actor WorkflowEngine: WorkflowEngineProtocol {
         let logBox = LogBox(execLog)
 
         // Execute blocks in order, updating log after each step
-        var context = ExecutionContext(workflow: workflow, callingWorkflowIds: callerContext?.callingWorkflowIds ?? [])
+        let context = ExecutionContext(workflow: workflow, callingWorkflowIds: callerContext?.callingWorkflowIds ?? [])
         var failed = false
 
         let onUpdate: @Sendable (BlockResult) async -> Void = { [weak self] updated in
@@ -906,7 +906,7 @@ actor WorkflowEngine: WorkflowEngineProtocol {
                 result.detail = "Waiting for \(waitDeviceName) \(waitCharName)..."
                 await onUpdate(result)
 
-                let matched = try await waitForState(block, workflowId: context.workflow.id, workflowName: context.workflow.name) { [weak self] elapsedSeconds in
+                let matched = try await waitForState(block, workflowId: context.workflow.id, workflowName: context.workflow.name) { elapsedSeconds in
                     // Update parent with elapsed time while waiting
                     result.detail = "Waiting for \(waitDeviceName) \(waitCharName)... (\(String(format: "%.1f", elapsedSeconds))s)"
                     await onUpdate(result)
@@ -928,7 +928,7 @@ actor WorkflowEngine: WorkflowEngineProtocol {
                 var nested: [BlockResult] = []
                 var nestedFailed = false
 
-                let nestedUpdate: (BlockResult) async -> Void = { [weak self] updated in
+                let nestedUpdate: (BlockResult) async -> Void = { updated in
                     if let index = nested.firstIndex(where: { $0.id == updated.id }) {
                         nested[index] = updated
                     } else {
@@ -955,7 +955,7 @@ actor WorkflowEngine: WorkflowEngineProtocol {
                 var nested: [BlockResult] = []
                 var repeatFailed = false
 
-                let nestedUpdate: (BlockResult) async -> Void = { [weak self] updated in
+                let nestedUpdate: (BlockResult) async -> Void = { updated in
                     if let index = nested.firstIndex(where: { $0.id == updated.id }) {
                         nested[index] = updated
                     } else {
@@ -993,7 +993,7 @@ actor WorkflowEngine: WorkflowEngineProtocol {
                 var repeatFailed = false
                 var iterations = 0
 
-                let nestedUpdate: (BlockResult) async -> Void = { [weak self] updated in
+                let nestedUpdate: (BlockResult) async -> Void = { updated in
                     if let index = nested.firstIndex(where: { $0.id == updated.id }) {
                         nested[index] = updated
                     } else {
@@ -1035,7 +1035,7 @@ actor WorkflowEngine: WorkflowEngineProtocol {
                 var nested: [BlockResult] = []
                 var groupFailed = false
 
-                let nestedUpdate: (BlockResult) async -> Void = { [weak self] updated in
+                let nestedUpdate: (BlockResult) async -> Void = { updated in
                     if let index = nested.firstIndex(where: { $0.id == updated.id }) {
                         nested[index] = updated
                     } else {
@@ -1060,10 +1060,8 @@ actor WorkflowEngine: WorkflowEngineProtocol {
                 result.status = groupFailed ? .failure : .success
 
             case let .stop(block):
-                result.detail = "Stopping workflow: \(block.outcome.rawValue)"
-                if let msg = block.message, !msg.isEmpty {
-                    result.detail! += " — \(msg)"
-                }
+                let msgSuffix = block.message.flatMap { $0.isEmpty ? nil : " — \($0)" } ?? ""
+                result.detail = "Stopping workflow: \(block.outcome.rawValue)\(msgSuffix)"
                 result.status = .success
                 result.completedAt = Date()
                 await onUpdate(result)
@@ -1279,7 +1277,7 @@ actor WorkflowEngine: WorkflowEngineProtocol {
             // Timeout
             Task {
                 try await Task.sleep(nanoseconds: UInt64(block.timeoutSeconds * 1_000_000_000))
-                await self.timeoutWaiter(waiter, key: key)
+                self.timeoutWaiter(waiter, key: key)
             }
         }
 
@@ -1291,7 +1289,7 @@ actor WorkflowEngine: WorkflowEngineProtocol {
 
     private func notifyStateWaiters(_ change: StateChange) {
         let key = "\(change.deviceId):\(change.characteristicType)"
-        guard var waiters = stateWaiters[key], !waiters.isEmpty else { return }
+        guard let waiters = stateWaiters[key], !waiters.isEmpty else { return }
 
         var remainingWaiters: [StateWaiter] = []
         for waiter in waiters {
@@ -1339,7 +1337,9 @@ actor WorkflowEngine: WorkflowEngineProtocol {
                 try await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
                 throw WorkflowEngineError.timeout
             }
-            let result = try await group.next()!
+            guard let result = try await group.next() else {
+                throw WorkflowEngineError.timeout
+            }
             group.cancelAll()
             return result
         }
@@ -1368,7 +1368,6 @@ enum WorkflowEngineError: LocalizedError {
     case webhookFailed(statusCode: Int)
     case ssrfBlocked(String)
     case stopped(outcome: StopOutcome, message: String?)
-    case circularWorkflowCall(workflowName: String)
 
     var errorDescription: String? {
         switch self {
@@ -1377,7 +1376,6 @@ enum WorkflowEngineError: LocalizedError {
         case let .webhookFailed(code): return "Webhook failed with status \(code)"
         case let .ssrfBlocked(url): return "Request blocked: URL '\(url)' resolves to a private/internal IP address"
         case let .stopped(outcome, message): return "Workflow stopped (\(outcome.rawValue))\(message.map { ": \($0)" } ?? "")"
-        case let .circularWorkflowCall(name): return "Circular workflow call detected: '\(name)'"
         }
     }
 }
