@@ -64,9 +64,13 @@ struct WorkflowEditorView: View {
             .formStyle(.grouped)
             .scrollContentBackground(.hidden)
             .background(Theme.mainBackground)
-            .navigationTitle(mode.isCreate ? "New Workflow" : "Edit Workflow")
+            .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .principal) {
+                    Text(mode.isCreate ? "New Workflow" : "Edit Workflow")
+                        .fontWeight(.semibold)
+                }
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {
                         showingDiscardAlert = true
