@@ -143,7 +143,36 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                         await registry.syncDevices(devices)
                         await registry.syncScenes(scenes)
 
+                        // Clean up orphaned duplicates from the init() reverse-lookup bug
+                        let dedupResult = await registry.deduplicateOrphanedEntries()
                         var currentWorkflows = workflows
+                        if dedupResult.hasChanges {
+                            AppLogger.registry.info("Startup dedup: removed \(dedupResult.removedDeviceCount) device(s), \(dedupResult.removedSceneCount) scene(s)")
+                            if !dedupResult.deviceIdRemapping.isEmpty || !dedupResult.sceneIdRemapping.isEmpty
+                                || !dedupResult.serviceIdRemapping.isEmpty || !dedupResult.characteristicIdRemapping.isEmpty {
+                                var allServiceRemapping = dedupResult.serviceIdRemapping
+                                for (oldCharId, newCharId) in dedupResult.characteristicIdRemapping {
+                                    allServiceRemapping[oldCharId] = newCharId
+                                }
+                                let combinedServiceMap: [String: [String: String]] = allServiceRemapping.isEmpty ? [:] : ["_all": allServiceRemapping]
+                                var updatedWorkflows: [Workflow] = []
+                                for workflow in currentWorkflows {
+                                    if let remapped = WorkflowMigrationService.applyRemapping(
+                                        to: workflow,
+                                        deviceIdMap: dedupResult.deviceIdRemapping,
+                                        serviceIdMap: combinedServiceMap,
+                                        sceneIdMap: dedupResult.sceneIdRemapping
+                                    ) {
+                                        updatedWorkflows.append(remapped)
+                                    } else {
+                                        updatedWorkflows.append(workflow)
+                                    }
+                                }
+                                await self.container.workflowStorageService.replaceAll(workflows: updatedWorkflows)
+                                currentWorkflows = updatedWorkflows
+                                AppLogger.registry.info("Startup dedup: remapped workflow references")
+                            }
+                        }
                         let (migratedWorkflows, count) = WorkflowMigrationService.migrateToStableIds(currentWorkflows, registry: registry)
                         if count > 0 {
                             await self.container.workflowStorageService.replaceAll(workflows: migratedWorkflows)

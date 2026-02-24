@@ -479,6 +479,25 @@ private struct WorkflowConditionRow: View {
                     .foregroundColor(.red)
                 WorkflowConditionRow(condition: inner, devices: devices, scenes: scenes, depth: depth + 1)
             }
+        case let .blockResult(c):
+            HStack(spacing: 6) {
+                Image(systemName: "checkmark.rectangle.stack")
+                    .foregroundStyle(.purple)
+                switch c.scope {
+                case .specific(let blockId):
+                    Text("Block \(blockId.uuidString.prefix(8)) is \(c.expectedStatus.displayName)")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                case .all:
+                    Text("All blocks are \(c.expectedStatus.displayName)")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                case .any:
+                    Text("Any block is \(c.expectedStatus.displayName)")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                }
+            }
         }
     }
 }
@@ -494,9 +513,9 @@ private struct WorkflowBlockRow: View {
 
     var body: some View {
         switch block {
-        case let .action(action):
+        case let .action(action, _):
             ActionBlockRow(action: action, depth: depth, devices: devices, scenes: scenes)
-        case let .flowControl(flowControl):
+        case let .flowControl(flowControl, _):
             FlowControlBlockRow(flowControl: flowControl, depth: depth, devices: devices, scenes: scenes)
         }
     }
@@ -650,7 +669,7 @@ private struct FlowControlBlockRow: View {
         case .repeat: return "repeat"
         case .repeatWhile: return "repeat.circle"
         case .group: return "folder"
-        case .stop: return "stop.circle.fill"
+        case .stop: return "arrow.uturn.backward.circle.fill"
         case .executeWorkflow: return "arrow.triangle.turn.up.right.diamond.fill"
         }
     }
@@ -664,7 +683,7 @@ private struct FlowControlBlockRow: View {
         case let .repeat(b): return b.name ?? "Repeat \(b.count) times"
         case let .repeatWhile(b): return b.name ?? "Repeat while (max \(b.maxIterations))"
         case let .group(b): return b.name ?? b.label ?? "Group"
-        case let .stop(b): return b.name ?? "Stop (\(b.outcome.rawValue))"
+        case let .stop(b): return b.name ?? "Return (\(b.outcome.rawValue))"
         case let .executeWorkflow(b): return b.name ?? "Execute Workflow (\(b.executionMode.rawValue))"
         }
     }

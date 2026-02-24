@@ -555,10 +555,12 @@ actor AIWorkflowService {
         { "block": "flowControl", "type": "repeat", "name": "optional", "count": 3, "blocks": [ ... ], "delayBetweenSeconds": 1.0 }
         { "block": "flowControl", "type": "repeatWhile", "name": "optional", "condition": { ... }, "blocks": [ ... ], "maxIterations": 10, "delayBetweenSeconds": 1.0 }
         { "block": "flowControl", "type": "group", "name": "optional", "label": "Group label", "blocks": [ ... ] }
-        { "block": "flowControl", "type": "stop", "name": "optional", "outcome": "success", "message": "optional reason" }
+        { "block": "flowControl", "type": "return", "name": "optional", "outcome": "success", "message": "optional reason" }
         { "block": "flowControl", "type": "executeWorkflow", "name": "optional", "targetWorkflowId": "workflow-uuid", "executionMode": "inline" }
         ```
-        stop outcomes: "success", "error", "cancelled".
+        return outcomes: "success", "error", "cancelled". \
+        Return exits the current scope (group, repeat, conditional branch) with the given outcome. \
+        At top level it terminates the entire workflow.
         executeWorkflow modes: "inline" (wait for it), "parallel" (fire and continue), "delegate" (fire and stop this workflow).
         delayBetweenSeconds is optional on repeat and repeatWhile blocks.
 
@@ -577,7 +579,9 @@ actor AIWorkflowService {
 
         ## Guard Condition Types (workflow-level "conditions" array)
 
-        Guard conditions are checked before the workflow runs. If any fail, the workflow is skipped.
+        Guard conditions are checked before the workflow runs. If any fail, the workflow is skipped. \
+        IMPORTANT: Only deviceState, timeCondition, sceneActive (and compound and/or/not) are valid here. \
+        Do NOT use blockResult in guard conditions — no blocks have executed yet at that point.
 
         ```json
         { "type": "deviceState", "deviceId": "...", "deviceName": "Living Room Light", "roomName": "Living Room", "serviceId": "optional", "characteristicType": "Power", "comparison": { "type": "equals", "value": true } }
@@ -595,6 +599,24 @@ actor AIWorkflowService {
         timeCondition modes: "beforeSunrise", "afterSunrise", "beforeSunset", "afterSunset", \
         "daytime" (sunrise–sunset), "nighttime" (sunset–sunrise), "timeRange" (custom hours, cross-midnight aware). \
         startTime/endTime required only for timeRange mode (hour 0-23, minute 0-59).
+
+        ## Block Result Condition (conditional/if-else blocks only)
+
+        blockResult checks the execution status of a previously-run block. It is ONLY valid inside \
+        conditional (if/else) block "condition" fields. Do NOT use blockResult in workflow-level guard \
+        "conditions", repeatWhile conditions, or anywhere else. Requires continueOnError=true on the workflow.
+        ```json
+        { "type": "blockResult", "scope": "specific", "blockId": "block-uuid", "expectedStatus": "success" }
+        ```
+        blockResult scope: "specific" (check a named block by blockId), "lastBlock" (most recent block), \
+        "anyPreviousBlock" (any block ran with that status).
+
+        BLOCK ORDERING RULES: Each block has a 1-based ordinal reflecting its position in depth-first \
+        execution order. A blockResult condition with scope "specific" can ONLY reference blocks with a \
+        lower ordinal (i.e., blocks that execute before the condition is evaluated). If a referenced \
+        block has not executed yet, the condition evaluates to false. When using "specific" scope, \
+        always ensure the referenced block appears earlier in the blocks array than the conditional \
+        block containing the condition.
 
         ## Trigger Condition Types (for deviceStateChange triggers only)
         - "changed": fires on any value change (no "value" field needed)

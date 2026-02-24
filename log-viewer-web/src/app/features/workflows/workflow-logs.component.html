@@ -1,0 +1,67 @@
+<div class="workflow-logs-page">
+  <!-- Toolbar -->
+  <div class="toolbar">
+    <div class="toolbar-left">
+      <app-icon name="bolt-circle-fill" [size]="20" />
+      <h2>Workflow Executions</h2>
+    </div>
+    <div class="toolbar-right">
+      @if (workflows().length > 0) {
+        <select
+          class="workflow-select"
+          [ngModel]="selectedWorkflowId()"
+          (ngModelChange)="onWorkflowChange($event)"
+        >
+          @for (wf of workflows(); track wf.id) {
+            <option [value]="wf.id">{{ wf.name }}</option>
+          }
+        </select>
+      }
+      <button class="refresh-btn" (click)="refresh()" [disabled]="isLoading()">
+        <app-icon name="refresh-circle-fill" [size]="16" [class.animate-spin]="isLoading()" />
+      </button>
+    </div>
+  </div>
+
+  <!-- Error -->
+  @if (error()) {
+    <div class="error-banner animate-fade-in">
+      <app-icon name="exclamation-triangle" [size]="16" />
+      <span>{{ error() }}</span>
+    </div>
+  }
+
+  <!-- Loading -->
+  @if (isLoading() && executionLogs().length === 0) {
+    <div class="loading-state">
+      <app-icon name="spinner" [size]="24" />
+      <span>Loading executions...</span>
+    </div>
+  }
+
+  <!-- Empty -->
+  @if (!isLoading() && executionLogs().length === 0 && !error()) {
+    @if (workflows().length === 0) {
+      <app-empty-state
+        icon="bolt-circle-fill"
+        title="No workflows"
+        message="No workflows found on the server. Create workflows in the HomeKit MCP app first."
+      />
+    } @else {
+      <app-empty-state
+        icon="bolt-circle-fill"
+        title="No executions"
+        message="This workflow hasn't been executed yet. Trigger it and execution logs will appear here."
+      />
+    }
+  }
+
+  <!-- Execution list -->
+  @if (executionLogs().length > 0) {
+    <div class="log-list">
+      @for (log of executionLogs(); track log.id) {
+        <app-workflow-log-row [log]="log" (click)="openDetail(log)" />
+      }
+    </div>
+  }
+</div>

@@ -1,0 +1,223 @@
+.detail-page {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: var(--spacing-md);
+}
+
+.back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
+  color: var(--tint-main);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+  margin-bottom: var(--spacing-md);
+}
+
+.back-btn app-icon {
+  transform: rotate(90deg);
+}
+
+.back-btn:hover {
+  background: color-mix(in srgb, var(--tint-main) 10%, transparent);
+}
+
+.loading-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-xl);
+  color: var(--text-secondary);
+}
+
+.loading-state app-icon {
+  animation: spin 1s linear infinite;
+}
+
+.error-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: color-mix(in srgb, var(--status-error) 10%, transparent);
+  color: var(--status-error);
+  font-size: var(--font-size-sm);
+  border-radius: var(--radius-sm);
+}
+
+.section {
+  background: var(--bg-content);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-md);
+  margin-bottom: var(--spacing-md);
+  box-shadow: var(--shadow-card);
+}
+
+.header-section {
+  /* no extra styles */
+}
+
+.header-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-md);
+}
+
+.header-icon {
+  flex-shrink: 0;
+}
+
+.header-info {
+  flex: 1;
+}
+
+.workflow-name {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-primary);
+  margin: 0 0 var(--spacing-xs);
+}
+
+.header-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.duration {
+  font-size: var(--font-size-sm);
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+}
+
+.timestamp {
+  margin-top: var(--spacing-sm);
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+}
+
+.sep {
+  margin: 0 4px;
+}
+
+.error-message {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: var(--spacing-sm);
+  padding: var(--spacing-sm);
+  background: color-mix(in srgb, var(--status-error) 10%, transparent);
+  border-radius: var(--radius-sm);
+  color: var(--status-error);
+  font-size: var(--font-size-sm);
+}
+
+.section-title {
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+  margin: 0 0 var(--spacing-sm);
+}
+
+.step-count {
+  font-weight: var(--font-weight-regular);
+  color: var(--text-tertiary);
+}
+
+.trigger-content {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.trigger-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+
+.trigger-row app-icon {
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+}
+
+.value-change {
+  padding-left: 20px;
+}
+
+.old-val {
+  color: var(--text-tertiary);
+}
+
+.new-val {
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+}
+
+.trigger-description {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  font-style: italic;
+  padding-left: 20px;
+}
+
+.conditions-content,
+.blocks-content {
+  padding: var(--spacing-xs) 0;
+}
+
+@media (max-width: 768px) {
+  .detail-page {
+    padding: var(--spacing-sm);
+  }
+  .section {
+    padding: var(--spacing-sm);
+    border-radius: var(--radius-sm);
+  }
+  .workflow-name {
+    font-size: var(--font-size-lg);
+  }
+  .header-row {
+    gap: var(--spacing-sm);
+  }
+  .header-meta {
+    flex-wrap: wrap;
+  }
+  .trigger-row {
+    flex-wrap: wrap;
+  }
+  .value-change {
+    padding-left: var(--spacing-sm);
+  }
+  .trigger-description {
+    padding-left: var(--spacing-sm);
+  }
+}
+
+@media (max-width: 480px) {
+  .detail-page {
+    padding: var(--spacing-xs);
+  }
+  .section {
+    padding: var(--spacing-xs) var(--spacing-sm);
+    margin-bottom: var(--spacing-sm);
+  }
+  .workflow-name {
+    font-size: var(--font-size-base);
+  }
+  .back-btn {
+    margin-bottom: var(--spacing-sm);
+    font-size: var(--font-size-xs);
+  }
+  .conditions-content,
+  .blocks-content {
+    overflow-x: auto;
+  }
+}

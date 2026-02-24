@@ -23,7 +23,7 @@ struct LogRow: View {
     }
 
     private var hasDetailedData: Bool {
-        log.detailedRequestBody != nil || log.detailedResponseBody != nil
+        log.detailedRequestBody != nil
     }
 
     /// Tint color for the log category icon background.
@@ -308,27 +308,6 @@ struct LogRow: View {
                         .foregroundColor(Theme.Tint.main)
                     }
                     Text(Self.formatJSON(detailedReq))
-                        .font(.system(.footnote, design: .monospaced))
-                        .foregroundColor(Theme.Text.secondary)
-                        .textSelection(.enabled)
-                }
-                if let detailedResp = log.detailedResponseBody {
-                    HStack {
-                        Text("Response:")
-                            .font(.footnote)
-                            .fontWeight(.semibold)
-                            .foregroundColor(Theme.Text.secondary)
-                        Spacer()
-                        Button {
-                            UIPasteboard.general.string = detailedResp
-                        } label: {
-                            Label("Copy", systemImage: "doc.on.doc")
-                                .font(.footnote)
-                        }
-                        .buttonStyle(.plain)
-                        .foregroundColor(Theme.Tint.main)
-                    }
-                    Text(Self.formatJSON(detailedResp))
                         .font(.system(.footnote, design: .monospaced))
                         .foregroundColor(Theme.Text.secondary)
                         .textSelection(.enabled)

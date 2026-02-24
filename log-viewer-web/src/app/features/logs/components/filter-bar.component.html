@@ -1,0 +1,100 @@
+@if (isAnyDropdownOpen()) {
+  <div class="dropdown-backdrop" (click)="closeDropdowns()"></div>
+}
+<div class="filter-bar" (click)="$event.stopPropagation()">
+  <!-- Category Filter -->
+  <div class="filter-chip-wrapper">
+    <button
+      class="filter-chip"
+      [class.active]="selectedCategories().size > 0"
+      (click)="showCategoryDropdown.set(!showCategoryDropdown()); showDeviceDropdown.set(false)"
+    >
+      <app-icon name="bolt-circle-fill" [size]="14" />
+      <span>{{ categoryLabel() }}</span>
+      <app-icon name="chevron-down" [size]="12" />
+    </button>
+    @if (showCategoryDropdown()) {
+      <div class="dropdown animate-scale-in">
+        @for (cat of allCategories; track cat) {
+          <button class="dropdown-item" (click)="toggleCategory(cat)">
+            <span class="check-space">
+              @if (selectedCategories().has(cat)) {
+                <app-icon name="checkmark-circle-fill" [size]="16" />
+              }
+            </span>
+            <app-icon [name]="categoryMeta[cat].icon" [size]="16" [style.color]="categoryMeta[cat].color" />
+            <span>{{ categoryMeta[cat].label }}</span>
+          </button>
+        }
+      </div>
+    }
+  </div>
+
+  <!-- Device Filter -->
+  @if (availableDevices().length > 0) {
+    <div class="filter-chip-wrapper">
+      <button
+        class="filter-chip"
+        [class.active]="selectedDevices().size > 0"
+        (click)="showDeviceDropdown.set(!showDeviceDropdown()); showCategoryDropdown.set(false)"
+      >
+        <app-icon name="house" [size]="14" />
+        <span>{{ deviceLabel() }}</span>
+        <app-icon name="chevron-down" [size]="12" />
+      </button>
+      @if (showDeviceDropdown()) {
+        <div class="dropdown animate-scale-in">
+          @for (device of availableDevices(); track device) {
+            <button class="dropdown-item" (click)="toggleDevice(device)">
+              <span class="check-space">
+                @if (selectedDevices().has(device)) {
+                  <app-icon name="checkmark-circle-fill" [size]="16" />
+                }
+              </span>
+              <span>{{ device }}</span>
+            </button>
+          }
+        </div>
+      }
+    </div>
+  }
+
+  <!-- Search -->
+  <div class="search-input-wrapper">
+    <app-icon name="magnifying-glass" [size]="14" />
+    <input
+      type="text"
+      class="search-input"
+      placeholder="Search logs..."
+      [ngModel]="searchText()"
+      (ngModelChange)="onSearchInput($event)"
+    />
+  </div>
+
+  <!-- Date Range -->
+  <div class="date-range">
+    <input
+      type="date"
+      class="date-input"
+      [ngModel]="dateFrom()"
+      (ngModelChange)="dateFrom.set($event); onDateChange()"
+      placeholder="From"
+    />
+    <span class="date-sep">-</span>
+    <input
+      type="date"
+      class="date-input"
+      [ngModel]="dateTo()"
+      (ngModelChange)="dateTo.set($event); onDateChange()"
+      placeholder="To"
+    />
+  </div>
+
+  <!-- Clear All -->
+  @if (hasActiveFilters()) {
+    <button class="clear-btn" (click)="onClearAll()">
+      <app-icon name="xmark-circle-fill" [size]="16" />
+      <span>Clear</span>
+    </button>
+  }
+</div>

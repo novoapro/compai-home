@@ -22,8 +22,12 @@ struct WorkflowEditorView: View {
     @State private var showingDiscardAlert = false
     @State private var showingValidationAlert = false
     @State private var validationErrors: [String] = []
+    @State private var showingWarningsAlert = false
+    @State private var validationWarnings: [String] = []
+    @State private var pendingValidation: WorkflowValidation?
     @State private var showCopiedToast = false
     @State private var copiedToastTask: Task<Void, Never>?
+    @State private var showContinueOnErrorAlert = false
 
     /// Nested block sheet state lives here — at a stable level that
     /// does NOT re-render when individual blocks change inside the form.
@@ -50,12 +54,22 @@ struct WorkflowEditorView: View {
             Form {
                 detailsSection
                 TriggerEditorSection(triggers: $draft.triggers, devices: devices, onCopy: showCopyToast)
-                ConditionEditorSection(conditionRoot: $draft.conditionRoot, devices: devices, scenes: scenes)
+                ConditionEditorSection(
+                    conditionRoot: $draft.conditionRoot,
+                    devices: devices,
+                    scenes: scenes,
+                    continueOnError: draft.continueOnError,
+                    allBlocks: draft.allBlockDrafts()
+                )
                 BlockEditorSection(
                     blocks: $draft.blocks,
                     devices: devices,
                     scenes: scenes,
                     workflows: workflows,
+                    continueOnError: draft.continueOnError,
+                    allBlocks: draft.allBlockDrafts(),
+                    referencedBlockIds: draft.blockIdsReferencedByConditions(),
+                    blockOrdinals: draft.blockOrdinals(),
                     onRequestNestedEdit: { state in
                         nestedEditState = state
                     }
@@ -92,12 +106,19 @@ struct WorkflowEditorView: View {
             } message: {
                 Text(validationErrors.joined(separator: "\n"))
             }
+            .alert("Warning", isPresented: $showingWarningsAlert) {
+                Button("Save Anyway") { confirmSave() }
+                Button("Cancel", role: .cancel) { pendingValidation = nil }
+            } message: {
+                Text(validationWarnings.joined(separator: "\n"))
+            }
             .sheet(item: $nestedEditState) { state in
                 NestedBlockEditorSheet(
                     title: BlockEditorSection.nestedSheetTitle(for: state, blocks: draft.blocks),
                     blocks: BlockEditorSection.nestedBlocksBinding(for: state, blocks: $draft.blocks),
                     devices: devices,
-                    scenes: scenes
+                    scenes: scenes,
+                    blockOrdinals: draft.blockOrdinals()
                 )
             }
             .overlay(alignment: .bottom) {
@@ -137,22 +158,47 @@ struct WorkflowEditorView: View {
             TextField("Description (optional)", text: $draft.description)
             Toggle("Enabled", isOn: $draft.isEnabled)
                 .tint(Theme.Tint.main)
-            Toggle("Continue on Error", isOn: $draft.continueOnError)
-                .tint(Theme.Tint.main)
+            Toggle("Continue on Error", isOn: Binding(
+                get: { draft.continueOnError },
+                set: { newValue in
+                    if !newValue && draft.hasBlockResultConditions() {
+                        showContinueOnErrorAlert = true
+                    } else {
+                        draft.continueOnError = newValue
+                    }
+                }
+            ))
+            .tint(Theme.Tint.main)
         } header: {
             Text("Details")
         }
         .listRowBackground(Theme.contentBackground)
+        .alert("Cannot Disable", isPresented: $showContinueOnErrorAlert) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("Remove all Block Result conditions from the workflow before disabling Continue on Error.")
+        }
     }
 
     private func save() {
         let validation = draft.validate()
-        if validation.isValid {
-            onSave(draft)
-            dismiss()
-        } else {
+        if !validation.isValid {
             validationErrors = validation.errors
             showingValidationAlert = true
+            return
         }
+        if !validation.warnings.isEmpty {
+            validationWarnings = validation.warnings
+            pendingValidation = validation
+            showingWarningsAlert = true
+            return
+        }
+        onSave(draft)
+        dismiss()
+    }
+
+    private func confirmSave() {
+        onSave(draft)
+        dismiss()
     }
 }

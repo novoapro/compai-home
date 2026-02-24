@@ -15,7 +15,7 @@ final class ServiceContainer {
 
     // MARK: - Core Services
 
-    let loggingService: LoggingService = LoggingService()
+    lazy var loggingService: LoggingService = LoggingService(storage: storageService)
     let configService: DeviceConfigurationService = DeviceConfigurationService()
     let deviceRegistryService: DeviceRegistryService = DeviceRegistryService()
     let workflowStorageService: WorkflowStorageService = WorkflowStorageService()

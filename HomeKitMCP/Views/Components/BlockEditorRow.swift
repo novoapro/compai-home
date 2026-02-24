@@ -5,6 +5,9 @@ struct BlockEditorRow: View {
     let devices: [DeviceModel]
     var scenes: [SceneModel] = []
     let allowNesting: Bool
+    var continueOnError: Bool = false
+    var allBlocks: [BlockDraft] = []
+    var isReferencedByCondition: Bool = false
     let onEditNestedBlocks: ((String, [BlockDraft]) -> Void)?
     let onDelete: (() -> Void)?
     var onDuplicate: (() -> Void)?
@@ -12,8 +15,15 @@ struct BlockEditorRow: View {
     var onMoveToContainer: ((UUID, String) -> Void)?
     var isReorderMode: Bool = false
     var workflows: [Workflow] = []
+    /// Whether this is the first block in the list (suppresses the top gap separator).
+    var isFirstBlock: Bool = true
+    /// 1-based execution order index for this block. Shown as a badge.
+    var ordinal: Int?
+    /// Full ordinals map for passing to condition editors.
+    var blockOrdinals: [UUID: Int] = [:]
     @State private var isExpanded: Bool = true
     @State private var isEditingName: Bool = false
+    @State private var showReferencedAlert: Bool = false
 
     var body: some View {
         if isReorderMode {
@@ -34,8 +44,14 @@ struct BlockEditorRow: View {
                     Divider()
                 }
                 if let onDelete {
-                    Button(role: .destructive) { onDelete() } label: {
-                        Label("Remove Block", systemImage: "trash")
+                    Button(role: .destructive) {
+                        if isReferencedByCondition {
+                            showReferencedAlert = true
+                        } else {
+                            onDelete()
+                        }
+                    } label: {
+                        Label(isReferencedByCondition ? "Cannot Remove (Referenced)" : "Remove Block", systemImage: "trash")
                     }
                 }
             }
@@ -43,97 +59,127 @@ struct BlockEditorRow: View {
     }
 
     private var blockLabel: some View {
-        HStack(spacing: 8) {
-            if isReorderMode {
-                Image(systemName: "line.3.horizontal")
-                    .font(.body)
-                    .foregroundColor(Theme.Text.tertiary)
-                    .frame(width: 28, height: 28)
+        VStack(spacing: 0) {
+            if !isFirstBlock && !isReorderMode {
+                Rectangle()
+                    .fill(Color(UIColor.separator))
+                    .frame(height: 3)
+                    .padding(.horizontal, -16)
+                    .padding(.bottom, 10)
             }
-
-            Image(systemName: block.blockType.icon)
-                .font(.footnote)
-                .foregroundColor(block.blockType.isFlowControl ? Theme.Tint.secondary : Theme.Tint.main)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(block.blockType.displayName)
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                if isEditingName {
-                    TextField("Name", text: blockNameBinding)
-                        .font(.footnote)
-                        .textFieldStyle(.roundedBorder)
-                        .onSubmit { isEditingName = false }
-                } else {
-                    Text(block.displayName(devices: devices, scenes: scenes))
-                        .font(.footnote)
-                        .foregroundColor(Theme.Text.secondary)
-                        .lineLimit(1)
+            HStack(spacing: 8) {
+                if isReorderMode {
+                    Image(systemName: "line.3.horizontal")
+                        .font(.body)
+                        .foregroundColor(Theme.Text.tertiary)
+                        .frame(width: 28, height: 28)
                 }
-            }
 
-            Spacer()
+                if let ordinal {
+                    Text("#\(ordinal)")
+                        .font(.caption2)
+                        .fontWeight(.bold)
+                        .monospacedDigit()
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 2)
+                        .background(block.blockType.isFlowControl ? Theme.Tint.secondary : Theme.Tint.main)
+                        .clipShape(RoundedRectangle(cornerRadius: 4))
+                }
 
-            if !isReorderMode {
-                HStack(spacing: 4) {
-                    Button {
-                        isEditingName.toggle()
-                    } label: {
-                        Image(systemName: isEditingName ? "checkmark.circle.fill" : "pencil")
-                            .font(.subheadline)
+                Image(systemName: block.blockType.icon)
+                    .font(.footnote)
+                    .foregroundColor(block.blockType.isFlowControl ? Theme.Tint.secondary : Theme.Tint.main)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(block.blockType.displayName)
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                    if isEditingName {
+                        TextField("Name", text: blockNameBinding)
+                            .font(.footnote)
+                            .textFieldStyle(.roundedBorder)
+                            .onSubmit { isEditingName = false }
+                    } else {
+                        Text(block.displayName(devices: devices, scenes: scenes))
+                            .font(.footnote)
                             .foregroundColor(Theme.Text.secondary)
-                            .frame(width: 32, height: 32)
-                            .contentShape(Rectangle())
+                            .lineLimit(1)
                     }
-                    .buttonStyle(.plain)
+                }
 
-                    if let onDuplicate {
+                Spacer()
+
+                if !isReorderMode {
+                    HStack(spacing: 4) {
                         Button {
-                            onDuplicate()
+                            isEditingName.toggle()
                         } label: {
-                            Image(systemName: "doc.on.doc")
+                            Image(systemName: isEditingName ? "checkmark.circle.fill" : "pencil")
                                 .font(.subheadline)
                                 .foregroundColor(Theme.Text.secondary)
                                 .frame(width: 32, height: 32)
                                 .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
-                        .accessibilityLabel("Duplicate")
-                    }
 
-                    if let onMoveToContainer, !moveTargets.isEmpty {
-                        Menu {
-                            ForEach(moveTargets) { target in
-                                Button {
-                                    onMoveToContainer(target.containerBlockId, target.label)
-                                } label: {
-                                    Label(target.description, systemImage: target.icon)
-                                }
+                        if let onDuplicate {
+                            Button {
+                                onDuplicate()
+                            } label: {
+                                Image(systemName: "doc.on.doc")
+                                    .font(.subheadline)
+                                    .foregroundColor(Theme.Text.secondary)
+                                    .frame(width: 32, height: 32)
+                                    .contentShape(Rectangle())
                             }
-                        } label: {
-                            Image(systemName: "arrow.right.square")
-                                .font(.subheadline)
-                                .foregroundColor(Theme.Text.secondary)
-                                .frame(width: 32, height: 32)
-                                .contentShape(Rectangle())
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Duplicate")
                         }
-                        .accessibilityLabel("Move to")
-                    }
 
-                    if let onDelete {
-                        Button(role: .destructive) {
-                            onDelete()
-                        } label: {
-                            Image(systemName: "trash")
-                                .font(.subheadline)
-                                .foregroundColor(.red)
-                                .frame(width: 32, height: 32)
-                                .contentShape(Rectangle())
+                        if let onMoveToContainer, !moveTargets.isEmpty {
+                            Menu {
+                                ForEach(moveTargets) { target in
+                                    Button {
+                                        onMoveToContainer(target.containerBlockId, target.label)
+                                    } label: {
+                                        Label(target.description, systemImage: target.icon)
+                                    }
+                                }
+                            } label: {
+                                Image(systemName: "arrow.right.square")
+                                    .font(.subheadline)
+                                    .foregroundColor(Theme.Text.secondary)
+                                    .frame(width: 32, height: 32)
+                                    .contentShape(Rectangle())
+                            }
+                            .accessibilityLabel("Move to")
                         }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("Remove")
+
+                        if let onDelete {
+                            Button(role: .destructive) {
+                                if isReferencedByCondition {
+                                    showReferencedAlert = true
+                                } else {
+                                    onDelete()
+                                }
+                            } label: {
+                                Image(systemName: "trash")
+                                    .font(.subheadline)
+                                    .foregroundColor(isReferencedByCondition ? Theme.Text.tertiary : .red)
+                                    .frame(width: 32, height: 32)
+                                    .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Remove")
+                        }
                     }
                 }
             }
+        }
+        .alert("Cannot Delete Block", isPresented: $showReferencedAlert) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("This block is referenced by a Block Result condition. Remove the condition first before deleting this block.")
         }
     }
 
@@ -238,7 +284,7 @@ extension BlockEditorRow {
     }
 
     private var conditionalContent: some View {
-        ConditionalEditor(block: $block, devices: devices, scenes: scenes, allowNesting: allowNesting, onEditNestedBlocks: onEditNestedBlocks)
+        ConditionalEditor(block: $block, devices: devices, scenes: scenes, allowNesting: allowNesting, continueOnError: continueOnError, allBlocks: allBlocks, currentBlockId: block.id, blockOrdinals: blockOrdinals, onEditNestedBlocks: onEditNestedBlocks)
     }
 
     private var repeatContent: some View {
@@ -246,7 +292,7 @@ extension BlockEditorRow {
     }
 
     private var repeatWhileContent: some View {
-        RepeatWhileEditor(block: $block, devices: devices, scenes: scenes, allowNesting: allowNesting, onEditNestedBlocks: onEditNestedBlocks)
+        RepeatWhileEditor(block: $block, devices: devices, scenes: scenes, allowNesting: allowNesting, continueOnError: continueOnError, allBlocks: allBlocks, currentBlockId: block.id, blockOrdinals: blockOrdinals, onEditNestedBlocks: onEditNestedBlocks)
     }
 
     private var groupContent: some View {
@@ -489,6 +535,10 @@ private struct ConditionalEditor: View {
     let devices: [DeviceModel]
     var scenes: [SceneModel] = []
     let allowNesting: Bool
+    var continueOnError: Bool = false
+    var allBlocks: [BlockDraft] = []
+    var currentBlockId: UUID? = nil
+    var blockOrdinals: [UUID: Int] = [:]
     let onEditNestedBlocks: ((String, [BlockDraft]) -> Void)?
 
     private var draft: Binding<ConditionalDraft> {
@@ -506,7 +556,12 @@ private struct ConditionalEditor: View {
             group: draft.conditionRoot,
             devices: devices,
             scenes: scenes,
-            depth: 0
+            depth: 0,
+            continueOnError: continueOnError,
+            allBlocks: allBlocks,
+            currentBlockId: currentBlockId,
+            allowBlockResult: true,
+            blockOrdinals: blockOrdinals
         )
 
         if allowNesting {
@@ -617,6 +672,10 @@ private struct RepeatWhileEditor: View {
     let devices: [DeviceModel]
     var scenes: [SceneModel] = []
     let allowNesting: Bool
+    var continueOnError: Bool = false
+    var allBlocks: [BlockDraft] = []
+    var currentBlockId: UUID? = nil
+    var blockOrdinals: [UUID: Int] = [:]
     let onEditNestedBlocks: ((String, [BlockDraft]) -> Void)?
 
     private var draft: Binding<RepeatWhileDraft> {
@@ -634,7 +693,12 @@ private struct RepeatWhileEditor: View {
             group: draft.conditionRoot,
             devices: devices,
             scenes: scenes,
-            depth: 0
+            depth: 0,
+            continueOnError: continueOnError,
+            allBlocks: allBlocks,
+            currentBlockId: currentBlockId,
+            allowBlockResult: false,
+            blockOrdinals: blockOrdinals
         )
 
         Stepper("Max Iterations: \(draft.wrappedValue.maxIterations)", value: draft.maxIterations, in: 1...10000)

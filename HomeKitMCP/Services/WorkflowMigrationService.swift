@@ -213,14 +213,14 @@ enum WorkflowMigrationService {
 
     private static func collectBlockRefs(_ block: WorkflowBlock, into refs: inout Set<DeviceRef>) {
         switch block {
-        case let .action(action):
+        case let .action(action, _):
             switch action {
             case let .controlDevice(a):
                 refs.insert(DeviceRef(deviceId: a.deviceId, serviceId: a.serviceId, contextName: a.deviceName, contextRoom: a.roomName, contextServiceType: a.serviceType, location: "block"))
             default:
                 break
             }
-        case let .flowControl(fc):
+        case let .flowControl(fc, _):
             switch fc {
             case let .waitForState(b):
                 refs.insert(DeviceRef(deviceId: b.deviceId, serviceId: b.serviceId, contextName: b.deviceName, contextRoom: b.roomName, contextServiceType: b.serviceType, location: "block"))
@@ -293,14 +293,14 @@ enum WorkflowMigrationService {
 
     private static func collectSceneBlockRefs(_ block: WorkflowBlock, into refs: inout Set<SceneRef>) {
         switch block {
-        case let .action(action):
+        case let .action(action, _):
             switch action {
             case let .runScene(a):
                 refs.insert(SceneRef(sceneId: a.sceneId, sceneName: a.sceneName, location: "block (runScene)"))
             default:
                 break
             }
-        case let .flowControl(fc):
+        case let .flowControl(fc, _):
             switch fc {
             case let .conditional(b):
                 collectSceneConditionRefs(b.condition, into: &refs)
@@ -425,7 +425,7 @@ enum WorkflowMigrationService {
 
     /// Apply device/service/scene ID remapping by encoding to JSON, doing string replacement, and decoding back.
     /// This avoids having to rebuild every nested struct manually.
-    private static func applyRemapping(to workflow: Workflow, deviceIdMap: [String: String], serviceIdMap: [String: [String: String]], sceneIdMap: [String: String] = [:]) -> Workflow? {
+    static func applyRemapping(to workflow: Workflow, deviceIdMap: [String: String], serviceIdMap: [String: [String: String]], sceneIdMap: [String: String] = [:]) -> Workflow? {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
 
@@ -793,12 +793,12 @@ extension WorkflowMigrationService {
 
     private static func collectBlockCharTypes(_ block: WorkflowBlock, into types: inout Set<String>) {
         switch block {
-        case .action(let action):
+        case .action(let action, _):
             switch action {
             case .controlDevice(let a): types.insert(a.characteristicType)
             default: break
             }
-        case .flowControl(let fc):
+        case .flowControl(let fc, _):
             switch fc {
             case .waitForState(let b): types.insert(b.characteristicType)
             case .conditional(let b):

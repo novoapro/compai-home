@@ -50,6 +50,23 @@ struct StateChangeLog: Identifiable, Codable {
     }
 }
 
+extension StateChangeLog {
+    private static let maxFieldLength = 10_000
+
+    func truncatingLargeFields() -> StateChangeLog {
+        var copy = self
+        copy.detailedRequestBody = copy.detailedRequestBody.map { Self.truncate($0) }
+        copy.detailedResponseBody = copy.detailedResponseBody.map { Self.truncate($0) }
+        copy.errorDetails = copy.errorDetails.map { Self.truncate($0) }
+        return copy
+    }
+
+    private static func truncate(_ s: String) -> String {
+        guard s.count > maxFieldLength else { return s }
+        return String(s.prefix(maxFieldLength)) + "… [truncated]"
+    }
+}
+
 struct StateChange {
     let deviceId: String
     let deviceName: String

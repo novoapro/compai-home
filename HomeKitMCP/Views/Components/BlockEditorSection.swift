@@ -16,6 +16,11 @@ struct BlockEditorSection: View {
     var scenes: [SceneModel] = []
     var allowNesting: Bool = true
     var workflows: [Workflow] = []
+    var continueOnError: Bool = false
+    var allBlocks: [BlockDraft] = []
+    var referencedBlockIds: Set<UUID> = []
+    /// 1-based execution order index for each block (keyed by block ID).
+    var blockOrdinals: [UUID: Int] = [:]
 
     /// When non-nil the parent (WorkflowEditorView) uses this to open the nested-block sheet.
     var onRequestNestedEdit: ((NestedEditState) -> Void)?
@@ -24,17 +29,22 @@ struct BlockEditorSection: View {
     /// can drag rows to reorder. No interactive controls are visible in
     /// this mode, avoiding gesture conflicts with sliders/pickers.
     @State private var isReorderMode = false
+    @State private var showReferencedBlockAlert = false
 
     var body: some View {
         Section {
             ForEach($blocks) { $block in
-                blockEditorRow(for: $block)
+                blockEditorRow(for: $block, isFirst: blocks.first?.id == block.id)
             }
             .onMove { from, to in
                 blocks.move(fromOffsets: from, toOffset: to)
             }
             .onDelete { offsets in
                 let idsToRemove = offsets.map { blocks[$0].id }
+                if idsToRemove.contains(where: { referencedBlockIds.contains($0) }) {
+                    showReferencedBlockAlert = true
+                    return
+                }
                 blocks.removeAll { idsToRemove.contains($0.id) }
             }
             .moveDisabled(!isReorderMode)
@@ -75,12 +85,13 @@ struct BlockEditorSection: View {
                         Button("Group", systemImage: "folder") {
                             blocks.append(.newGroup())
                         }
-                        Button("Stop", systemImage: "stop.circle.fill") {
-                            blocks.append(.newStop())
-                        }
                         Button("Execute Workflow", systemImage: "arrow.triangle.turn.up.right.diamond.fill") {
                             blocks.append(.newExecuteWorkflow())
                         }
+                    }
+                    Divider()
+                    Button("Return", systemImage: "arrow.uturn.backward.circle.fill") {
+                        blocks.append(.newStop())
                     }
                 } label: {
                     HStack(spacing: 4) {
@@ -89,6 +100,7 @@ struct BlockEditorSection: View {
                     }
                     .foregroundColor(Theme.Tint.main)
                 }
+                .listRowBackground(Theme.contentBackground)
             }
         } header: {
             HStack {
@@ -114,25 +126,39 @@ struct BlockEditorSection: View {
                 }
             }
         }
-        .listRowBackground(Theme.contentBackground)
+        .alert("Cannot Delete Block", isPresented: $showReferencedBlockAlert) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("This block is referenced by a Block Result condition. Remove the condition first before deleting this block.")
+        }
     }
 
     // MARK: - Row Factory
 
-    private func blockEditorRow(for block: Binding<BlockDraft>) -> BlockEditorRow {
+    private func blockEditorRow(for block: Binding<BlockDraft>, isFirst: Bool) -> some View {
         let blockId = block.wrappedValue.id
+        let isFlowControl = block.wrappedValue.blockType.isFlowControl
+        let accentColor = isFlowControl ? Theme.Tint.secondary : Theme.Tint.main
+        let isReferenced = referencedBlockIds.contains(blockId)
         let targets = Self.containerTargets(excluding: blockId, in: blocks)
         return BlockEditorRow(
             block: block,
             devices: devices,
             scenes: scenes,
             allowNesting: allowNesting,
+            continueOnError: continueOnError,
+            allBlocks: allBlocks,
+            isReferencedByCondition: isReferenced,
             onEditNestedBlocks: allowNesting ? { label, _ in
                 onRequestNestedEdit?(NestedEditState(parentBlockId: blockId, label: label))
             } : nil,
             onDelete: {
-                withAnimation(.easeInOut(duration: 0.25)) {
-                    blocks.removeAll(where: { $0.id == blockId })
+                if isReferenced {
+                    showReferencedBlockAlert = true
+                } else {
+                    withAnimation(.easeInOut(duration: 0.25)) {
+                        blocks.removeAll(where: { $0.id == blockId })
+                    }
                 }
             },
             onDuplicate: {
@@ -154,8 +180,18 @@ struct BlockEditorSection: View {
                 }
             },
             isReorderMode: isReorderMode,
-            workflows: workflows
+            workflows: workflows,
+            isFirstBlock: isFirst,
+            ordinal: blockOrdinals[blockId],
+            blockOrdinals: blockOrdinals
         )
+        .listRowBackground(
+            HStack(spacing: 0) {
+                accentColor.frame(width: Theme.Block.accentBarWidth)
+                Theme.contentBackground
+            }
+        )
+        .listRowSeparator(.automatic)
     }
 }
 
@@ -282,12 +318,13 @@ struct NestedBlockEditorSheet: View {
     @Binding var blocks: [BlockDraft]
     let devices: [DeviceModel]
     var scenes: [SceneModel] = []
+    var blockOrdinals: [UUID: Int] = [:]
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         NavigationStack {
             Form {
-                BlockEditorSection(blocks: $blocks, devices: devices, scenes: scenes, allowNesting: false)
+                BlockEditorSection(blocks: $blocks, devices: devices, scenes: scenes, allowNesting: false, blockOrdinals: blockOrdinals)
             }
             .formStyle(.grouped)
             .scrollContentBackground(.hidden)

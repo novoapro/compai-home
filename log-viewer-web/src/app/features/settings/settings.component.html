@@ -1,0 +1,97 @@
+<div class="settings-page">
+  <div class="settings-card">
+    <div class="card-header">
+      <app-icon name="gear" [size]="20" />
+      <h2>Connection Settings</h2>
+    </div>
+
+    <div class="form-group">
+      <label for="serverAddress">Server Address</label>
+      <input
+        id="serverAddress"
+        type="text"
+        [(ngModel)]="serverAddress"
+        placeholder="localhost"
+        class="form-input"
+      />
+      <span class="hint">IP address or hostname of the HomeKit MCP server</span>
+    </div>
+
+    <div class="form-group">
+      <label for="serverPort">Port</label>
+      <input
+        id="serverPort"
+        type="number"
+        [(ngModel)]="serverPort"
+        placeholder="3000"
+        class="form-input"
+        min="1"
+        max="65535"
+      />
+    </div>
+
+    <div class="form-group">
+      <label for="bearerToken">Bearer Token</label>
+      <input
+        id="bearerToken"
+        type="password"
+        [(ngModel)]="bearerToken"
+        placeholder="Enter your API token"
+        class="form-input"
+      />
+      <span class="hint">Found in the HomeKit MCP app settings under API tokens</span>
+    </div>
+
+    <div class="form-group">
+      <label for="pollingInterval">Polling Interval (seconds)</label>
+      <input
+        id="pollingInterval"
+        type="number"
+        [(ngModel)]="pollingInterval"
+        placeholder="10"
+        class="form-input"
+        min="0"
+        max="300"
+      />
+      <span class="hint">Set to 0 to disable auto-polling</span>
+    </div>
+
+    <div class="button-row">
+      <button class="btn btn-secondary" (click)="testConnection()">
+        @if (connectionStatus() === 'testing') {
+          <app-icon name="spinner" [size]="16" />
+          <span>Testing...</span>
+        } @else if (connectionStatus() === 'success') {
+          <app-icon name="checkmark-circle-fill" [size]="16" />
+          <span>Connected</span>
+        } @else if (connectionStatus() === 'error') {
+          <app-icon name="xmark-circle-fill" [size]="16" />
+          <span>Failed</span>
+        } @else {
+          <app-icon name="wifi" [size]="16" />
+          <span>Test Connection</span>
+        }
+      </button>
+
+      <button class="btn btn-primary" (click)="save()">
+        @if (saved()) {
+          <app-icon name="checkmark-circle-fill" [size]="16" />
+          <span>Saved!</span>
+        } @else {
+          <span>Save Settings</span>
+        }
+      </button>
+    </div>
+
+    @if (connectionStatus() === 'success') {
+      <div class="status-message success animate-fade-in">
+        Successfully connected to the server
+      </div>
+    }
+    @if (connectionStatus() === 'error') {
+      <div class="status-message error animate-fade-in">
+        Could not connect. Check the address, port, and that the server is running.
+      </div>
+    }
+  </div>
+</div>

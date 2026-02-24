@@ -1,0 +1,139 @@
+/* Theme tokens matching HomeKit MCP native app (Theme.swift) */
+
+:root {
+  /* Text */
+  --text-primary: #121212;
+  --text-secondary: rgba(18, 18, 18, 0.83);
+  --text-tertiary: rgba(18, 18, 18, 0.63);
+  --text-on-color: #ffffff;
+
+  /* Tints */
+  --tint-main: #FF9500;
+  --tint-secondary: #30D5C8;
+
+  /* Status */
+  --status-active: #34C759;
+  --status-inactive: #8E8E93;
+  --status-error: #FF3B30;
+  --status-warning: #FF9500;
+  --status-running: #007AFF;
+
+  /* Category colors */
+  --color-state-change: #FF9500;
+  --color-mcp: #30D5C8;
+  --color-rest: #5856D6;
+  --color-webhook: #30D5C8;
+  --color-error: #FF3B30;
+  --color-workflow: #FF9500;
+  --color-scene: #FF9500;
+  --color-backup: #FF9500;
+
+  /* Depth colors (for nested block visualization) */
+  --depth-0: #FF9500;
+  --depth-1: #AF52DE;
+  --depth-2: #FF9500;
+  --depth-3: #30D5C8;
+  --depth-4: #FF2D55;
+
+  /* Backgrounds */
+  --bg-main: #F2F2F7;
+  --bg-content: #FFFFFF;
+  --bg-detail: #F2F2F7;
+  --bg-chip-inactive: #F2F2F7;
+  --bg-pill: #E8E8ED;
+  --bg-code: #F2F2F7;
+  --bg-hover: rgba(0, 0, 0, 0.04);
+  --bg-overlay: rgba(0, 0, 0, 0.3);
+
+  /* Borders */
+  --border-color: rgba(0, 0, 0, 0.08);
+  --border-color-strong: rgba(0, 0, 0, 0.15);
+
+  /* Shadows */
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.06);
+  --shadow-dropdown: 0 4px 16px rgba(0, 0, 0, 0.12);
+  --shadow-header: 0 1px 0 rgba(0, 0, 0, 0.08);
+
+  /* Spacing */
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 16px;
+  --spacing-lg: 24px;
+  --spacing-xl: 32px;
+
+  /* Border radius */
+  --radius-xs: 4px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-full: 9999px;
+
+  /* Typography */
+  --font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Segoe UI', system-ui, sans-serif;
+  --font-mono: 'SF Mono', 'Menlo', 'Monaco', 'Courier New', monospace;
+
+  --font-size-xs: 11px;
+  --font-size-sm: 13px;
+  --font-size-base: 15px;
+  --font-size-lg: 17px;
+  --font-size-xl: 20px;
+  --font-size-2xl: 24px;
+
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  /* Transitions */
+  --transition-fast: 150ms ease-out;
+  --transition-normal: 200ms ease-in-out;
+  --transition-spring: 300ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Dark mode */
+[data-theme="dark"] {
+  --text-primary: rgba(255, 255, 255, 0.85);
+  --text-secondary: rgba(255, 255, 255, 0.6);
+  --text-tertiary: rgba(255, 255, 255, 0.3);
+
+  --bg-main: #000000;
+  --bg-content: #1C1C1E;
+  --bg-detail: #2C2C2E;
+  --bg-chip-inactive: #2C2C2E;
+  --bg-pill: #3A3A3C;
+  --bg-code: #2C2C2E;
+  --bg-hover: rgba(255, 255, 255, 0.06);
+  --bg-overlay: rgba(0, 0, 0, 0.5);
+
+  --border-color: rgba(255, 255, 255, 0.08);
+  --border-color-strong: rgba(255, 255, 255, 0.15);
+
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.3);
+  --shadow-dropdown: 0 4px 16px rgba(0, 0, 0, 0.4);
+  --shadow-header: 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+/* Auto dark mode from system preference */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --text-primary: rgba(255, 255, 255, 0.85);
+    --text-secondary: rgba(255, 255, 255, 0.6);
+    --text-tertiary: rgba(255, 255, 255, 0.3);
+
+    --bg-main: #000000;
+    --bg-content: #1C1C1E;
+    --bg-detail: #2C2C2E;
+    --bg-chip-inactive: #2C2C2E;
+    --bg-pill: #3A3A3C;
+    --bg-code: #2C2C2E;
+    --bg-hover: rgba(255, 255, 255, 0.06);
+    --bg-overlay: rgba(0, 0, 0, 0.5);
+
+    --border-color: rgba(255, 255, 255, 0.08);
+    --border-color-strong: rgba(255, 255, 255, 0.15);
+
+    --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.3);
+    --shadow-dropdown: 0 4px 16px rgba(0, 0, 0, 0.4);
+    --shadow-header: 0 1px 0 rgba(255, 255, 255, 0.08);
+  }
+}

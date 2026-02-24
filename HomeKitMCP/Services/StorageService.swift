@@ -78,6 +78,16 @@ class StorageService: ObservableObject, StorageServiceProtocol {
     @Published var mcpServerBindAddress: String {
         didSet { defaults.set(mcpServerBindAddress, forKey: Keys.mcpServerBindAddress) }
     }
+    @Published var corsEnabled: Bool {
+        didSet { defaults.set(corsEnabled, forKey: Keys.corsEnabled) }
+    }
+    @Published var corsAllowedOrigins: [String] {
+        didSet {
+            if let data = try? JSONEncoder().encode(corsAllowedOrigins) {
+                defaults.set(data, forKey: Keys.corsAllowedOrigins)
+            }
+        }
+    }
     @Published var sunEventLatitude: Double {
         didSet { defaults.set(sunEventLatitude, forKey: Keys.sunEventLatitude) }
     }
@@ -114,6 +124,9 @@ class StorageService: ObservableObject, StorageServiceProtocol {
     @Published var logAccessEnabled: Bool {
         didSet { defaults.set(logAccessEnabled, forKey: Keys.logAccessEnabled) }
     }
+    @Published var logCacheSize: Int {
+        didSet { defaults.set(logCacheSize, forKey: Keys.logCacheSize) }
+    }
     @Published var webhookPrivateIPAllowlist: [String] {
         didSet {
             if let data = try? JSONEncoder().encode(webhookPrivateIPAllowlist) {
@@ -139,6 +152,7 @@ class StorageService: ObservableObject, StorageServiceProtocol {
             Keys.aiModelId: "",
             Keys.aiSystemPrompt: "",
             Keys.mcpServerBindAddress: "127.0.0.1",
+            Keys.corsEnabled: true,
             Keys.pollingEnabled: false,
             Keys.pollingInterval: 30,
             Keys.workflowsEnabled: true,
@@ -146,7 +160,8 @@ class StorageService: ObservableObject, StorageServiceProtocol {
             Keys.deviceStateLoggingEnabled: true,
             Keys.registryMigrationCompleted: false,
             Keys.workflowSyncEnabled: false,
-            Keys.logAccessEnabled: true
+            Keys.logAccessEnabled: true,
+            Keys.logCacheSize: 500
         ])
 
         // Migrate webhook URL from UserDefaults to Keychain (one-time)
@@ -170,6 +185,13 @@ class StorageService: ObservableObject, StorageServiceProtocol {
         self.aiModelId = defaults.string(forKey: Keys.aiModelId) ?? ""
         self.aiSystemPrompt = defaults.string(forKey: Keys.aiSystemPrompt) ?? ""
         self.mcpServerBindAddress = defaults.string(forKey: Keys.mcpServerBindAddress) ?? "127.0.0.1"
+        self.corsEnabled = defaults.bool(forKey: Keys.corsEnabled)
+        if let data = defaults.data(forKey: Keys.corsAllowedOrigins),
+           let list = try? JSONDecoder().decode([String].self, from: data) {
+            self.corsAllowedOrigins = list
+        } else {
+            self.corsAllowedOrigins = []
+        }
         self.sunEventLatitude = defaults.double(forKey: Keys.sunEventLatitude)
         self.sunEventLongitude = defaults.double(forKey: Keys.sunEventLongitude)
         self.sunEventZipCode = defaults.string(forKey: Keys.sunEventZipCode) ?? ""
@@ -182,6 +204,8 @@ class StorageService: ObservableObject, StorageServiceProtocol {
         self.registryMigrationCompleted = defaults.bool(forKey: Keys.registryMigrationCompleted)
         self.workflowSyncEnabled = defaults.bool(forKey: Keys.workflowSyncEnabled)
         self.logAccessEnabled = defaults.bool(forKey: Keys.logAccessEnabled)
+        let rawCacheSize = defaults.integer(forKey: Keys.logCacheSize)
+        self.logCacheSize = rawCacheSize > 0 ? rawCacheSize : 500
         if let data = defaults.data(forKey: Keys.webhookPrivateIPAllowlist),
            let list = try? JSONDecoder().decode([String].self, from: data) {
             self.webhookPrivateIPAllowlist = list
@@ -234,6 +258,16 @@ class StorageService: ObservableObject, StorageServiceProtocol {
 
     nonisolated func readBindAddress() -> String {
         UserDefaults.standard.string(forKey: Keys.mcpServerBindAddress) ?? "127.0.0.1"
+    }
+
+    nonisolated func readCorsEnabled() -> Bool {
+        UserDefaults.standard.bool(forKey: Keys.corsEnabled)
+    }
+
+    nonisolated func readCorsAllowedOrigins() -> [String] {
+        guard let data = UserDefaults.standard.data(forKey: Keys.corsAllowedOrigins),
+              let list = try? JSONDecoder().decode([String].self, from: data) else { return [] }
+        return list
     }
 
     nonisolated func readSunEventLatitude() -> Double {
@@ -294,6 +328,11 @@ class StorageService: ObservableObject, StorageServiceProtocol {
         UserDefaults.standard.bool(forKey: Keys.logAccessEnabled)
     }
 
+    nonisolated func readLogCacheSize() -> Int {
+        let val = UserDefaults.standard.integer(forKey: Keys.logCacheSize)
+        return val > 0 ? val : 500
+    }
+
     private enum Keys {
         static let webhookURL = "webhookURL"
         static let mcpServerPort = "mcpServerPort"
@@ -308,6 +347,8 @@ class StorageService: ObservableObject, StorageServiceProtocol {
         static let aiModelId = "aiModelId"
         static let aiSystemPrompt = "aiSystemPrompt"
         static let mcpServerBindAddress = "mcpServerBindAddress"
+        static let corsEnabled = "corsEnabled"
+        static let corsAllowedOrigins = "corsAllowedOrigins"
         static let sunEventLatitude = "sunEventLatitude"
         static let sunEventLongitude = "sunEventLongitude"
         static let sunEventZipCode = "sunEventZipCode"
@@ -321,5 +362,6 @@ class StorageService: ObservableObject, StorageServiceProtocol {
         static let workflowSyncEnabled = "workflowSyncEnabled"
         static let webhookPrivateIPAllowlist = "webhookPrivateIPAllowlist"
         static let logAccessEnabled = "logAccessEnabled"
+        static let logCacheSize = "logCacheSize"
     }
 }

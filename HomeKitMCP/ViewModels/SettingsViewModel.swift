@@ -49,6 +49,9 @@ class SettingsViewModel: ObservableObject {
     @Published var logAccessEnabled: Bool {
         didSet { storage.logAccessEnabled = logAccessEnabled }
     }
+    @Published var logCacheSize: Int {
+        didSet { storage.logCacheSize = logCacheSize }
+    }
     @Published var webhookPrivateIPAllowlist: [String] {
         didSet { storage.webhookPrivateIPAllowlist = webhookPrivateIPAllowlist }
     }
@@ -152,6 +155,7 @@ class SettingsViewModel: ObservableObject {
         self.workflowSyncEnabled = storage.workflowSyncEnabled
         self.deviceStateLoggingEnabled = storage.deviceStateLoggingEnabled
         self.logAccessEnabled = storage.logAccessEnabled
+        self.logCacheSize = storage.logCacheSize
         self.webhookPrivateIPAllowlist = storage.webhookPrivateIPAllowlist
         self.sunEventLatitude = storage.sunEventLatitude
         self.sunEventLongitude = storage.sunEventLongitude
@@ -223,28 +227,7 @@ class SettingsViewModel: ObservableObject {
     }
 
     var localIPAddress: String {
-        var address = "127.0.0.1"
-        var ifaddr: UnsafeMutablePointer<ifaddrs>?
-        guard getifaddrs(&ifaddr) == 0, let firstAddr = ifaddr else { return address }
-        defer { freeifaddrs(ifaddr) }
-
-        for ptr in sequence(first: firstAddr, next: { $0.pointee.ifa_next }) {
-            let sa = ptr.pointee.ifa_addr.pointee
-            guard sa.sa_family == UInt8(AF_INET) else { continue }
-            let name = String(cString: ptr.pointee.ifa_name)
-            // en0 = Wi-Fi, en1 = Ethernet on some Macs
-            guard name == "en0" || name == "en1" else { continue }
-            var addr = ptr.pointee.ifa_addr.pointee
-            var hostname = [CChar](repeating: 0, count: Int(NI_MAXHOST))
-            _ = withUnsafePointer(to: &addr) { addrPtr in
-                addrPtr.withMemoryRebound(to: sockaddr.self, capacity: 1) { sockaddrPtr in
-                    getnameinfo(sockaddrPtr, socklen_t(sa.sa_len), &hostname, socklen_t(hostname.count), nil, 0, NI_NUMERICHOST)
-                }
-            }
-            address = String(cString: hostname)
-            break
-        }
-        return address
+        NetworkInterfaceEnumerator.availableInterfaces().first?.address ?? "127.0.0.1"
     }
 
     func isValidURL(_ string: String) -> Bool {

@@ -97,8 +97,7 @@ actor WebhookService: WebhookServiceProtocol {
                 category: .webhookCall,
                 requestBody: "POST \(deviceName) (\(payload.characteristicName))",
                 responseBody: "HTTP \(httpResponse.statusCode) OK",
-                detailedRequestBody: detailedPayloadJSON(payload),
-                detailedResponseBody: detailedString("HTTP \(httpResponse.statusCode) to \(url.absoluteString)")
+                detailedRequestBody: detailedPayloadJSON(payload)
             )
             await loggingService.logEntry(logEntry)
         } catch {
@@ -124,8 +123,7 @@ actor WebhookService: WebhookServiceProtocol {
                     errorDetails: "Failed after \(maxRetries) retries: \(errorDesc)",
                     requestBody: "POST \(deviceName) (\(payload.characteristicName))",
                     responseBody: errorDesc,
-                    detailedRequestBody: detailedPayloadJSON(payload),
-                    detailedResponseBody: detailedString("POST \(url.absoluteString) — \(errorDesc)")
+                    detailedRequestBody: detailedPayloadJSON(payload)
                 )
                 await loggingService.logEntry(logEntry)
             }
@@ -155,8 +153,7 @@ actor WebhookService: WebhookServiceProtocol {
                     errorDetails: "Test webhook failed: \(errorDesc)",
                     requestBody: "POST Test Device (Test)",
                     responseBody: errorDesc,
-                    detailedRequestBody: detailedPayloadJSON(payload),
-                    detailedResponseBody: detailedString("POST \(url.absoluteString) — \(errorDesc)")
+                    detailedRequestBody: detailedPayloadJSON(payload)
                 )
                 await loggingService.logEntry(logEntry)
 
@@ -176,8 +173,7 @@ actor WebhookService: WebhookServiceProtocol {
                 category: .webhookCall,
                 requestBody: "POST Test Device (Test)",
                 responseBody: "HTTP \(httpResponse.statusCode) OK",
-                detailedRequestBody: detailedPayloadJSON(payload),
-                detailedResponseBody: detailedString("HTTP \(httpResponse.statusCode) to \(url.absoluteString)")
+                detailedRequestBody: detailedPayloadJSON(payload)
             )
             await loggingService.logEntry(logEntry)
 
@@ -198,8 +194,7 @@ actor WebhookService: WebhookServiceProtocol {
                 errorDetails: "Test webhook failed: \(errorDesc)",
                 requestBody: "POST Test Device (Test)",
                 responseBody: errorDesc,
-                detailedRequestBody: detailedPayloadJSON(payload),
-                detailedResponseBody: detailedString("POST \(url.absoluteString) — \(errorDesc)")
+                detailedRequestBody: detailedPayloadJSON(payload)
             )
             await loggingService.logEntry(logEntry)
 
@@ -212,11 +207,6 @@ actor WebhookService: WebhookServiceProtocol {
         guard storage.readDetailedLogsEnabled(),
               let data = try? Self.encoder.encode(payload) else { return nil }
         return String(data: data, encoding: .utf8)
-    }
-
-    /// Returns the string only when detailed logs are enabled.
-    private func detailedString(_ value: String) -> String? {
-        storage.readDetailedLogsEnabled() ? value : nil
     }
 
     /// Validates that a URL does not point to a private/internal IP address (SSRF protection).

@@ -4,9 +4,11 @@ import Combine
 actor LoggingService: LoggingServiceProtocol {
     /// Ring buffer: append to end (O(1)), trim from start when full, reverse on read.
     private var logs: [StateChangeLog] = []
-    private let maxLogs = 500
+    private let storage: StorageService
     private let fileURL: URL
     private var saveTask: Task<Void, Never>?
+
+    private var maxLogs: Int { storage.readLogCacheSize() }
 
     nonisolated let logsSubject = PassthroughSubject<[StateChangeLog], Never>()
 
@@ -22,15 +24,21 @@ actor LoggingService: LoggingServiceProtocol {
         return decoder
     }()
 
-    init() {
+    init(storage: StorageService) {
+        self.storage = storage
         let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         let appDir = appSupport.appendingPathComponent("HomeKitMCP")
         try? FileManager.default.createDirectory(at: appDir, withIntermediateDirectories: true)
         try? FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: appDir.path)
         self.fileURL = appDir.appendingPathComponent("logs.json")
 
+        let limit = storage.readLogCacheSize()
         if let data = try? Data(contentsOf: fileURL),
-           let saved = try? Self.decoder.decode([StateChangeLog].self, from: data) {
+           var saved = try? Self.decoder.decode([StateChangeLog].self, from: data) {
+            // Trim to current cache size in case user reduced it
+            if saved.count > limit {
+                saved = Array(saved.suffix(limit))
+            }
             self.logs = saved
         }
     }
@@ -51,7 +59,7 @@ actor LoggingService: LoggingServiceProtocol {
     }
 
     func logEntry(_ entry: StateChangeLog) {
-        appendEntry(entry)
+        appendEntry(entry.truncatingLargeFields())
     }
 
     /// O(1) append; trims oldest entry when the buffer is full.

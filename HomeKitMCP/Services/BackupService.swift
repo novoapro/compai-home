@@ -49,6 +49,8 @@ class BackupService: ObservableObject, BackupServiceProtocol {
             aiProvider: storage.aiProvider.rawValue,
             aiModelId: storage.aiModelId,
             mcpServerBindAddress: storage.mcpServerBindAddress,
+            corsEnabled: storage.corsEnabled,
+            corsAllowedOrigins: storage.corsAllowedOrigins,
             sunEventLatitude: storage.sunEventLatitude,
             sunEventLongitude: storage.sunEventLongitude,
             sunEventZipCode: storage.sunEventZipCode,
@@ -57,7 +59,8 @@ class BackupService: ObservableObject, BackupServiceProtocol {
             pollingInterval: storage.pollingInterval,
             workflowsEnabled: storage.workflowsEnabled,
             autoBackupEnabled: storage.autoBackupEnabled,
-            deviceStateLoggingEnabled: storage.deviceStateLoggingEnabled
+            deviceStateLoggingEnabled: storage.deviceStateLoggingEnabled,
+            logCacheSize: storage.logCacheSize
         )
 
         let secrets = BackupSecrets(
@@ -122,7 +125,9 @@ class BackupService: ObservableObject, BackupServiceProtocol {
         storage.aiEnabled = s.aiEnabled
         storage.aiProvider = AIProvider(rawValue: s.aiProvider) ?? .claude
         storage.aiModelId = s.aiModelId
-        storage.mcpServerBindAddress = s.mcpServerBindAddress
+        storage.mcpServerBindAddress = NetworkInterfaceEnumerator.resolvedBindAddress(s.mcpServerBindAddress)
+        storage.corsEnabled = s.corsEnabled ?? true
+        storage.corsAllowedOrigins = s.corsAllowedOrigins ?? []
         storage.sunEventLatitude = s.sunEventLatitude
         storage.sunEventLongitude = s.sunEventLongitude
         storage.sunEventZipCode = s.sunEventZipCode ?? ""
@@ -132,6 +137,7 @@ class BackupService: ObservableObject, BackupServiceProtocol {
         storage.workflowsEnabled = s.workflowsEnabled
         storage.autoBackupEnabled = s.autoBackupEnabled
         storage.deviceStateLoggingEnabled = s.deviceStateLoggingEnabled ?? true
+        storage.logCacheSize = s.logCacheSize ?? 500
 
         // Restore secrets
         let sec = bundle.secrets

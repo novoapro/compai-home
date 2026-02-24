@@ -567,6 +567,25 @@ private struct WorkflowBuilderConditionRow: View {
                 WorkflowBuilderConditionRow(condition: inner, devices: devices, scenes: scenes)
                     .padding(.leading, 12)
             }
+        case .blockResult(let c):
+            HStack(spacing: 6) {
+                Image(systemName: "checkmark.rectangle.stack")
+                    .foregroundStyle(.purple)
+                switch c.scope {
+                case .specific(let blockId):
+                    Text("Block \(blockId.uuidString.prefix(8)) is \(c.expectedStatus.displayName)")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                case .all:
+                    Text("All blocks are \(c.expectedStatus.displayName)")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                case .any:
+                    Text("Any block is \(c.expectedStatus.displayName)")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                }
+            }
         }
     }
 }
@@ -582,9 +601,9 @@ private struct WorkflowBuilderBlockRow: View {
 
     var body: some View {
         switch block {
-        case .action(let action):
+        case .action(let action, _):
             BuilderActionBlockRow(action: action, depth: depth, devices: devices, scenes: scenes)
-        case .flowControl(let flowControl):
+        case .flowControl(let flowControl, _):
             BuilderFlowControlBlockRow(flowControl: flowControl, depth: depth, devices: devices, scenes: scenes)
         }
     }
@@ -696,7 +715,7 @@ private struct BuilderFlowControlBlockRow: View {
         case .repeat: return "repeat"
         case .repeatWhile: return "repeat.circle"
         case .group: return "folder"
-        case .stop: return "stop.circle.fill"
+        case .stop: return "arrow.uturn.backward.circle.fill"
         case .executeWorkflow: return "arrow.triangle.turn.up.right.diamond.fill"
         }
     }
@@ -710,7 +729,7 @@ private struct BuilderFlowControlBlockRow: View {
         case .repeat(let b): return b.name ?? "Repeat \(b.count) times"
         case .repeatWhile(let b): return b.name ?? "Repeat while (max \(b.maxIterations))"
         case .group(let b): return b.name ?? b.label ?? "Group"
-        case .stop(let b): return b.name ?? "Stop (\(b.outcome.rawValue))"
+        case .stop(let b): return b.name ?? "Return (\(b.outcome.rawValue))"
         case .executeWorkflow(let b): return b.name ?? "Execute Workflow (\(b.executionMode.rawValue))"
         }
     }

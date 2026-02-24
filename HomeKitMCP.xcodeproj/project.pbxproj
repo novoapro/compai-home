@@ -40,6 +40,7 @@
 		5AE43961CFE3A9DEE90C7522 /* AIWorkflowService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7DB96C0E817BA1FAEA56BE62 /* AIWorkflowService.swift */; };
 		5B1591BA359229D986B8FD63 /* MenuBarController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76A1CCA31A2168A2B8D12DD0 /* MenuBarController.swift */; };
 		5D1DF4EE7848F0AFF3FCD041 /* DeviceNameFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65766D71479AEC864A35E452 /* DeviceNameFormatter.swift */; };
+		AA11BB22CC33DD44EE55FF66 /* NetworkInterfaceEnumerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB22CC33DD44EE55FF660011 /* NetworkInterfaceEnumerator.swift */; };
 		5D5A27F1913660BBC8968F85 /* WebhookService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E00EF2581D4A9B75850FF25 /* WebhookService.swift */; };
 		5E6D895157FC47B4A75A4A28 /* DeviceRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 918FA14242FE41FBD8F7DF47 /* DeviceRow.swift */; };
 		604138D8F7B166CDADB33EE9 /* DeviceConfigurationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7760FE5637D902D59F614907 /* DeviceConfigurationService.swift */; };
@@ -148,6 +149,7 @@
 		6458BBC92F491D770012FC37 /* CharacteristicInputConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CharacteristicInputConfig.swift; sourceTree = "<group>"; };
 		6458BBCB2F491D780012FC37 /* CharacteristicValidator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CharacteristicValidator.swift; sourceTree = "<group>"; };
 		65766D71479AEC864A35E452 /* DeviceNameFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceNameFormatter.swift; sourceTree = "<group>"; };
+		BB22CC33DD44EE55FF660011 /* NetworkInterfaceEnumerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkInterfaceEnumerator.swift; sourceTree = "<group>"; };
 		66671720DD605AA80B6E6774 /* CloudBackupService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudBackupService.swift; sourceTree = "<group>"; };
 		6BE5BD70C71A833414ADC790 /* TriggerEditorSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TriggerEditorSection.swift; sourceTree = "<group>"; };
 		6CA300C7BE20DD7095E5804F /* BlockEditorRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BlockEditorRow.swift; sourceTree = "<group>"; };
@@ -376,6 +378,7 @@
 				F904B77E53F9A48675AE552B /* CharacteristicTypes.swift */,
 				65766D71479AEC864A35E452 /* DeviceNameFormatter.swift */,
 				76A1CCA31A2168A2B8D12DD0 /* MenuBarController.swift */,
+				BB22CC33DD44EE55FF660011 /* NetworkInterfaceEnumerator.swift */,
 				77E7DB8F5E5A2E47859F9BE1 /* PreviewData.swift */,
 				FD53658669C55DD54D4345B4 /* ServiceTypes.swift */,
 				4DEC6F3D579DCC1F32FF60E7 /* Theme.swift */,
@@ -608,6 +611,7 @@
 				74BBF7A97645BE84F5D6C6AE /* MCPToolDefinitions.swift in Sources */,
 				A7845F42530D6DF692A39F6B /* MCPServer.swift in Sources */,
 				5B1591BA359229D986B8FD63 /* MenuBarController.swift in Sources */,
+				AA11BB22CC33DD44EE55FF66 /* NetworkInterfaceEnumerator.swift in Sources */,
 				AEE5C04596D85BB802F0FE8D /* PreviewData.swift in Sources */,
 				05FE7A71EDD2732214277756 /* RESTModels.swift in Sources */,
 				FE6AC26441EC3EDDCA92C523 /* SceneDelegate.swift in Sources */,

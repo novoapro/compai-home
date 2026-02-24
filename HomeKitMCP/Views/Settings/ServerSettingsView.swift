@@ -4,6 +4,8 @@ struct ServerSettingsView: View {
     @ObservedObject var viewModel: SettingsViewModel
     @ObservedObject private var storage: StorageService
 
+    @State private var availableInterfaces: [NetworkInterface] = []
+    @State private var newOrigin = ""
     @State private var revealedTokenIds: Set<UUID> = []
     @State private var showCopiedToast = false
     @State private var copiedToastTask: Task<Void, Never>?
@@ -77,10 +79,82 @@ struct ServerSettingsView: View {
                 )) {
                     Text("127.0.0.1 (Localhost only)").tag("127.0.0.1")
                     Text("0.0.0.0 (All interfaces)").tag("0.0.0.0")
+
+                    if !availableInterfaces.isEmpty {
+                        Divider()
+                        ForEach(availableInterfaces) { iface in
+                            Text(iface.displayLabel).tag(iface.address)
+                        }
+                    }
                 }
                 .disabled(viewModel.mcpServerRunning == true)
+                .onAppear {
+                    availableInterfaces = NetworkInterfaceEnumerator.availableInterfaces()
+                }
+
+                if !NetworkInterfaceEnumerator.isAddressAvailable(viewModel.storage.mcpServerBindAddress) {
+                    Label("The selected address is no longer available. The server will fall back to localhost.",
+                          systemImage: "exclamationmark.triangle.fill")
+                        .font(.footnote)
+                        .foregroundColor(.orange)
+                }
             } header: {
                 Label("Network", systemImage: "network")
+            }
+
+            // MARK: - CORS
+            Section {
+                Toggle("Allow Cross-Origin Requests", isOn: Binding(
+                    get: { storage.corsEnabled },
+                    set: { storage.corsEnabled = $0 }
+                ))
+                .disabled(viewModel.mcpServerRunning == true)
+
+                if storage.corsEnabled {
+                    ForEach(storage.corsAllowedOrigins, id: \.self) { origin in
+                        HStack {
+                            Text(origin)
+                                .font(.system(.footnote, design: .monospaced))
+                            Spacer()
+                            Button {
+                                storage.corsAllowedOrigins.removeAll { $0 == origin }
+                            } label: {
+                                Image(systemName: "minus.circle.fill")
+                                    .foregroundColor(.red)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+
+                    HStack {
+                        TextField("e.g. http://localhost:5173", text: $newOrigin)
+                            .textFieldStyle(.roundedBorder)
+                            .font(.system(.footnote, design: .monospaced))
+                            .autocorrectionDisabled()
+                        #if targetEnvironment(macCatalyst)
+                            .textInputAutocapitalization(.never)
+                        #endif
+
+                        Button {
+                            let trimmed = newOrigin.trimmingCharacters(in: .whitespacesAndNewlines)
+                            guard !trimmed.isEmpty, !storage.corsAllowedOrigins.contains(trimmed) else { return }
+                            storage.corsAllowedOrigins.append(trimmed)
+                            newOrigin = ""
+                        } label: {
+                            Image(systemName: "plus.circle.fill")
+                                .foregroundColor(Theme.Tint.main)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            } header: {
+                Label("CORS", systemImage: "globe")
+            } footer: {
+                if storage.corsEnabled {
+                    Text("When the list is empty, all origins are allowed. Add specific origins to restrict access. Restart the server after changes.")
+                } else {
+                    Text("When disabled, browsers will block cross-origin requests. Restart the server after changes.")
+                }
             }
 
             // MARK: - API Tokens (Multi-Client)

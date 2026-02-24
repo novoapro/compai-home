@@ -363,7 +363,7 @@ extension TriggerDraft {
 }
 
 extension ConditionDraft {
-    func autoName(devices: [DeviceModel], scenes: [SceneModel] = []) -> String {
+    func autoName(devices: [DeviceModel], scenes: [SceneModel] = [], allBlocks: [BlockDraft] = [], blockOrdinals: [UUID: Int] = [:]) -> String {
         switch conditionDraftType {
         case .deviceState:
             guard !deviceId.isEmpty else { return "New Condition" }
@@ -385,6 +385,22 @@ extension ConditionDraft {
             let scene = scenes.first(where: { $0.id == sceneId })
             let sceneName = scene?.name ?? sceneId
             return sceneIsActive ? "Scene \"\(sceneName)\" active" : "Scene \"\(sceneName)\" not active"
+        case .blockResult:
+            let statusName = blockResultExpectedStatus.displayName
+            switch blockResultScope {
+            case .specific:
+                if let blockId = blockResultBlockId,
+                   let block = allBlocks.first(where: { $0.id == blockId }) {
+                    let ordPrefix = blockOrdinals[blockId].map { "#\($0) " } ?? ""
+                    let blockName = block.displayName(devices: devices, scenes: scenes)
+                    return "\(ordPrefix)\"\(blockName)\" is \(statusName)"
+                }
+                return "Block is \(statusName)"
+            case .all:
+                return "All blocks \(statusName)"
+            case .any:
+                return "Any block \(statusName)"
+            }
         }
     }
 }
@@ -540,9 +556,9 @@ private extension GroupDraft {
 private extension StopDraft {
     func autoName() -> String {
         let label = switch outcome {
-        case .success: "Stop (Success)"
-        case .error: "Stop (Error)"
-        case .cancelled: "Stop (Cancelled)"
+        case .success: "Return (Success)"
+        case .error: "Return (Error)"
+        case .cancelled: "Return (Cancelled)"
         }
         return message.isEmpty ? label : "\(label): \(message)"
     }
@@ -565,6 +581,7 @@ enum ConditionDraftType: String, CaseIterable, Identifiable {
     case deviceState
     case timeCondition
     case sceneActive
+    case blockResult
 
     var id: String { rawValue }
 
@@ -573,6 +590,7 @@ enum ConditionDraftType: String, CaseIterable, Identifiable {
         case .deviceState: return "Device State"
         case .timeCondition: return "Time Condition"
         case .sceneActive: return "Scene Active"
+        case .blockResult: return "Block Result"
         }
     }
 
@@ -581,6 +599,23 @@ enum ConditionDraftType: String, CaseIterable, Identifiable {
         case .deviceState: return "shield.fill"
         case .timeCondition: return "clock.fill"
         case .sceneActive: return "play.rectangle.fill"
+        case .blockResult: return "checkmark.rectangle.stack"
+        }
+    }
+}
+
+enum BlockResultScopeDraft: String, CaseIterable, Identifiable {
+    case specific
+    case all
+    case any
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .specific: return "Specific Block"
+        case .all: return "All Blocks"
+        case .any: return "Any Block"
         }
     }
 }
@@ -613,6 +648,11 @@ struct ConditionDraft: Identifiable {
     var sceneId: String = ""
     var sceneIsActive: Bool = true
 
+    // Block Result fields
+    var blockResultScope: BlockResultScopeDraft = .all
+    var blockResultBlockId: UUID? = nil
+    var blockResultExpectedStatus: ExecutionStatus = .success
+
     static func empty() -> ConditionDraft {
         ConditionDraft(
             id: UUID(),
@@ -644,6 +684,19 @@ struct ConditionDraft: Identifiable {
             id: UUID(),
             name: "",
             conditionDraftType: .sceneActive,
+            deviceId: "",
+            serviceId: nil,
+            characteristicType: "",
+            comparisonType: .equals,
+            comparisonValue: ""
+        )
+    }
+
+    static func emptyBlockResult() -> ConditionDraft {
+        ConditionDraft(
+            id: UUID(),
+            name: "",
+            conditionDraftType: .blockResult,
             deviceId: "",
             serviceId: nil,
             characteristicType: "",
@@ -734,7 +787,7 @@ enum BlockDraftType {
         case .repeatBlock: return "Repeat"
         case .repeatWhile: return "Repeat While"
         case .group: return "Group"
-        case .stop: return "Stop"
+        case .stop: return "Return"
         case .executeWorkflow: return "Execute Workflow"
         }
     }
@@ -751,7 +804,7 @@ enum BlockDraftType {
         case .repeatBlock: return "repeat"
         case .repeatWhile: return "repeat.circle"
         case .group: return "folder"
-        case .stop: return "stop.circle.fill"
+        case .stop: return "arrow.uturn.backward.circle.fill"
         case .executeWorkflow: return "arrow.triangle.turn.up.right.diamond.fill"
         }
     }
@@ -903,6 +956,7 @@ extension BlockDraftType {
 struct WorkflowValidation {
     let isValid: Bool
     let errors: [String]
+    var warnings: [String] = []
 }
 
 extension WorkflowDraft {
@@ -938,7 +992,221 @@ extension WorkflowDraft {
         if blocks.isEmpty {
             errors.append("At least one block is required")
         }
-        return WorkflowValidation(isValid: errors.isEmpty, errors: errors)
+        // Block result conditions require continueOnError
+        if !continueOnError && hasBlockResultConditions() {
+            errors.append("Cannot use Block Result conditions without Continue on Error enabled")
+        }
+        // Block result conditions must not appear in workflow-level guard conditions
+        if Self.conditionGroupHasBlockResult(conditionRoot) {
+            errors.append("Block Result conditions cannot be used in workflow-level guard conditions (no blocks have executed yet)")
+        }
+        // Check for orphaned block references (safety net for iCloud sync / manual editing)
+        let validIds = allBlockIds()
+        let orphaned = blockIdsReferencedByConditions().filter { !validIds.contains($0) }
+        if !orphaned.isEmpty {
+            errors.append("Block Result condition references a deleted block")
+        }
+        // Warn about block result conditions referencing blocks that haven't executed yet
+        var warnings: [String] = []
+        let ordinals = blockOrdinals()
+        Self.validateBlockResultOrdering(blocks, ordinals: ordinals, warnings: &warnings)
+        return WorkflowValidation(isValid: errors.isEmpty, errors: errors, warnings: warnings)
+    }
+
+    // MARK: - Block Result Utilities
+
+    /// Recursively collect all block IDs in the workflow (including nested).
+    func allBlockIds() -> Set<UUID> {
+        var ids = Set<UUID>()
+        Self.collectBlockIds(from: blocks, into: &ids)
+        return ids
+    }
+
+    /// Recursively collect all blocks as a flat list (including nested) in execution order.
+    func allBlockDrafts() -> [BlockDraft] {
+        var result: [BlockDraft] = []
+        Self.collectAllBlocks(from: blocks, into: &result)
+        return result
+    }
+
+    /// Returns a mapping of block ID → 1-based ordinal in execution order.
+    /// The ordinal reflects depth-first traversal order and updates automatically
+    /// when blocks are reordered.
+    func blockOrdinals() -> [UUID: Int] {
+        let all = allBlockDrafts()
+        var ordinals: [UUID: Int] = [:]
+        for (i, block) in all.enumerated() {
+            ordinals[block.id] = i + 1  // 1-based
+        }
+        return ordinals
+    }
+
+    /// Check if any condition in the workflow references a block result.
+    func hasBlockResultConditions() -> Bool {
+        if Self.conditionGroupHasBlockResult(conditionRoot) { return true }
+        return Self.blocksHaveBlockResultConditions(blocks)
+    }
+
+    /// Collect all block IDs that are specifically referenced by block result conditions.
+    func blockIdsReferencedByConditions() -> Set<UUID> {
+        var ids = Set<UUID>()
+        Self.collectReferencedBlockIds(from: conditionRoot, into: &ids)
+        Self.collectReferencedBlockIdsFromBlocks(blocks, into: &ids)
+        return ids
+    }
+
+    private static func collectBlockIds(from blocks: [BlockDraft], into ids: inout Set<UUID>) {
+        for block in blocks {
+            ids.insert(block.id)
+            switch block.blockType {
+            case .conditional(let d):
+                collectBlockIds(from: d.thenBlocks, into: &ids)
+                collectBlockIds(from: d.elseBlocks, into: &ids)
+            case .repeatBlock(let d):
+                collectBlockIds(from: d.blocks, into: &ids)
+            case .repeatWhile(let d):
+                collectBlockIds(from: d.blocks, into: &ids)
+            case .group(let d):
+                collectBlockIds(from: d.blocks, into: &ids)
+            default: break
+            }
+        }
+    }
+
+    private static func collectAllBlocks(from blocks: [BlockDraft], into result: inout [BlockDraft]) {
+        for block in blocks {
+            result.append(block)
+            switch block.blockType {
+            case .conditional(let d):
+                collectAllBlocks(from: d.thenBlocks, into: &result)
+                collectAllBlocks(from: d.elseBlocks, into: &result)
+            case .repeatBlock(let d):
+                collectAllBlocks(from: d.blocks, into: &result)
+            case .repeatWhile(let d):
+                collectAllBlocks(from: d.blocks, into: &result)
+            case .group(let d):
+                collectAllBlocks(from: d.blocks, into: &result)
+            default: break
+            }
+        }
+    }
+
+    private static func conditionGroupHasBlockResult(_ group: ConditionGroupDraft) -> Bool {
+        for child in group.children {
+            switch child {
+            case .leaf(let draft):
+                if draft.conditionDraftType == .blockResult { return true }
+            case .group(let subGroup):
+                if conditionGroupHasBlockResult(subGroup) { return true }
+            }
+        }
+        return false
+    }
+
+    private static func blocksHaveBlockResultConditions(_ blocks: [BlockDraft]) -> Bool {
+        for block in blocks {
+            switch block.blockType {
+            case .conditional(let d):
+                if conditionGroupHasBlockResult(d.conditionRoot) { return true }
+                if blocksHaveBlockResultConditions(d.thenBlocks) { return true }
+                if blocksHaveBlockResultConditions(d.elseBlocks) { return true }
+            case .repeatWhile(let d):
+                if conditionGroupHasBlockResult(d.conditionRoot) { return true }
+                if blocksHaveBlockResultConditions(d.blocks) { return true }
+            case .repeatBlock(let d):
+                if blocksHaveBlockResultConditions(d.blocks) { return true }
+            case .group(let d):
+                if blocksHaveBlockResultConditions(d.blocks) { return true }
+            default: break
+            }
+        }
+        return false
+    }
+
+    private static func collectReferencedBlockIds(from group: ConditionGroupDraft, into ids: inout Set<UUID>) {
+        for child in group.children {
+            switch child {
+            case .leaf(let draft):
+                if draft.conditionDraftType == .blockResult,
+                   draft.blockResultScope == .specific,
+                   let blockId = draft.blockResultBlockId {
+                    ids.insert(blockId)
+                }
+            case .group(let subGroup):
+                collectReferencedBlockIds(from: subGroup, into: &ids)
+            }
+        }
+    }
+
+    private static func collectReferencedBlockIdsFromBlocks(_ blocks: [BlockDraft], into ids: inout Set<UUID>) {
+        for block in blocks {
+            switch block.blockType {
+            case .conditional(let d):
+                collectReferencedBlockIds(from: d.conditionRoot, into: &ids)
+                collectReferencedBlockIdsFromBlocks(d.thenBlocks, into: &ids)
+                collectReferencedBlockIdsFromBlocks(d.elseBlocks, into: &ids)
+            case .repeatWhile(let d):
+                collectReferencedBlockIds(from: d.conditionRoot, into: &ids)
+                collectReferencedBlockIdsFromBlocks(d.blocks, into: &ids)
+            case .repeatBlock(let d):
+                collectReferencedBlockIdsFromBlocks(d.blocks, into: &ids)
+            case .group(let d):
+                collectReferencedBlockIdsFromBlocks(d.blocks, into: &ids)
+            default: break
+            }
+        }
+    }
+
+    /// Walk blocks and warn when a block result condition references a block with a
+    /// higher ordinal (i.e., one that hasn't executed yet at that point in the flow).
+    private static func validateBlockResultOrdering(
+        _ blocks: [BlockDraft],
+        ordinals: [UUID: Int],
+        warnings: inout [String]
+    ) {
+        for block in blocks {
+            let blockOrd = ordinals[block.id] ?? Int.max
+            switch block.blockType {
+            case .conditional(let d):
+                checkGroupForOrderingWarnings(d.conditionRoot, blockOrdinal: blockOrd, ordinals: ordinals, blockName: block.displayName(devices: [], scenes: []), warnings: &warnings)
+                validateBlockResultOrdering(d.thenBlocks, ordinals: ordinals, warnings: &warnings)
+                validateBlockResultOrdering(d.elseBlocks, ordinals: ordinals, warnings: &warnings)
+            case .repeatWhile(let d):
+                checkGroupForOrderingWarnings(d.conditionRoot, blockOrdinal: blockOrd, ordinals: ordinals, blockName: block.displayName(devices: [], scenes: []), warnings: &warnings)
+                validateBlockResultOrdering(d.blocks, ordinals: ordinals, warnings: &warnings)
+            case .repeatBlock(let d):
+                validateBlockResultOrdering(d.blocks, ordinals: ordinals, warnings: &warnings)
+            case .group(let d):
+                validateBlockResultOrdering(d.blocks, ordinals: ordinals, warnings: &warnings)
+            default:
+                break
+            }
+        }
+    }
+
+    private static func checkGroupForOrderingWarnings(
+        _ group: ConditionGroupDraft,
+        blockOrdinal: Int,
+        ordinals: [UUID: Int],
+        blockName: String,
+        warnings: inout [String]
+    ) {
+        for child in group.children {
+            switch child {
+            case .leaf(let draft):
+                if draft.conditionDraftType == .blockResult,
+                   draft.blockResultScope == .specific,
+                   let refId = draft.blockResultBlockId {
+                    let refOrd = ordinals[refId] ?? Int.max
+                    if refOrd >= blockOrdinal {
+                        let refLabel = ordinals[refId].map { "#\($0)" } ?? "unknown"
+                        warnings.append("Block #\(blockOrdinal) \"\(blockName)\" references block \(refLabel) which may not have executed yet")
+                    }
+                }
+            case .group(let sub):
+                checkGroupForOrderingWarnings(sub, blockOrdinal: blockOrdinal, ordinals: ordinals, blockName: blockName, warnings: &warnings)
+            }
+        }
     }
 }
 
@@ -1150,6 +1418,27 @@ extension WorkflowDraft {
                 sceneId: c.sceneId,
                 sceneIsActive: c.isActive
             ))
+        case let .blockResult(c):
+            var draft = ConditionDraft(
+                id: UUID(),
+                conditionDraftType: .blockResult,
+                deviceId: "",
+                serviceId: nil,
+                characteristicType: "",
+                comparisonType: .equals,
+                comparisonValue: ""
+            )
+            draft.blockResultExpectedStatus = c.expectedStatus
+            switch c.scope {
+            case let .specific(blockId):
+                draft.blockResultScope = .specific
+                draft.blockResultBlockId = blockId
+            case .all:
+                draft.blockResultScope = .all
+            case .any:
+                draft.blockResultScope = .any
+            }
+            return .leaf(draft)
         case .not(let inner):
             // NOT always maps to a group with isNegated = true
             var subGroup = convertConditionTree([inner], devices: devices)
@@ -1179,18 +1468,18 @@ extension WorkflowDraft {
 
     static func convertBlock(_ block: WorkflowBlock, devices: [DeviceModel] = []) -> BlockDraft {
         switch block {
-        case let .action(action):
-            return convertAction(action, devices: devices)
-        case let .flowControl(fc):
-            return convertFlowControl(fc, devices: devices)
+        case let .action(action, blockId):
+            return convertAction(action, blockId: blockId, devices: devices)
+        case let .flowControl(fc, blockId):
+            return convertFlowControl(fc, blockId: blockId, devices: devices)
         }
     }
 
-    private static func convertAction(_ action: WorkflowAction, devices: [DeviceModel] = []) -> BlockDraft {
+    private static func convertAction(_ action: WorkflowAction, blockId: UUID, devices: [DeviceModel] = []) -> BlockDraft {
         switch action {
         case let .controlDevice(a):
             let meta = lookupCharacteristicMeta(deviceId: a.deviceId, characteristicType: a.characteristicType, in: devices)
-            return BlockDraft(id: UUID(), blockType: .controlDevice(ControlDeviceDraft(
+            return BlockDraft(id: blockId, blockType: .controlDevice(ControlDeviceDraft(
                 name: a.name ?? "",
                 deviceId: a.deviceId,
                 serviceId: a.serviceId,
@@ -1203,30 +1492,30 @@ extension WorkflowDraft {
                 characteristicValidValues: meta.validValues
             )))
         case let .webhook(a):
-            return BlockDraft(id: UUID(), blockType: .webhook(WebhookDraft(
+            return BlockDraft(id: blockId, blockType: .webhook(WebhookDraft(
                 name: a.name ?? "",
                 url: a.url,
                 method: a.method,
                 body: a.body.map { stringFromAny($0.value) } ?? ""
             )))
         case let .log(a):
-            return BlockDraft(id: UUID(), blockType: .log(LogDraft(name: a.name ?? "", message: a.message)))
+            return BlockDraft(id: blockId, blockType: .log(LogDraft(name: a.name ?? "", message: a.message)))
         case let .runScene(a):
-            return BlockDraft(id: UUID(), blockType: .runScene(RunSceneDraft(
+            return BlockDraft(id: blockId, blockType: .runScene(RunSceneDraft(
                 name: a.name ?? "",
                 sceneId: a.sceneId
             )))
         }
     }
 
-    private static func convertFlowControl(_ fc: FlowControlBlock, devices: [DeviceModel] = []) -> BlockDraft {
+    private static func convertFlowControl(_ fc: FlowControlBlock, blockId: UUID, devices: [DeviceModel] = []) -> BlockDraft {
         switch fc {
         case let .delay(b):
-            return BlockDraft(id: UUID(), blockType: .delay(DelayDraft(name: b.name ?? "", seconds: b.seconds)))
+            return BlockDraft(id: blockId, blockType: .delay(DelayDraft(name: b.name ?? "", seconds: b.seconds)))
         case let .waitForState(b):
             let (compType, compValue) = convertComparison(b.condition)
             let meta = lookupCharacteristicMeta(deviceId: b.deviceId, characteristicType: b.characteristicType, in: devices)
-            return BlockDraft(id: UUID(), blockType: .waitForState(WaitForStateDraft(
+            return BlockDraft(id: blockId, blockType: .waitForState(WaitForStateDraft(
                 name: b.name ?? "",
                 deviceId: b.deviceId,
                 serviceId: b.serviceId,
@@ -1245,9 +1534,9 @@ extension WorkflowDraft {
             draft.conditionRoot = convertConditionTree([b.condition], devices: devices)
             draft.thenBlocks = b.thenBlocks.map { convertBlock($0, devices: devices) }
             draft.elseBlocks = (b.elseBlocks ?? []).map { convertBlock($0, devices: devices) }
-            return BlockDraft(id: UUID(), blockType: .conditional(draft))
+            return BlockDraft(id: blockId, blockType: .conditional(draft))
         case let .repeat(b):
-            return BlockDraft(id: UUID(), blockType: .repeatBlock(RepeatDraft(
+            return BlockDraft(id: blockId, blockType: .repeatBlock(RepeatDraft(
                 name: b.name ?? "",
                 count: b.count,
                 delayBetweenSeconds: b.delayBetweenSeconds ?? 0,
@@ -1259,21 +1548,21 @@ extension WorkflowDraft {
             draft.maxIterations = b.maxIterations
             draft.delayBetweenSeconds = b.delayBetweenSeconds ?? 0
             draft.blocks = b.blocks.map { convertBlock($0, devices: devices) }
-            return BlockDraft(id: UUID(), blockType: .repeatWhile(draft))
+            return BlockDraft(id: blockId, blockType: .repeatWhile(draft))
         case let .group(b):
-            return BlockDraft(id: UUID(), blockType: .group(GroupDraft(
+            return BlockDraft(id: blockId, blockType: .group(GroupDraft(
                 name: b.name ?? "",
                 label: b.label ?? "",
                 blocks: b.blocks.map { convertBlock($0, devices: devices) }
             )))
         case let .stop(b):
-            return BlockDraft(id: UUID(), blockType: .stop(StopDraft(
+            return BlockDraft(id: blockId, blockType: .stop(StopDraft(
                 name: b.name ?? "",
                 outcome: b.outcome,
                 message: b.message ?? ""
             )))
         case let .executeWorkflow(b):
-            return BlockDraft(id: UUID(), blockType: .executeWorkflow(ExecuteWorkflowDraft(
+            return BlockDraft(id: blockId, blockType: .executeWorkflow(ExecuteWorkflowDraft(
                 name: b.name ?? "",
                 targetWorkflowId: b.targetWorkflowId,
                 executionMode: b.executionMode
@@ -1416,6 +1705,20 @@ extension ConditionDraft {
                 sceneId: sceneId,
                 isActive: sceneIsActive
             ))
+        case .blockResult:
+            let scope: BlockResultScope
+            switch blockResultScope {
+            case .specific:
+                scope = .specific(blockId: blockResultBlockId ?? UUID())
+            case .all:
+                scope = .all
+            case .any:
+                scope = .any
+            }
+            base = .blockResult(BlockResultCondition(
+                scope: scope,
+                expectedStatus: blockResultExpectedStatus
+            ))
         }
         return base
     }
@@ -1482,7 +1785,7 @@ extension BlockDraft {
                 name: d.name.isEmpty ? nil : d.name,
                 deviceName: devName,
                 roomName: devRoom
-            )))
+            )), blockId: id)
         case let .webhook(d):
             return .action(.webhook(WebhookActionConfig(
                 url: d.url,
@@ -1490,16 +1793,16 @@ extension BlockDraft {
                 headers: nil,
                 body: d.body.isEmpty ? nil : AnyCodable(d.body),
                 name: d.name.isEmpty ? nil : d.name
-            )))
+            )), blockId: id)
         case let .log(d):
-            return .action(.log(LogAction(message: d.message, name: d.name.isEmpty ? nil : d.name)))
+            return .action(.log(LogAction(message: d.message, name: d.name.isEmpty ? nil : d.name)), blockId: id)
         case let .runScene(d):
             return .action(.runScene(RunSceneAction(
                 sceneId: d.sceneId,
                 name: d.name.isEmpty ? nil : d.name
-            )))
+            )), blockId: id)
         case let .delay(d):
-            return .flowControl(.delay(DelayBlock(seconds: d.seconds, name: d.name.isEmpty ? nil : d.name)))
+            return .flowControl(.delay(DelayBlock(seconds: d.seconds, name: d.name.isEmpty ? nil : d.name)), blockId: id)
         case let .waitForState(d):
             let (devName, devRoom) = lookupDevice(d.deviceId, in: devices)
             return .flowControl(.waitForState(WaitForStateBlock(
@@ -1511,7 +1814,7 @@ extension BlockDraft {
                 name: d.name.isEmpty ? nil : d.name,
                 deviceName: devName,
                 roomName: devRoom
-            )))
+            )), blockId: id)
         case let .conditional(d):
             let condition = d.conditionRoot.toCondition(devices: devices) ?? .deviceState(DeviceStateCondition(
                 deviceId: "", characteristicType: "", comparison: .equals(AnyCodable(true))
@@ -1521,14 +1824,14 @@ extension BlockDraft {
                 thenBlocks: d.thenBlocks.map { $0.toBlock(devices: devices) },
                 elseBlocks: d.elseBlocks.isEmpty ? nil : d.elseBlocks.map { $0.toBlock(devices: devices) },
                 name: d.name.isEmpty ? nil : d.name
-            )))
+            )), blockId: id)
         case let .repeatBlock(d):
             return .flowControl(.repeat(RepeatBlock(
                 count: d.count,
                 blocks: d.blocks.map { $0.toBlock(devices: devices) },
                 delayBetweenSeconds: d.delayBetweenSeconds > 0 ? d.delayBetweenSeconds : nil,
                 name: d.name.isEmpty ? nil : d.name
-            )))
+            )), blockId: id)
         case let .repeatWhile(d):
             let condition = d.conditionRoot.toCondition(devices: devices) ?? .deviceState(DeviceStateCondition(
                 deviceId: "", characteristicType: "", comparison: .equals(AnyCodable(true))
@@ -1539,25 +1842,25 @@ extension BlockDraft {
                 maxIterations: d.maxIterations,
                 delayBetweenSeconds: d.delayBetweenSeconds > 0 ? d.delayBetweenSeconds : nil,
                 name: d.name.isEmpty ? nil : d.name
-            )))
+            )), blockId: id)
         case let .group(d):
             return .flowControl(.group(GroupBlock(
                 label: d.label.isEmpty ? nil : d.label,
                 blocks: d.blocks.map { $0.toBlock(devices: devices) },
                 name: d.name.isEmpty ? nil : d.name
-            )))
+            )), blockId: id)
         case let .stop(d):
             return .flowControl(.stop(StopBlock(
                 outcome: d.outcome,
                 message: d.message.isEmpty ? nil : d.message,
                 name: d.name.isEmpty ? nil : d.name
-            )))
+            )), blockId: id)
         case let .executeWorkflow(d):
             return .flowControl(.executeWorkflow(ExecuteWorkflowBlock(
                 targetWorkflowId: d.targetWorkflowId ?? UUID(),
                 executionMode: d.executionMode,
                 name: d.name.isEmpty ? nil : d.name
-            )))
+            )), blockId: id)
         }
     }
 }

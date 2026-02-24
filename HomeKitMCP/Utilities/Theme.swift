@@ -84,6 +84,13 @@ struct Theme {
         static let large: CGFloat = 16
     }
 
+    // MARK: - Block Editor
+
+    struct Block {
+        static let accentBarWidth: CGFloat = 3
+        static let interBlockGap: CGFloat = 8
+    }
+
     // MARK: - Semantic Colors
 
     struct Colors {

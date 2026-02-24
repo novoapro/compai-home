@@ -130,8 +130,14 @@ struct WorkflowMetadata: Codable {
 // MARK: - WorkflowBlock (Action vs. Flow Control)
 
 indirect enum WorkflowBlock: Codable {
-    case action(WorkflowAction)
-    case flowControl(FlowControlBlock)
+    case action(WorkflowAction, blockId: UUID)
+    case flowControl(FlowControlBlock, blockId: UUID)
+
+    var blockId: UUID {
+        switch self {
+        case .action(_, let id), .flowControl(_, let id): return id
+        }
+    }
 
     private enum BlockKind: String, Codable {
         case action
@@ -139,28 +145,31 @@ indirect enum WorkflowBlock: Codable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case block
+        case block, blockId
     }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let kind = try container.decode(BlockKind.self, forKey: .block)
+        let blockId = try container.decodeIfPresent(UUID.self, forKey: .blockId) ?? UUID()
         switch kind {
         case .action:
-            self = try .action(WorkflowAction(from: decoder))
+            self = try .action(WorkflowAction(from: decoder), blockId: blockId)
         case .flowControl:
-            self = try .flowControl(FlowControlBlock(from: decoder))
+            self = try .flowControl(FlowControlBlock(from: decoder), blockId: blockId)
         }
     }
 
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         switch self {
-        case let .action(action):
+        case let .action(action, blockId):
             try container.encode(BlockKind.action, forKey: .block)
+            try container.encode(blockId, forKey: .blockId)
             try action.encode(to: encoder)
-        case let .flowControl(flowControl):
+        case let .flowControl(flowControl, blockId):
             try container.encode(BlockKind.flowControl, forKey: .block)
+            try container.encode(blockId, forKey: .blockId)
             try flowControl.encode(to: encoder)
         }
     }
@@ -352,6 +361,22 @@ enum FlowControlBlock: Codable {
         case group
         case stop
         case executeWorkflow
+
+        init(from decoder: Decoder) throws {
+            let raw = try decoder.singleValueContainer().decode(String.self)
+            // Accept both "stop" (legacy) and "return" (new) for backward compatibility
+            if raw == "return" { self = .stop; return }
+            guard let value = FlowControlType(rawValue: raw) else {
+                throw DecodingError.dataCorruptedError(in: try decoder.singleValueContainer(), debugDescription: "Unknown FlowControlType: \(raw)")
+            }
+            self = value
+        }
+
+        func encode(to encoder: Encoder) throws {
+            var container = encoder.singleValueContainer()
+            // Serialize "stop" as "return" going forward
+            try container.encode(self == .stop ? "return" : rawValue)
+        }
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -495,7 +520,7 @@ enum FlowControlBlock: Codable {
         case .repeat: return "repeat"
         case .repeatWhile: return "repeatWhile"
         case .group: return "group"
-        case .stop: return "stop"
+        case .stop: return "return"
         case .executeWorkflow: return "executeWorkflow"
         }
     }
@@ -1107,12 +1132,65 @@ enum TriggerCondition: Codable {
     }
 }
 
+// MARK: - Block Result Condition
+
+enum BlockResultScope: Codable {
+    case specific(blockId: UUID)
+    case all
+    case any
+
+    private enum ScopeType: String, Codable {
+        case specific, all, any
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case scope, blockId
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let scope = try container.decode(ScopeType.self, forKey: .scope)
+        switch scope {
+        case .specific:
+            self = try .specific(blockId: container.decode(UUID.self, forKey: .blockId))
+        case .all:
+            self = .all
+        case .any:
+            self = .any
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        switch self {
+        case let .specific(blockId):
+            try container.encode(ScopeType.specific, forKey: .scope)
+            try container.encode(blockId, forKey: .blockId)
+        case .all:
+            try container.encode(ScopeType.all, forKey: .scope)
+        case .any:
+            try container.encode(ScopeType.any, forKey: .scope)
+        }
+    }
+}
+
+struct BlockResultCondition: Codable {
+    let scope: BlockResultScope
+    let expectedStatus: ExecutionStatus
+
+    init(scope: BlockResultScope, expectedStatus: ExecutionStatus = .success) {
+        self.scope = scope
+        self.expectedStatus = expectedStatus
+    }
+}
+
 // MARK: - Workflow Conditions (Guard Expressions)
 
 indirect enum WorkflowCondition: Codable {
     case deviceState(DeviceStateCondition)
     case timeCondition(TimeCondition)
     case sceneActive(SceneActiveCondition)
+    case blockResult(BlockResultCondition)
     case and([WorkflowCondition])
     case or([WorkflowCondition])
     case not(WorkflowCondition)
@@ -1122,6 +1200,7 @@ indirect enum WorkflowCondition: Codable {
         case timeCondition
         case sunEvent // backward compat decode only
         case sceneActive
+        case blockResult
         case and
         case or
         case not
@@ -1136,6 +1215,8 @@ indirect enum WorkflowCondition: Codable {
         // legacy sunEvent fields (decode only)
         case event, sunComparison
         case sceneId, sceneName, isActive
+        // blockResult fields
+        case blockResultScope, expectedStatus
     }
 
     init(from decoder: Decoder) throws {
@@ -1176,6 +1257,11 @@ indirect enum WorkflowCondition: Codable {
                 isActive: container.decodeIfPresent(Bool.self, forKey: .isActive) ?? true,
                 sceneName: container.decodeIfPresent(String.self, forKey: .sceneName)
             ))
+        case .blockResult:
+            self = try .blockResult(BlockResultCondition(
+                scope: container.decode(BlockResultScope.self, forKey: .blockResultScope),
+                expectedStatus: container.decode(ExecutionStatus.self, forKey: .expectedStatus)
+            ))
         case .and:
             self = try .and(container.decode([WorkflowCondition].self, forKey: .conditions))
         case .or:
@@ -1207,6 +1293,10 @@ indirect enum WorkflowCondition: Codable {
             try container.encode(cond.sceneId, forKey: .sceneId)
             try container.encode(cond.isActive, forKey: .isActive)
             try container.encodeIfPresent(cond.sceneName, forKey: .sceneName)
+        case let .blockResult(cond):
+            try container.encode(ConditionType.blockResult, forKey: .type)
+            try container.encode(cond.scope, forKey: .blockResultScope)
+            try container.encode(cond.expectedStatus, forKey: .expectedStatus)
         case let .and(conditions):
             try container.encode(ConditionType.and, forKey: .type)
             try container.encode(conditions, forKey: .conditions)

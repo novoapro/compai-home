@@ -1,0 +1,66 @@
+<div class="logs-page">
+  <!-- Filter Bar -->
+  <app-filter-bar
+    [availableDevices]="availableDevices()"
+    [selectedCategories]="selectedCategories()"
+    [selectedDevices]="selectedDevices()"
+    [searchText]="searchText()"
+    (categoriesChange)="onCategoriesChange($event)"
+    (devicesChange)="onDevicesChange($event)"
+    (searchTextChange)="onSearchTextChange($event)"
+    (dateRangeChange)="onDateRangeChange($event)"
+    (clearAll)="onClearAll()"
+  />
+
+  <!-- Header info bar -->
+  <div class="info-bar">
+    <span class="log-count">{{ logCount() }} logs</span>
+    @if (polling.isLoading()) {
+      <span class="loading-indicator">
+        <app-icon name="spinner" [size]="14" />
+        <span>Loading...</span>
+      </span>
+    }
+  </div>
+
+  <!-- Log List -->
+  @if (polling.error()) {
+    <div class="error-banner animate-fade-in">
+      <app-icon name="exclamation-triangle" [size]="16" />
+      <span>{{ polling.error() }}</span>
+    </div>
+  }
+
+  @if (groupedLogs().length === 0 && !polling.isLoading()) {
+    <app-empty-state
+      icon="bolt-circle-fill"
+      title="No logs yet"
+      message="Logs will appear here when devices change state, workflows execute, or API calls are made."
+    />
+  } @else {
+    <div class="log-list">
+      @for (group of groupedLogs(); track group.date) {
+        <div class="date-group animate-fade-in">
+          <div class="date-header">{{ group.label }}</div>
+          @for (log of group.logs; track log.id) {
+            <app-log-row [log]="log" />
+          }
+        </div>
+      }
+
+      <!-- Load More -->
+      @if (hasMore()) {
+        <div class="load-more">
+          <button class="load-more-btn" (click)="loadMore()" [disabled]="polling.isLoading()">
+            @if (polling.isLoading()) {
+              <app-icon name="spinner" [size]="16" />
+              <span>Loading...</span>
+            } @else {
+              <span>Load More</span>
+            }
+          </button>
+        </div>
+      }
+    </div>
+  }
+</div>

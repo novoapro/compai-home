@@ -1,0 +1,155 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--spacing-lg);
+  height: 52px;
+  background: var(--bg-content);
+  border-bottom: 1px solid var(--border-color);
+  box-shadow: var(--shadow-header);
+  flex-shrink: 0;
+  z-index: 100;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-lg);
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  color: var(--tint-main);
+}
+
+.logo-text {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-primary);
+}
+
+.nav-tabs {
+  display: flex;
+  gap: var(--spacing-xs);
+}
+
+.nav-tab {
+  padding: 6px 14px;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-secondary);
+  transition: all var(--transition-normal);
+  text-decoration: none;
+}
+
+.nav-tab:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  text-decoration: none;
+}
+
+.nav-tab.active {
+  background: color-mix(in srgb, var(--tint-main) 15%, transparent);
+  color: var(--tint-main);
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.poll-info {
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+  margin-right: var(--spacing-xs);
+}
+
+.header-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  transition: all var(--transition-fast);
+}
+
+.header-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.connection-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--status-error);
+  margin-left: var(--spacing-xs);
+  transition: background-color var(--transition-normal);
+}
+
+.connection-dot.connected {
+  background: var(--status-active);
+}
+
+.app-content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+@media (max-width: 768px) {
+  .app-header {
+    padding: 0 var(--spacing-sm);
+    height: 48px;
+  }
+  .header-left {
+    gap: var(--spacing-sm);
+  }
+  .logo-text {
+    display: none;
+  }
+  .poll-info {
+    display: none;
+  }
+  .nav-tab {
+    padding: 6px 10px;
+    font-size: var(--font-size-xs);
+  }
+}
+
+@media (max-width: 480px) {
+  .app-header {
+    padding: 0 var(--spacing-xs);
+    height: 44px;
+  }
+  .header-left {
+    gap: var(--spacing-xs);
+  }
+  .nav-tab {
+    padding: 4px 8px;
+    font-size: 11px;
+  }
+  .header-btn {
+    width: 28px;
+    height: 28px;
+  }
+  .header-right {
+    gap: 4px;
+  }
+  .logo {
+    gap: 4px;
+  }
+}

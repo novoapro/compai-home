@@ -66,7 +66,7 @@ class MCPRequestHandler {
         // Single consolidated log entry with both request and response
         let responseSummary = summarizeResponse(response)
         await logMCPCall(method: request.method, request: requestSummary, response: responseSummary,
-                         fullRequest: request, fullResponse: response)
+                         fullRequest: request)
 
         return response
     }
@@ -1091,16 +1091,12 @@ class MCPRequestHandler {
     // MARK: - MCP Logging Helpers
 
     private func logMCPCall(method: String, request: String, response: String,
-                            fullRequest: JSONRPCRequest? = nil, fullResponse: JSONRPCResponse? = nil) async {
+                            fullRequest: JSONRPCRequest? = nil) async {
         var detailedReq: String?
-        var detailedResp: String?
 
         if storage.readDetailedLogsEnabled() {
             if let fullRequest, let data = try? Self.encoder.encode(fullRequest) {
                 detailedReq = String(data: data, encoding: .utf8)
-            }
-            if let fullResponse, let data = try? Self.encoder.encode(fullResponse) {
-                detailedResp = String(data: data, encoding: .utf8)
             }
         }
 
@@ -1115,8 +1111,7 @@ class MCPRequestHandler {
             category: .mcpCall,
             requestBody: request,
             responseBody: response,
-            detailedRequestBody: detailedReq,
-            detailedResponseBody: detailedResp
+            detailedRequestBody: detailedReq
         )
         await loggingService.logEntry(entry)
     }

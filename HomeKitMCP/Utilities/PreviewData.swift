@@ -111,8 +111,7 @@ enum PreviewData {
             category: .mcpCall,
             requestBody: "method: tools/call | tool: control_device | args: {device_id=device-1}",
             responseBody: "✓ Successfully set Power to true",
-            detailedRequestBody: "{\"method\":\"tools/call\",\"params\":{\"name\":\"control_device\",\"arguments\":{\"device_id\":\"device-1\",\"value\":true}}}",
-            detailedResponseBody: "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"Successfully set Power to true on device-1\"}],\"isError\":false}}"
+            detailedRequestBody: "{\"method\":\"tools/call\",\"params\":{\"name\":\"control_device\",\"arguments\":{\"device_id\":\"device-1\",\"value\":true}}}"
         ),
 
         // 3. REST API: GET request (successful)
@@ -127,7 +126,7 @@ enum PreviewData {
             category: .restCall,
             requestBody: "GET /devices",
             responseBody: "200 OK - 3 devices returned",
-            detailedResponseBody: "[{\"id\":\"device-1\",\"name\":\"Living Room Light\",\"status\":\"on\",\"brightness\":75}]"
+            detailedRequestBody: "Client: 192.168.1.100\nUser-Agent: curl/8.0\nContent-Type: -\nURL: GET /devices"
         ),
 
         // 4. Webhook Call: External service notification (successful)
@@ -312,7 +311,7 @@ enum PreviewData {
 
     static var homeKitViewModel: HomeKitViewModel {
         let storage = StorageService()
-        let loggingService = LoggingService()
+        let loggingService = LoggingService(storage: storage)
         let configService = DeviceConfigurationService()
         let keychainService = KeychainService()
         let webhookService = WebhookService(storage: storage, loggingService: loggingService, keychainService: keychainService)
@@ -324,9 +323,9 @@ enum PreviewData {
     }
 
     static var logViewModel: LogViewModel {
-        let loggingService = LoggingService()
-        let executionLogService = WorkflowExecutionLogService()
         let storage = StorageService()
+        let loggingService = LoggingService(storage: storage)
+        let executionLogService = WorkflowExecutionLogService()
 
         let vm = LogViewModel(loggingService: loggingService, executionLogService: executionLogService, storage: storage)
 
@@ -369,7 +368,7 @@ enum PreviewData {
 
     static var settingsViewModel: SettingsViewModel {
         let storage = StorageService()
-        let loggingService = LoggingService()
+        let loggingService = LoggingService(storage: storage)
         let configService = DeviceConfigurationService()
         let keychainService = KeychainService()
         let webhookService = WebhookService(storage: storage, loggingService: loggingService, keychainService: keychainService)
@@ -399,7 +398,7 @@ enum PreviewData {
 
     static var workflowViewModel: WorkflowViewModel {
         let storage = StorageService()
-        let loggingService = LoggingService()
+        let loggingService = LoggingService(storage: storage)
         let configService = DeviceConfigurationService()
         let keychainService = KeychainService()
         let workflowStorage = WorkflowStorageService()

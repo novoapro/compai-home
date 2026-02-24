@@ -115,6 +115,7 @@ actor DeviceRegistryService {
            let saved = try? JSONDecoder().decode(RegistrySnapshot.self, from: data) {
             self.devices = saved.devices
             self.scenes = saved.scenes
+            rebuildReverseLookups()
         }
     }
 
@@ -223,6 +224,123 @@ actor DeviceRegistryService {
 
         rebuildReverseLookups()
         debouncedSave()
+    }
+
+    // MARK: - Orphan Deduplication
+
+    struct DeduplicationResult {
+        let deviceIdRemapping: [String: String]
+        let serviceIdRemapping: [String: String]
+        let characteristicIdRemapping: [String: String]
+        let sceneIdRemapping: [String: String]
+        let removedDeviceCount: Int
+        let removedSceneCount: Int
+
+        var hasChanges: Bool { removedDeviceCount > 0 || removedSceneCount > 0 }
+    }
+
+    /// Removes orphaned entries that are stale duplicates of a resolved entry (same hardware key or name+room+category).
+    /// Returns a remapping table so callers can update workflow references from the removed stableId to the resolved one.
+    func deduplicateOrphanedEntries() -> DeduplicationResult {
+        var deviceIdRemapping: [String: String] = [:]
+        var serviceIdRemapping: [String: String] = [:]
+        var charIdRemapping: [String: String] = [:]
+        var sceneIdRemapping: [String: String] = [:]
+        var deviceIdsToRemove: [String] = []
+        var sceneIdsToRemove: [String] = []
+
+        // Build lookup from resolved device entries
+        var resolvedByHwKey: [String: DeviceRegistryEntry] = [:]
+        var resolvedByNameKey: [String: DeviceRegistryEntry] = [:]
+        for entry in devices.values where entry.isResolved {
+            if let hwKey = entry.hardwareKey {
+                resolvedByHwKey[hwKey] = entry
+            }
+            resolvedByNameKey[deviceNameKey(entry)] = entry
+        }
+
+        // Find orphaned entries that duplicate a resolved entry
+        for entry in devices.values where !entry.isResolved {
+            var resolvedMatch: DeviceRegistryEntry?
+
+            if let hwKey = entry.hardwareKey, let resolved = resolvedByHwKey[hwKey] {
+                resolvedMatch = resolved
+            }
+            if resolvedMatch == nil {
+                let nk = deviceNameKey(entry)
+                if let resolved = resolvedByNameKey[nk] {
+                    resolvedMatch = resolved
+                }
+            }
+
+            if let resolved = resolvedMatch {
+                deviceIdRemapping[entry.stableId] = resolved.stableId
+                deviceIdsToRemove.append(entry.stableId)
+
+                // Build service and characteristic remapping
+                let orphanServicesByKey = Dictionary(
+                    entry.services.map { ("\($0.serviceType):\($0.serviceIndex)", $0) },
+                    uniquingKeysWith: { first, _ in first }
+                )
+                let resolvedServicesByKey = Dictionary(
+                    resolved.services.map { ("\($0.serviceType):\($0.serviceIndex)", $0) },
+                    uniquingKeysWith: { first, _ in first }
+                )
+
+                for (key, orphanService) in orphanServicesByKey {
+                    if let resolvedService = resolvedServicesByKey[key] {
+                        serviceIdRemapping[orphanService.stableServiceId] = resolvedService.stableServiceId
+                        let orphanCharsByType = Dictionary(
+                            orphanService.characteristics.map { ($0.characteristicType, $0) },
+                            uniquingKeysWith: { first, _ in first }
+                        )
+                        let resolvedCharsByType = Dictionary(
+                            resolvedService.characteristics.map { ($0.characteristicType, $0) },
+                            uniquingKeysWith: { first, _ in first }
+                        )
+                        for (charType, orphanChar) in orphanCharsByType {
+                            if let resolvedChar = resolvedCharsByType[charType] {
+                                charIdRemapping[orphanChar.stableCharacteristicId] = resolvedChar.stableCharacteristicId
+                            }
+                        }
+                    }
+                }
+
+                AppLogger.registry.info("Dedup: removing orphaned duplicate '\(entry.name)' (\(entry.stableId)) → resolved \(resolved.stableId)")
+            }
+        }
+
+        // Scene deduplication
+        var resolvedScenesByName: [String: SceneRegistryEntry] = [:]
+        for entry in scenes.values where entry.isResolved {
+            resolvedScenesByName[entry.name.lowercased()] = entry
+        }
+        for entry in scenes.values where !entry.isResolved {
+            if let resolved = resolvedScenesByName[entry.name.lowercased()] {
+                sceneIdRemapping[entry.stableId] = resolved.stableId
+                sceneIdsToRemove.append(entry.stableId)
+                AppLogger.registry.info("Dedup: removing orphaned duplicate scene '\(entry.name)' (\(entry.stableId)) → resolved \(resolved.stableId)")
+            }
+        }
+
+        // Apply removals
+        for id in deviceIdsToRemove { devices.removeValue(forKey: id) }
+        for id in sceneIdsToRemove { scenes.removeValue(forKey: id) }
+
+        if !deviceIdsToRemove.isEmpty || !sceneIdsToRemove.isEmpty {
+            rebuildReverseLookups()
+            debouncedSave()
+            AppLogger.registry.info("Dedup complete: removed \(deviceIdsToRemove.count) device(s), \(sceneIdsToRemove.count) scene(s)")
+        }
+
+        return DeduplicationResult(
+            deviceIdRemapping: deviceIdRemapping,
+            serviceIdRemapping: serviceIdRemapping,
+            characteristicIdRemapping: charIdRemapping,
+            sceneIdRemapping: sceneIdRemapping,
+            removedDeviceCount: deviceIdsToRemove.count,
+            removedSceneCount: sceneIdsToRemove.count
+        )
     }
 
     // MARK: - Nonisolated Sync Lookups (thread-safe, for synchronous callers)

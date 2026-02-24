@@ -1,0 +1,109 @@
+import { Component, input, output, signal, computed, HostListener } from '@angular/core';
+import { FormsModule } from '@angular/forms';
+import { LogCategory, CATEGORY_META } from '../../../core/models/state-change-log.model';
+import { IconComponent } from '../../../shared/components/icon.component';
+
+@Component({
+  selector: 'app-filter-bar',
+  standalone: true,
+  imports: [FormsModule, IconComponent],
+  templateUrl: './filter-bar.component.html',
+  styleUrl: './filter-bar.component.css',
+})
+export class FilterBarComponent {
+  availableDevices = input<string[]>([]);
+  selectedCategories = input<Set<string>>(new Set());
+  selectedDevices = input<Set<string>>(new Set());
+  searchText = input('');
+
+  categoriesChange = output<Set<string>>();
+  devicesChange = output<Set<string>>();
+  searchTextChange = output<string>();
+  dateRangeChange = output<{ from: string | null; to: string | null }>();
+  clearAll = output<void>();
+
+  showCategoryDropdown = signal(false);
+  showDeviceDropdown = signal(false);
+  dateFrom = signal<string>('');
+  dateTo = signal<string>('');
+  localSearch = '';
+
+  readonly allCategories = Object.values(LogCategory);
+  readonly categoryMeta = CATEGORY_META;
+
+  readonly hasActiveFilters = computed(() => {
+    return this.selectedCategories().size > 0 ||
+      this.selectedDevices().size > 0 ||
+      this.searchText() !== '' ||
+      this.dateFrom() !== '' ||
+      this.dateTo() !== '';
+  });
+
+  readonly categoryLabel = computed(() => {
+    const count = this.selectedCategories().size;
+    if (count === 0) return 'All Categories';
+    if (count === 1) return CATEGORY_META[Array.from(this.selectedCategories())[0] as LogCategory]?.label || 'Category';
+    return `${count} Categories`;
+  });
+
+  readonly deviceLabel = computed(() => {
+    const count = this.selectedDevices().size;
+    if (count === 0) return 'All Devices';
+    if (count === 1) return Array.from(this.selectedDevices())[0];
+    return `${count} Devices`;
+  });
+
+  constructor() {
+    this.localSearch = '';
+  }
+
+  toggleCategory(cat: string): void {
+    const current = new Set(this.selectedCategories());
+    if (current.has(cat)) {
+      current.delete(cat);
+    } else {
+      current.add(cat);
+    }
+    this.categoriesChange.emit(current);
+  }
+
+  toggleDevice(device: string): void {
+    const current = new Set(this.selectedDevices());
+    if (current.has(device)) {
+      current.delete(device);
+    } else {
+      current.add(device);
+    }
+    this.devicesChange.emit(current);
+  }
+
+  onSearchInput(value: string): void {
+    this.searchTextChange.emit(value);
+  }
+
+  onDateChange(): void {
+    this.dateRangeChange.emit({
+      from: this.dateFrom() || null,
+      to: this.dateTo() || null,
+    });
+  }
+
+  onClearAll(): void {
+    this.dateFrom.set('');
+    this.dateTo.set('');
+    this.localSearch = '';
+    this.clearAll.emit();
+  }
+
+  readonly isAnyDropdownOpen = computed(() => this.showCategoryDropdown() || this.showDeviceDropdown());
+
+  @HostListener('document:click')
+  onDocumentClick(): void {
+    this.closeDropdowns();
+  }
+
+  closeDropdowns(): void {
+    this.showCategoryDropdown.set(false);
+    this.showDeviceDropdown.set(false);
+  }
+}

@@ -79,7 +79,12 @@ class MCPServer: ObservableObject, MCPServerProtocol, @unchecked Sendable {
             guard let self else { return }
             do {
                 let app = try await Application.make(env)
-                app.http.server.configuration.hostname = self.storage.readBindAddress()
+                let requestedAddress = self.storage.readBindAddress()
+                let resolvedAddress = NetworkInterfaceEnumerator.resolvedBindAddress(requestedAddress)
+                if resolvedAddress != requestedAddress {
+                    AppLogger.server.warning("Bind address \(requestedAddress) is unavailable, falling back to \(resolvedAddress)")
+                }
+                app.http.server.configuration.hostname = resolvedAddress
                 app.http.server.configuration.port = self.port
                 app.http.server.configuration.reuseAddress = true
                 app.logger.logLevel = .warning
@@ -147,27 +152,32 @@ class MCPServer: ObservableObject, MCPServerProtocol, @unchecked Sendable {
         let validTokens = keychainService.getValidTokenStrings()
         let authMiddleware = BearerAuthMiddleware(validTokens: validTokens)
 
-        // CORS middleware — restrict to the bind address origin for protected routes.
-        // The webhook trigger endpoint is intentionally left outside CORS so external
-        // services can call it regardless of origin.
-        let bindAddr = storage.readBindAddress()
-        let corsOrigin: CORSMiddleware.AllowOriginSetting = bindAddr == "0.0.0.0"
-            ? .all
-            : .custom("http://\(bindAddr):\(port)")
-        let corsConfig = CORSMiddleware.Configuration(
-            allowedOrigin: corsOrigin,
-            allowedMethods: [.GET, .POST, .PUT, .DELETE, .OPTIONS],
-            allowedHeaders: [.contentType, .authorization, .init("Mcp-Session-Id")]
-        )
-        let corsMiddleware = CORSMiddleware(configuration: corsConfig)
+        // CORS middleware — app-level so OPTIONS preflight requests get proper headers.
+        if storage.readCorsEnabled() {
+            let allowedOrigins = storage.readCorsAllowedOrigins()
+            let corsOrigin: CORSMiddleware.AllowOriginSetting
+            if !allowedOrigins.isEmpty {
+                corsOrigin = .any(allowedOrigins)
+            } else {
+                let requestedAddr = storage.readBindAddress()
+                let bindAddr = NetworkInterfaceEnumerator.resolvedBindAddress(requestedAddr)
+                corsOrigin = bindAddr == "0.0.0.0" ? .all : .custom("http://\(bindAddr):\(port)")
+            }
+            let corsConfig = CORSMiddleware.Configuration(
+                allowedOrigin: corsOrigin,
+                allowedMethods: [.GET, .POST, .PUT, .DELETE, .OPTIONS],
+                allowedHeaders: [.contentType, .authorization, .init("Mcp-Session-Id")]
+            )
+            app.middleware.use(CORSMiddleware(configuration: corsConfig), at: .beginning)
+        }
 
         // Health check — no auth required
         app.on(.GET, "health") { _ -> String in
             return "ok"
         }
 
-        // All routes require bearer token auth + CORS
-        let protected = app.grouped(corsMiddleware, authMiddleware)
+        // All routes require bearer token auth
+        let protected = app.grouped(authMiddleware)
 
         // Webhook trigger endpoint — requires Bearer auth + webhook token in URL path.
         protected.on(.POST, "workflows", "webhook", ":token", body: .collect(maxSize: "1mb")) { [weak self] req async throws -> Response in
@@ -327,7 +337,7 @@ class MCPServer: ObservableObject, MCPServerProtocol, @unchecked Sendable {
         let data = try Self.encoder.encode(restDevices)
         logRESTCall(method: "GET", path: "/devices", statusCode: 200,
                     resultSummary: "\(restDevices.count) devices",
-                    fullResponseBody: storage.readDetailedLogsEnabled() ? String(data: data, encoding: .utf8) : nil)
+                    req: req)
 
         return jsonResponse(data: data)
     }
@@ -356,7 +366,7 @@ class MCPServer: ObservableObject, MCPServerProtocol, @unchecked Sendable {
         let data = try Self.encoder.encode(restDevice)
         logRESTCall(method: "GET", path: "/devices/\(deviceId)", statusCode: 200,
                     resultSummary: restDevice.name,
-                    fullResponseBody: storage.readDetailedLogsEnabled() ? String(data: data, encoding: .utf8) : nil)
+                    req: req)
 
         return jsonResponse(data: data)
     }
@@ -436,7 +446,7 @@ class MCPServer: ObservableObject, MCPServerProtocol, @unchecked Sendable {
 
         logRESTCall(method: "GET", path: "/logs", statusCode: 200,
                     resultSummary: "\(paginatedLogs.count) of \(total) logs (offset \(offset))",
-                    fullResponseBody: storage.readDetailedLogsEnabled() ? String(data: responseData, encoding: .utf8) : nil)
+                    req: req)
 
         return jsonResponse(data: responseData)
     }
@@ -451,7 +461,7 @@ class MCPServer: ObservableObject, MCPServerProtocol, @unchecked Sendable {
         let data = try Self.encoder.encode(restScenes)
         logRESTCall(method: "GET", path: "/scenes", statusCode: 200,
                     resultSummary: "\(restScenes.count) scenes",
-                    fullResponseBody: storage.readDetailedLogsEnabled() ? String(data: data, encoding: .utf8) : nil)
+                    req: req)
 
         return jsonResponse(data: data)
     }
@@ -474,7 +484,7 @@ class MCPServer: ObservableObject, MCPServerProtocol, @unchecked Sendable {
         let data = try Self.encoder.encode(restScene)
         logRESTCall(method: "GET", path: "/scenes/\(sceneId)", statusCode: 200,
                     resultSummary: restScene.name,
-                    fullResponseBody: storage.readDetailedLogsEnabled() ? String(data: data, encoding: .utf8) : nil)
+                    req: req)
 
         return jsonResponse(data: data)
     }
@@ -511,7 +521,7 @@ class MCPServer: ObservableObject, MCPServerProtocol, @unchecked Sendable {
         let data = try Self.encoder.encode(workflows)
         logRESTCall(method: "GET", path: "/workflows", statusCode: 200,
                     resultSummary: "\(workflows.count) workflows",
-                    fullResponseBody: storage.readDetailedLogsEnabled() ? String(data: data, encoding: .utf8) : nil)
+                    req: req)
 
         return jsonResponse(data: data)
     }
@@ -532,7 +542,7 @@ class MCPServer: ObservableObject, MCPServerProtocol, @unchecked Sendable {
         let data = try Self.encoder.encode(workflow)
         logRESTCall(method: "GET", path: "/workflows/\(idStr)", statusCode: 200,
                     resultSummary: workflow.name,
-                    fullResponseBody: storage.readDetailedLogsEnabled() ? String(data: data, encoding: .utf8) : nil)
+                    req: req)
 
         return jsonResponse(data: data)
     }
@@ -581,7 +591,7 @@ class MCPServer: ObservableObject, MCPServerProtocol, @unchecked Sendable {
         let data = try Self.encoder.encode(created)
         logRESTCall(method: "POST", path: "/workflows", statusCode: 201,
                     resultSummary: "Created: \(created.name)",
-                    fullResponseBody: storage.readDetailedLogsEnabled() ? String(data: data, encoding: .utf8) : nil)
+                    req: req)
 
         return jsonResponse(data: data, status: .created)
     }
@@ -649,7 +659,7 @@ class MCPServer: ObservableObject, MCPServerProtocol, @unchecked Sendable {
             let data = try Self.encoder.encode(updated)
             logRESTCall(method: "PUT", path: "/workflows/\(idStr)", statusCode: 200,
                         resultSummary: "Updated: \(updated.name)",
-                        fullResponseBody: storage.readDetailedLogsEnabled() ? String(data: data, encoding: .utf8) : nil)
+                        req: req)
 
             return jsonResponse(data: data)
         } catch let error as Abort {
@@ -693,7 +703,7 @@ class MCPServer: ObservableObject, MCPServerProtocol, @unchecked Sendable {
         let data = try Self.encoder.encode(result)
         logRESTCall(method: "POST", path: "/workflows/\(idStr)/trigger", statusCode: UInt(httpStatus.code),
                     resultSummary: result.message,
-                    fullResponseBody: storage.readDetailedLogsEnabled() ? String(data: data, encoding: .utf8) : nil)
+                    req: req)
 
         return jsonResponse(data: data, status: httpStatus)
     }
@@ -713,7 +723,7 @@ class MCPServer: ObservableObject, MCPServerProtocol, @unchecked Sendable {
         let data = try Self.encoder.encode(logs)
         logRESTCall(method: "GET", path: "/workflows/\(idStr)/logs", statusCode: 200,
                     resultSummary: "\(logs.count) logs",
-                    fullResponseBody: storage.readDetailedLogsEnabled() ? String(data: data, encoding: .utf8) : nil)
+                    req: req)
 
         return jsonResponse(data: data)
     }
@@ -757,7 +767,7 @@ class MCPServer: ObservableObject, MCPServerProtocol, @unchecked Sendable {
         let data = try Self.encoder.encode(results)
         logRESTCall(method: "POST", path: "/workflows/webhook/\(token.prefix(8))...", statusCode: 202,
                     resultSummary: "\(results.filter(\.isAccepted).count)/\(results.count) workflows scheduled",
-                    fullResponseBody: storage.readDetailedLogsEnabled() ? String(data: data, encoding: .utf8) : nil)
+                    req: req)
 
         return jsonResponse(data: data, status: .accepted)
     }
@@ -983,8 +993,21 @@ class MCPServer: ObservableObject, MCPServerProtocol, @unchecked Sendable {
     }
 
     private func logRESTCall(method: String, path: String, statusCode: UInt,
-                             resultSummary: String, fullResponseBody: String? = nil) {
+                             resultSummary: String, req: Request? = nil) {
         Task {
+            var detailedReq: String?
+            if storage.readDetailedLogsEnabled(), let req {
+                let clientIP = req.headers.first(name: "X-Forwarded-For") ?? req.remoteAddress?.ipAddress ?? "unknown"
+                let userAgent = req.headers.first(name: .userAgent) ?? "unknown"
+                let contentType = req.headers.first(name: .contentType) ?? "-"
+                let query = req.url.query.map { "?\($0)" } ?? ""
+                detailedReq = """
+                Client: \(clientIP)
+                User-Agent: \(userAgent)
+                Content-Type: \(contentType)
+                URL: \(method) \(path)\(query)
+                """
+            }
             let entry = StateChangeLog(
                 id: UUID(),
                 timestamp: Date(),
@@ -996,7 +1019,7 @@ class MCPServer: ObservableObject, MCPServerProtocol, @unchecked Sendable {
                 category: .restCall,
                 requestBody: "\(method) \(path)",
                 responseBody: "\(statusCode) \(resultSummary)",
-                detailedResponseBody: fullResponseBody
+                detailedRequestBody: detailedReq
             )
             await loggingService.logEntry(entry)
         }

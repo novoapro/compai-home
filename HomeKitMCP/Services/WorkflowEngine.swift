@@ -490,9 +490,10 @@ actor WorkflowEngine: WorkflowEngineProtocol {
         // Log immediately as running so it appears in the UI
         await executionLogService.log(execLog)
 
-        // Set workflow context for orphan logging
+        // Set workflow context for orphan logging and reset block results
         conditionEvaluator.workflowId = workflow.id
         conditionEvaluator.workflowName = workflow.name
+        conditionEvaluator.blockResults = [:]
 
         // Evaluate guard conditions
         if let conditions = workflow.conditions, !conditions.isEmpty {
@@ -518,7 +519,7 @@ actor WorkflowEngine: WorkflowEngineProtocol {
         let logBox = LogBox(execLog)
 
         // Execute blocks in order, updating log after each step
-        let context = ExecutionContext(workflow: workflow, callingWorkflowIds: callerContext?.callingWorkflowIds ?? [])
+        var context = ExecutionContext(workflow: workflow, callingWorkflowIds: callerContext?.callingWorkflowIds ?? [])
         var failed = false
 
         let onUpdate: @Sendable (BlockResult) async -> Void = { [weak self] updated in
@@ -541,6 +542,9 @@ actor WorkflowEngine: WorkflowEngineProtocol {
                 }
 
                 let result = try await executeBlock(block, index: index, context: context, onUpdate: onUpdate)
+
+                // Record block result for blockResult conditions
+                conditionEvaluator.blockResults[block.blockId] = result.status
 
                 // Note: executeBlock already calls onUpdate for progress and completion,
                 // but we append it here if it wasn't already in the top-level list.
@@ -661,7 +665,6 @@ actor WorkflowEngine: WorkflowEngineProtocol {
 
         // Detailed logs (gated by setting)
         var detailedRequest: String?
-        var detailedResponse: String?
         if storage.readDetailedLogsEnabled() {
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.sortedKeys]
@@ -686,11 +689,6 @@ actor WorkflowEngine: WorkflowEngineProtocol {
             if let data = try? encoder.encode(detailedReqDict), let json = String(data: data, encoding: .utf8) {
                 detailedRequest = json
             }
-
-            // Detailed response: full block results tree
-            if let data = try? encoder.encode(execLog.blockResults), let json = String(data: data, encoding: .utf8) {
-                detailedResponse = json
-            }
         }
 
         let logEntry = StateChangeLog(
@@ -706,8 +704,7 @@ actor WorkflowEngine: WorkflowEngineProtocol {
             errorDetails: execLog.errorMessage,
             requestBody: requestBody,
             responseBody: responseBody,
-            detailedRequestBody: detailedRequest,
-            detailedResponseBody: detailedResponse
+            detailedRequestBody: detailedRequest
         )
         await loggingService.logEntry(logEntry)
     }
@@ -717,9 +714,9 @@ actor WorkflowEngine: WorkflowEngineProtocol {
     /// Executes a single block. May throw `WorkflowEngineError.stopped` to halt the entire workflow.
     private func executeBlock(_ block: WorkflowBlock, index: Int, context: ExecutionContext, onUpdate: @escaping (BlockResult) async -> Void) async throws -> BlockResult {
         switch block {
-        case let .action(action):
+        case let .action(action, _):
             return await executeAction(action, index: index, context: context, onUpdate: onUpdate)
-        case let .flowControl(flowControl):
+        case let .flowControl(flowControl, _):
             return try await executeFlowControl(flowControl, index: index, context: context, onUpdate: onUpdate)
         }
     }
@@ -964,20 +961,34 @@ actor WorkflowEngine: WorkflowEngineProtocol {
                     await onUpdate(result)
                 }
 
-                for (i, b) in blocksToRun.enumerated() {
-                    if Task.isCancelled { break }
-                    let r = try await executeBlock(b, index: i, context: context, onUpdate: nestedUpdate)
-                    if !nested.contains(where: { $0.id == r.id }) {
-                        nested.append(r)
+                do {
+                    for (i, b) in blocksToRun.enumerated() {
+                        if Task.isCancelled { break }
+                        let r = try await executeBlock(b, index: i, context: context, onUpdate: nestedUpdate)
+                        conditionEvaluator.blockResults[b.blockId] = r.status
+                        if !nested.contains(where: { $0.id == r.id }) {
+                            nested.append(r)
+                        }
+                        if r.status == .cancelled || Task.isCancelled { break }
+                        if r.status == .failure {
+                            nestedFailed = true
+                            if !context.workflow.continueOnError { break }
+                        }
                     }
-                    if r.status == .cancelled || Task.isCancelled { break }
-                    if r.status == .failure {
-                        nestedFailed = true
-                        if !context.workflow.continueOnError { break }
+                    result.nestedResults = nested
+                    result.status = Task.isCancelled ? .cancelled : (nestedFailed ? .failure : .success)
+                } catch let error as WorkflowEngineError {
+                    if case let .stopped(outcome, message) = error {
+                        result.nestedResults = nested
+                        result.detail = "Returned: \(outcome.rawValue)\(message.map { " — \($0)" } ?? "")"
+                        result.status = outcomeToStatus(outcome)
+                        result.errorMessage = message
+                        result.completedAt = Date()
+                        await onUpdate(result)
+                        return result
                     }
+                    throw error
                 }
-                result.nestedResults = nested
-                result.status = Task.isCancelled ? .cancelled : (nestedFailed ? .failure : .success)
 
             case let .repeat(block):
                 var nested: [BlockResult] = []
@@ -993,32 +1004,46 @@ actor WorkflowEngine: WorkflowEngineProtocol {
                     await onUpdate(result)
                 }
 
-                for iteration in 0 ..< block.count {
-                    if Task.isCancelled { break }
-                    result.detail = "Iteration \(iteration + 1)/\(block.count)"
-                    await onUpdate(result)
-
-                    for (i, b) in block.blocks.enumerated() {
+                do {
+                    for iteration in 0 ..< block.count {
                         if Task.isCancelled { break }
-                        let r = try await executeBlock(b, index: i, context: context, onUpdate: nestedUpdate)
-                        if !nested.contains(where: { $0.id == r.id }) {
-                            nested.append(r)
+                        result.detail = "Iteration \(iteration + 1)/\(block.count)"
+                        await onUpdate(result)
+
+                        for (i, b) in block.blocks.enumerated() {
+                            if Task.isCancelled { break }
+                            let r = try await executeBlock(b, index: i, context: context, onUpdate: nestedUpdate)
+                            conditionEvaluator.blockResults[b.blockId] = r.status
+                            if !nested.contains(where: { $0.id == r.id }) {
+                                nested.append(r)
+                            }
+                            if r.status == .cancelled || Task.isCancelled { break }
+                            if r.status == .failure {
+                                repeatFailed = true
+                                if !context.workflow.continueOnError { break }
+                            }
                         }
-                        if r.status == .cancelled || Task.isCancelled { break }
-                        if r.status == .failure {
-                            repeatFailed = true
-                            if !context.workflow.continueOnError { break }
+                        if Task.isCancelled { break }
+                        if repeatFailed && !context.workflow.continueOnError { break }
+                        if let delay = block.delayBetweenSeconds, iteration < block.count - 1 {
+                            try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
                         }
                     }
-                    if Task.isCancelled { break }
-                    if repeatFailed && !context.workflow.continueOnError { break }
-                    if let delay = block.delayBetweenSeconds, iteration < block.count - 1 {
-                        try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                    result.detail = "Repeated \(block.count) times"
+                    result.nestedResults = nested
+                    result.status = Task.isCancelled ? .cancelled : (repeatFailed ? .failure : .success)
+                } catch let error as WorkflowEngineError {
+                    if case let .stopped(outcome, message) = error {
+                        result.nestedResults = nested
+                        result.detail = "Returned: \(outcome.rawValue)\(message.map { " — \($0)" } ?? "")"
+                        result.status = outcomeToStatus(outcome)
+                        result.errorMessage = message
+                        result.completedAt = Date()
+                        await onUpdate(result)
+                        return result
                     }
+                    throw error
                 }
-                result.detail = "Repeated \(block.count) times"
-                result.nestedResults = nested
-                result.status = Task.isCancelled ? .cancelled : (repeatFailed ? .failure : .success)
 
             case let .repeatWhile(block):
                 var nested: [BlockResult] = []
@@ -1035,37 +1060,51 @@ actor WorkflowEngine: WorkflowEngineProtocol {
                     await onUpdate(result)
                 }
 
-                while iterations < block.maxIterations {
-                    if Task.isCancelled { break }
-                    let condResult = await conditionEvaluator.evaluate(block.condition)
-                    guard condResult.passed else { break }
-
-                    result.detail = "Iteration \(iterations + 1)"
-                    await onUpdate(result)
-
-                    for (i, b) in block.blocks.enumerated() {
+                do {
+                    while iterations < block.maxIterations {
                         if Task.isCancelled { break }
-                        let r = try await executeBlock(b, index: i, context: context, onUpdate: nestedUpdate)
-                        if !nested.contains(where: { $0.id == r.id }) {
-                            nested.append(r)
-                        }
-                        if r.status == .cancelled || Task.isCancelled { break }
-                        if r.status == .failure {
-                            repeatFailed = true
-                            if !context.workflow.continueOnError { break }
-                        }
-                    }
-                    if Task.isCancelled { break }
-                    if repeatFailed && !context.workflow.continueOnError { break }
+                        let condResult = await conditionEvaluator.evaluate(block.condition)
+                        guard condResult.passed else { break }
 
-                    iterations += 1
-                    if let delay = block.delayBetweenSeconds {
-                        try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                        result.detail = "Iteration \(iterations + 1)"
+                        await onUpdate(result)
+
+                        for (i, b) in block.blocks.enumerated() {
+                            if Task.isCancelled { break }
+                            let r = try await executeBlock(b, index: i, context: context, onUpdate: nestedUpdate)
+                            conditionEvaluator.blockResults[b.blockId] = r.status
+                            if !nested.contains(where: { $0.id == r.id }) {
+                                nested.append(r)
+                            }
+                            if r.status == .cancelled || Task.isCancelled { break }
+                            if r.status == .failure {
+                                repeatFailed = true
+                                if !context.workflow.continueOnError { break }
+                            }
+                        }
+                        if Task.isCancelled { break }
+                        if repeatFailed && !context.workflow.continueOnError { break }
+
+                        iterations += 1
+                        if let delay = block.delayBetweenSeconds {
+                            try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                        }
                     }
+                    result.detail = "Repeated \(iterations) times (max: \(block.maxIterations))"
+                    result.nestedResults = nested
+                    result.status = Task.isCancelled ? .cancelled : (repeatFailed ? .failure : .success)
+                } catch let error as WorkflowEngineError {
+                    if case let .stopped(outcome, message) = error {
+                        result.nestedResults = nested
+                        result.detail = "Returned: \(outcome.rawValue)\(message.map { " — \($0)" } ?? "")"
+                        result.status = outcomeToStatus(outcome)
+                        result.errorMessage = message
+                        result.completedAt = Date()
+                        await onUpdate(result)
+                        return result
+                    }
+                    throw error
                 }
-                result.detail = "Repeated \(iterations) times (max: \(block.maxIterations))"
-                result.nestedResults = nested
-                result.status = Task.isCancelled ? .cancelled : (repeatFailed ? .failure : .success)
 
             case let .group(block):
                 var nested: [BlockResult] = []
@@ -1081,25 +1120,39 @@ actor WorkflowEngine: WorkflowEngineProtocol {
                     await onUpdate(result)
                 }
 
-                for (i, b) in block.blocks.enumerated() {
-                    if Task.isCancelled { break }
-                    let r = try await executeBlock(b, index: i, context: context, onUpdate: nestedUpdate)
-                    if !nested.contains(where: { $0.id == r.id }) {
-                        nested.append(r)
+                do {
+                    for (i, b) in block.blocks.enumerated() {
+                        if Task.isCancelled { break }
+                        let r = try await executeBlock(b, index: i, context: context, onUpdate: nestedUpdate)
+                        conditionEvaluator.blockResults[b.blockId] = r.status
+                        if !nested.contains(where: { $0.id == r.id }) {
+                            nested.append(r)
+                        }
+                        if r.status == .cancelled || Task.isCancelled { break }
+                        if r.status == .failure {
+                            groupFailed = true
+                            if !context.workflow.continueOnError { break }
+                        }
                     }
-                    if r.status == .cancelled || Task.isCancelled { break }
-                    if r.status == .failure {
-                        groupFailed = true
-                        if !context.workflow.continueOnError { break }
+                    result.detail = block.label ?? "Group"
+                    result.nestedResults = nested
+                    result.status = Task.isCancelled ? .cancelled : (groupFailed ? .failure : .success)
+                } catch let error as WorkflowEngineError {
+                    if case let .stopped(outcome, message) = error {
+                        result.nestedResults = nested
+                        result.detail = "Returned: \(outcome.rawValue)\(message.map { " — \($0)" } ?? "")"
+                        result.status = outcomeToStatus(outcome)
+                        result.errorMessage = message
+                        result.completedAt = Date()
+                        await onUpdate(result)
+                        return result
                     }
+                    throw error
                 }
-                result.detail = block.label ?? "Group"
-                result.nestedResults = nested
-                result.status = Task.isCancelled ? .cancelled : (groupFailed ? .failure : .success)
 
             case let .stop(block):
                 let msgSuffix = block.message.flatMap { $0.isEmpty ? nil : " — \($0)" } ?? ""
-                result.detail = "Stopping workflow: \(block.outcome.rawValue)\(msgSuffix)"
+                result.detail = "Returning: \(block.outcome.rawValue)\(msgSuffix)"
                 result.status = .success
                 result.completedAt = Date()
                 await onUpdate(result)
@@ -1199,7 +1252,7 @@ actor WorkflowEngine: WorkflowEngineProtocol {
         } catch is CancellationError {
             result.status = .cancelled
         } catch {
-            // Re-throw stop errors so they propagate to the main loop
+            // Re-throw return errors so they propagate to the parent scope
             if let engineError = error as? WorkflowEngineError,
                case .stopped = engineError {
                 throw engineError
@@ -1214,6 +1267,14 @@ actor WorkflowEngine: WorkflowEngineProtocol {
     }
 
     // MARK: - Helpers
+
+    private func outcomeToStatus(_ outcome: StopOutcome) -> ExecutionStatus {
+        switch outcome {
+        case .success: return .success
+        case .error: return .failure
+        case .cancelled: return .cancelled
+        }
+    }
 
     private func resolveDeviceName(_ deviceId: String) async -> String {
         // Use getDeviceState which resolves both stable registry IDs and HomeKit UUIDs
@@ -1423,6 +1484,7 @@ actor WorkflowEngine: WorkflowEngineProtocol {
 private struct ExecutionContext {
     let workflow: Workflow
     var callingWorkflowIds: Set<UUID> = []
+    var blockResults: [UUID: ExecutionStatus] = [:]
 }
 
 private struct StateWaiter {
@@ -1447,7 +1509,7 @@ enum WorkflowEngineError: LocalizedError {
         case let .invalidURL(url): return "Invalid URL: \(url)"
         case let .webhookFailed(code): return "Webhook failed with status \(code)"
         case let .ssrfBlocked(url): return "Request blocked: URL '\(url)' resolves to a private/internal IP address"
-        case let .stopped(outcome, message): return "Workflow stopped (\(outcome.rawValue))\(message.map { ": \($0)" } ?? "")"
+        case let .stopped(outcome, message): return "Return (\(outcome.rawValue))\(message.map { ": \($0)" } ?? "")"
         }
     }
 }

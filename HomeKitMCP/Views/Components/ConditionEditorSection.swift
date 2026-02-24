@@ -6,6 +6,14 @@ struct ConditionEditorSection: View {
     @Binding var conditionRoot: ConditionGroupDraft
     let devices: [DeviceModel]
     var scenes: [SceneModel] = []
+    var continueOnError: Bool = false
+    var allBlocks: [BlockDraft] = []
+    var currentBlockId: UUID? = nil
+    /// When false (default), Block Result conditions are hidden from the add menu.
+    /// Guard conditions (workflow-level) should pass false; block-level conditions pass true.
+    var allowBlockResult: Bool = false
+    /// 1-based execution order index for each block.
+    var blockOrdinals: [UUID: Int] = [:]
 
     var body: some View {
         Section {
@@ -13,7 +21,12 @@ struct ConditionEditorSection: View {
                 group: $conditionRoot,
                 devices: devices,
                 scenes: scenes,
-                depth: 0
+                depth: 0,
+                continueOnError: continueOnError,
+                allBlocks: allBlocks,
+                currentBlockId: currentBlockId,
+                allowBlockResult: allowBlockResult,
+                blockOrdinals: blockOrdinals
             )
         } header: {
             Text("Guard Conditions (\(conditionRoot.leafCount))")
@@ -35,6 +48,11 @@ struct ConditionGroupEditor: View {
     let devices: [DeviceModel]
     var scenes: [SceneModel] = []
     let depth: Int
+    var continueOnError: Bool = false
+    var allBlocks: [BlockDraft] = []
+    var currentBlockId: UUID? = nil
+    var allowBlockResult: Bool = false
+    var blockOrdinals: [UUID: Int] = [:]
 
     var body: some View {
         // Compact operator row
@@ -82,6 +100,9 @@ struct ConditionGroupEditor: View {
                         condition: leafBinding,
                         devices: devices,
                         scenes: scenes,
+                        allBlocks: allBlocks,
+                        currentBlockId: currentBlockId,
+                        blockOrdinals: blockOrdinals,
                         onDelete: { group.children.remove(at: index) }
                     )
                 }
@@ -92,7 +113,12 @@ struct ConditionGroupEditor: View {
                             group: subBinding,
                             devices: devices,
                             scenes: scenes,
-                            depth: depth + 1
+                            depth: depth + 1,
+                            continueOnError: continueOnError,
+                            allBlocks: allBlocks,
+                            currentBlockId: currentBlockId,
+                            allowBlockResult: allowBlockResult,
+                            blockOrdinals: blockOrdinals
                         )
                     } label: {
                         subGroupLabel(at: index)
@@ -124,6 +150,13 @@ struct ConditionGroupEditor: View {
                     group.children.append(.leaf(.emptySceneActive()))
                 } label: {
                     Label("Scene Active", systemImage: "play.rectangle.fill")
+                }
+                if allowBlockResult && continueOnError {
+                    Button {
+                        group.children.append(.leaf(.emptyBlockResult()))
+                    } label: {
+                        Label("Block Result", systemImage: "checkmark.rectangle.stack")
+                    }
                 }
             } label: {
                 HStack(spacing: 4) {
@@ -222,8 +255,18 @@ private struct ConditionLeafRow: View {
     @Binding var condition: ConditionDraft
     let devices: [DeviceModel]
     var scenes: [SceneModel] = []
+    var allBlocks: [BlockDraft] = []
+    var currentBlockId: UUID? = nil
+    var blockOrdinals: [UUID: Int] = [:]
     let onDelete: () -> Void
     @State private var showingEditSheet = false
+
+    private var isOrphanedBlockResult: Bool {
+        guard condition.conditionDraftType == .blockResult,
+              condition.blockResultScope == .specific,
+              let blockId = condition.blockResultBlockId else { return false }
+        return !allBlocks.contains(where: { $0.id == blockId })
+    }
 
     var body: some View {
         HStack(spacing: 8) {
@@ -232,10 +275,16 @@ private struct ConditionLeafRow: View {
                 .foregroundStyle(conditionIconColor)
                 .frame(width: 20)
 
-            Text(condition.name.isEmpty ? condition.autoName(devices: devices, scenes: scenes) : condition.name)
+            Text(condition.name.isEmpty ? condition.autoName(devices: devices, scenes: scenes, allBlocks: allBlocks, blockOrdinals: blockOrdinals) : condition.name)
                 .font(.footnote)
                 .foregroundStyle(Theme.Text.primary)
                 .lineLimit(1)
+
+            if isOrphanedBlockResult {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.caption2)
+                    .foregroundStyle(.orange)
+            }
 
             Spacer()
 
@@ -264,7 +313,10 @@ private struct ConditionLeafRow: View {
             ConditionLeafEditSheet(
                 condition: $condition,
                 devices: devices,
-                scenes: scenes
+                scenes: scenes,
+                allBlocks: allBlocks,
+                currentBlockId: currentBlockId,
+                blockOrdinals: blockOrdinals
             )
         }
     }
@@ -274,6 +326,7 @@ private struct ConditionLeafRow: View {
         case .deviceState: return .indigo
         case .timeCondition: return .orange
         case .sceneActive: return .green
+        case .blockResult: return .purple
         }
     }
 }
@@ -284,11 +337,18 @@ private struct ConditionLeafEditSheet: View {
     @Binding var condition: ConditionDraft
     let devices: [DeviceModel]
     var scenes: [SceneModel] = []
+    var allBlocks: [BlockDraft] = []
+    var currentBlockId: UUID? = nil
+    var blockOrdinals: [UUID: Int] = [:]
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var workflowViewModel: WorkflowViewModel
 
     @State private var testResult: ConditionResult?
     @State private var isTesting = false
+
+    private var isBlockResult: Bool {
+        condition.conditionDraftType == .blockResult
+    }
 
     var body: some View {
         NavigationStack {
@@ -301,7 +361,9 @@ private struct ConditionLeafEditSheet: View {
                     TextField("Custom name (optional)", text: $condition.name)
                 }
 
-                testSection
+                if !isBlockResult {
+                    testSection
+                }
             }
             .formStyle(.grouped)
             .scrollContentBackground(.hidden)
@@ -425,6 +487,77 @@ private struct ConditionLeafEditSheet: View {
                 Text("Is Not Active").tag(false)
             }
             .pickerStyle(.segmented)
+
+        case .blockResult:
+            blockResultContent
+        }
+    }
+
+    // MARK: - Block Result Content
+
+    @ViewBuilder
+    private var blockResultContent: some View {
+        Picker("Scope", selection: $condition.blockResultScope) {
+            ForEach(BlockResultScopeDraft.allCases) { scope in
+                Text(scope.displayName).tag(scope)
+            }
+        }
+
+        if condition.blockResultScope == .specific {
+            let currentOrdinal = currentBlockId.flatMap { blockOrdinals[$0] } ?? Int.max
+            let precedingBlocks = allBlocks.filter { block in
+                guard block.id != currentBlockId else { return false }
+                let ord = blockOrdinals[block.id] ?? Int.max
+                return ord < currentOrdinal
+            }
+
+            Picker("Block", selection: $condition.blockResultBlockId) {
+                Text("Select block\u{2026}").tag(UUID?.none)
+                ForEach(precedingBlocks) { block in
+                    let ord = blockOrdinals[block.id].map { "#\($0) " } ?? ""
+                    Text("\(ord)\(block.displayName(devices: devices, scenes: scenes))").tag(UUID?.some(block.id))
+                }
+            }
+
+            if let blockId = condition.blockResultBlockId,
+               !allBlocks.contains(where: { $0.id == blockId }) {
+                Label("Referenced block no longer exists", systemImage: "exclamationmark.triangle.fill")
+                    .font(.footnote)
+                    .foregroundStyle(.orange)
+            } else if let blockId = condition.blockResultBlockId,
+                      let refOrd = blockOrdinals[blockId],
+                      refOrd >= currentOrdinal {
+                Label("Referenced block has not executed yet at this point", systemImage: "exclamationmark.triangle.fill")
+                    .font(.footnote)
+                    .foregroundStyle(.orange)
+            }
+        }
+
+        Picker("Expected Status", selection: $condition.blockResultExpectedStatus) {
+            Text("Success").tag(ExecutionStatus.success)
+            Text("Failure").tag(ExecutionStatus.failure)
+            Text("Cancelled").tag(ExecutionStatus.cancelled)
+        }
+
+        if isBlockResult {
+            let currentOrd = currentBlockId.flatMap { blockOrdinals[$0] }
+            let precedingCount = currentOrd.map { ord in
+                allBlocks.filter { blockOrdinals[$0.id] ?? Int.max < ord }.count
+            } ?? 0
+            switch condition.blockResultScope {
+            case .specific:
+                Text("Checks the result of a specific block that executed before this one.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            case .all:
+                Text("Checks that all \(precedingCount) preceding block(s) match the expected status.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            case .any:
+                Text("Checks that at least one of \(precedingCount) preceding block(s) matches the expected status.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 

@@ -30,6 +30,8 @@ struct BackupSettings: Codable {
     let aiProvider: String
     let aiModelId: String
     let mcpServerBindAddress: String
+    let corsEnabled: Bool?
+    let corsAllowedOrigins: [String]?
     let sunEventLatitude: Double
     let sunEventLongitude: Double
     let sunEventZipCode: String?
@@ -39,6 +41,7 @@ struct BackupSettings: Codable {
     let workflowsEnabled: Bool
     let autoBackupEnabled: Bool
     let deviceStateLoggingEnabled: Bool?
+    let logCacheSize: Int?
 }
 
 // MARK: - Secrets (plain JSON)

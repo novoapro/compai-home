@@ -17,6 +17,8 @@ protocol StorageServiceProtocol: AnyObject {
     var aiModelId: String { get set }
     var aiSystemPrompt: String { get set }
     var mcpServerBindAddress: String { get set }
+    var corsEnabled: Bool { get set }
+    var corsAllowedOrigins: [String] { get set }
     var pollingEnabled: Bool { get set }
     var pollingInterval: Int { get set }
     var workflowsEnabled: Bool { get set }
@@ -25,6 +27,7 @@ protocol StorageServiceProtocol: AnyObject {
     var registryMigrationCompleted: Bool { get set }
     var workflowSyncEnabled: Bool { get set }
     var logAccessEnabled: Bool { get set }
+    var logCacheSize: Int { get set }
 
     // MARK: - Derived
     func isWebhookConfigured() -> Bool
@@ -39,6 +42,8 @@ protocol StorageServiceProtocol: AnyObject {
     nonisolated func readAIModelId() -> String
     nonisolated func readAISystemPrompt() -> String
     nonisolated func readBindAddress() -> String
+    nonisolated func readCorsEnabled() -> Bool
+    nonisolated func readCorsAllowedOrigins() -> [String]
     nonisolated func readPollingEnabled() -> Bool
     nonisolated func readPollingInterval() -> Int
     nonisolated func readWorkflowsEnabled() -> Bool
@@ -48,4 +53,5 @@ protocol StorageServiceProtocol: AnyObject {
     nonisolated func readWorkflowSyncEnabled() -> Bool
     nonisolated func readWebhookPrivateIPAllowlist() -> [String]
     nonisolated func readLogAccessEnabled() -> Bool
+    nonisolated func readLogCacheSize() -> Int
 }

@@ -267,12 +267,13 @@ enum MCPToolDefinitions {
                 • repeat: + count, blocks, delayBetweenSeconds?
                 • repeatWhile: + condition (WorkflowCondition), blocks, maxIterations, delayBetweenSeconds?
                 • group: + label?, blocks
-                • stop: + outcome ("success"|"error"|"cancelled"), message?
+                • return: + outcome ("success"|"error"|"cancelled"), message? \
+                Return exits the current scope (group, repeat, conditional branch) with the given outcome. \
+                At top level it terminates the entire workflow.
                 • executeWorkflow: + targetWorkflowId (UUID), executionMode ("inline"|"parallel"|"delegate")
                 All blocks accept an optional "name" field.
 
-                GUARD CONDITION TYPES (workflow-level "conditions" array and block condition fields). \
-                All condition objects are WorkflowCondition and support nesting to any depth:
+                CONDITION TYPES (WorkflowCondition). All support nesting to any depth via and/or/not:
                 • { "type":"deviceState", "deviceId":"uuid", "deviceName":"Room Light", "roomName":"Living Room", \
                 "serviceId":"optional", "characteristicType":"Power", \
                 "comparison":{"type":"equals","value":true} }
@@ -286,9 +287,19 @@ enum MCPToolDefinitions {
                 • { "type":"and", "conditions":[...] } — all must pass
                 • { "type":"or",  "conditions":[...] } — any must pass
                 • { "type":"not", "condition":{...} } — negates inner condition
-                Guard conditions can be nested inside and/or/not to any depth. The same WorkflowCondition \
-                format is used in the top-level "conditions" array, in "conditional" block "condition" \
-                fields, and in "repeatWhile" block "condition" fields.
+                • { "type":"blockResult", "scope":"specific"|"lastBlock"|"anyPreviousBlock", \
+                "blockId":"uuid-of-block" (only when scope is "specific"), \
+                "expectedStatus":"success"|"failure"|"cancelled" } — checks the execution result of a \
+                previously-run block. Requires continueOnError=true on the workflow. \
+                IMPORTANT: blockResult is ONLY valid inside conditional (if/else) block conditions. \
+                Do NOT use blockResult in workflow-level guard conditions, repeatWhile conditions, or anywhere else. \
+                Each block has a 1-based ordinal in depth-first execution order. A blockResult with scope \
+                "specific" can ONLY reference blocks with a lower ordinal (earlier in the blocks array). \
+                If the referenced block has not executed, the condition evaluates to false.
+                The same WorkflowCondition format is used in the top-level "conditions" guard array \
+                (deviceState, timeCondition, sceneActive only), in "conditional" block "condition" \
+                fields (all types including blockResult), and in "repeatWhile" block "condition" fields \
+                (deviceState, timeCondition, sceneActive only — no blockResult).
 
                 DEVICE METADATA: Always include "deviceName" and "roomName" alongside "deviceId" in \
                 triggers, guard conditions, and blocks. This enables cross-machine migration when HomeKit \
@@ -321,9 +332,10 @@ enum MCPToolDefinitions {
                 Trigger types: deviceStateChange, schedule, sunEvent, compound, webhook, workflow. \
                 Block types (use "block":"action"|"flowControl" discriminator): \
                 controlDevice, runScene, webhook, log, delay, waitForState, conditional, repeat, \
-                repeatWhile, group, stop, executeWorkflow. \
-                Guard/block condition types (WorkflowCondition, nestable via and/or/not): \
-                deviceState, timeCondition, sceneActive, and, or, not. \
+                repeatWhile, group, return, executeWorkflow. \
+                Condition types (WorkflowCondition, nestable via and/or/not): \
+                deviceState, timeCondition, sceneActive, and, or, not (guard + block level); \
+                blockResult (conditional/if-else blocks only, NOT in guard conditions or repeatWhile). \
                 Always include "deviceName" and "roomName" alongside "deviceId" wherever device references appear.
                 """,
             "inputSchema": [

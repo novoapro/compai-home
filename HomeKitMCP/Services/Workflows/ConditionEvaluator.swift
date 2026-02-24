@@ -12,6 +12,10 @@ struct ConditionEvaluator {
     var workflowId: UUID?
     var workflowName: String?
 
+    /// Block execution results from the current run, keyed by stable block ID.
+    /// Only populated during workflow execution; empty for standalone condition tests.
+    var blockResults: [UUID: ExecutionStatus] = [:]
+
     init(homeKitManager: HomeKitManager, storage: StorageService? = nil, loggingService: LoggingService? = nil, registry: DeviceRegistryService? = nil) {
         self.homeKitManager = homeKitManager
         self.storage = storage
@@ -97,9 +101,38 @@ struct ConditionEvaluator {
             return evaluateTimeCondition(cond)
         case .sceneActive(let cond):
             return await evaluateSceneActive(cond)
+        case .blockResult(let cond):
+            return evaluateBlockResult(cond)
         case .and, .or, .not:
             // Should not reach here — compound conditions are handled in evaluate(_:)
             return (false, "Unexpected compound condition in leaf evaluator")
+        }
+    }
+
+    private func evaluateBlockResult(_ condition: BlockResultCondition) -> (Bool, String) {
+        let wfName = workflowName ?? "Unknown"
+        switch condition.scope {
+        case .specific(let blockId):
+            guard let status = blockResults[blockId] else {
+                AppLogger.workflow.warning("[\(wfName)] Block Result condition: block \(blockId.uuidString.prefix(8)) has no result (not yet executed) — evaluating as false")
+                return (false, "Block \(blockId.uuidString.prefix(8)): not yet executed — evaluated as false")
+            }
+            let passed = status == condition.expectedStatus
+            return (passed, "Block \(blockId.uuidString.prefix(8)) is \(status.displayName) (expected \(condition.expectedStatus.displayName)) = \(passed)")
+        case .all:
+            guard !blockResults.isEmpty else {
+                AppLogger.workflow.warning("[\(wfName)] Block Result condition: no blocks executed yet — evaluating as false")
+                return (false, "All blocks: no blocks executed yet — evaluated as false")
+            }
+            let allMatch = blockResults.values.allSatisfy { $0 == condition.expectedStatus }
+            return (allMatch, "All \(blockResults.count) blocks are \(condition.expectedStatus.displayName) = \(allMatch)")
+        case .any:
+            guard !blockResults.isEmpty else {
+                AppLogger.workflow.warning("[\(wfName)] Block Result condition: no blocks executed yet — evaluating as false")
+                return (false, "Any block: no blocks executed yet — evaluated as false")
+            }
+            let anyMatch = blockResults.values.contains(condition.expectedStatus)
+            return (anyMatch, "Any block is \(condition.expectedStatus.displayName) = \(anyMatch)")
         }
     }
 
