@@ -105,6 +105,12 @@ class StorageService: ObservableObject, StorageServiceProtocol {
     @Published var deviceStateLoggingEnabled: Bool {
         didSet { defaults.set(deviceStateLoggingEnabled, forKey: Keys.deviceStateLoggingEnabled) }
     }
+    @Published var registryMigrationCompleted: Bool {
+        didSet { defaults.set(registryMigrationCompleted, forKey: Keys.registryMigrationCompleted) }
+    }
+    @Published var workflowSyncEnabled: Bool {
+        didSet { defaults.set(workflowSyncEnabled, forKey: Keys.workflowSyncEnabled) }
+    }
     @Published var webhookPrivateIPAllowlist: [String] {
         didSet {
             if let data = try? JSONEncoder().encode(webhookPrivateIPAllowlist) {
@@ -134,7 +140,9 @@ class StorageService: ObservableObject, StorageServiceProtocol {
             Keys.pollingInterval: 30,
             Keys.workflowsEnabled: true,
             Keys.autoBackupEnabled: false,
-            Keys.deviceStateLoggingEnabled: true
+            Keys.deviceStateLoggingEnabled: true,
+            Keys.registryMigrationCompleted: false,
+            Keys.workflowSyncEnabled: false
         ])
 
         // Migrate webhook URL from UserDefaults to Keychain (one-time)
@@ -167,6 +175,8 @@ class StorageService: ObservableObject, StorageServiceProtocol {
         self.workflowsEnabled = defaults.bool(forKey: Keys.workflowsEnabled)
         self.autoBackupEnabled = defaults.bool(forKey: Keys.autoBackupEnabled)
         self.deviceStateLoggingEnabled = defaults.bool(forKey: Keys.deviceStateLoggingEnabled)
+        self.registryMigrationCompleted = defaults.bool(forKey: Keys.registryMigrationCompleted)
+        self.workflowSyncEnabled = defaults.bool(forKey: Keys.workflowSyncEnabled)
         if let data = defaults.data(forKey: Keys.webhookPrivateIPAllowlist),
            let list = try? JSONDecoder().decode([String].self, from: data) {
             self.webhookPrivateIPAllowlist = list
@@ -262,6 +272,14 @@ class StorageService: ObservableObject, StorageServiceProtocol {
         UserDefaults.standard.bool(forKey: Keys.deviceStateLoggingEnabled)
     }
 
+    nonisolated func readRegistryMigrationCompleted() -> Bool {
+        UserDefaults.standard.bool(forKey: Keys.registryMigrationCompleted)
+    }
+
+    nonisolated func readWorkflowSyncEnabled() -> Bool {
+        UserDefaults.standard.bool(forKey: Keys.workflowSyncEnabled)
+    }
+
     nonisolated func readWebhookPrivateIPAllowlist() -> [String] {
         guard let data = UserDefaults.standard.data(forKey: Keys.webhookPrivateIPAllowlist) else { return [] }
         return (try? JSONDecoder().decode([String].self, from: data)) ?? []
@@ -290,6 +308,8 @@ class StorageService: ObservableObject, StorageServiceProtocol {
         static let workflowsEnabled = "workflowsEnabled"
         static let autoBackupEnabled = "autoBackupEnabled"
         static let deviceStateLoggingEnabled = "deviceStateLoggingEnabled"
+        static let registryMigrationCompleted = "registryMigrationCompleted"
+        static let workflowSyncEnabled = "workflowSyncEnabled"
         static let webhookPrivateIPAllowlist = "webhookPrivateIPAllowlist"
     }
 }

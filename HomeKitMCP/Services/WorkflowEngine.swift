@@ -8,6 +8,7 @@ actor WorkflowEngine: WorkflowEngineProtocol {
     private let loggingService: LoggingService
     private let executionLogService: WorkflowExecutionLogService
     private let storage: StorageService
+    private let registry: DeviceRegistryService?
     private var conditionEvaluator: ConditionEvaluator
     private var evaluators: [TriggerEvaluator] = []
 
@@ -57,6 +58,7 @@ actor WorkflowEngine: WorkflowEngineProtocol {
         loggingService: LoggingService,
         executionLogService: WorkflowExecutionLogService,
         storage: StorageService,
+        registry: DeviceRegistryService? = nil,
         conditionEvaluator: ConditionEvaluator? = nil
     ) {
         workflowStorageService = storageService
@@ -64,7 +66,8 @@ actor WorkflowEngine: WorkflowEngineProtocol {
         self.loggingService = loggingService
         self.executionLogService = executionLogService
         self.storage = storage
-        self.conditionEvaluator = conditionEvaluator ?? ConditionEvaluator(homeKitManager: homeKitManager, storage: storage, loggingService: loggingService)
+        self.registry = registry
+        self.conditionEvaluator = conditionEvaluator ?? ConditionEvaluator(homeKitManager: homeKitManager, storage: storage, loggingService: loggingService, registry: registry)
     }
 
     /// Wire up the one-directional subscription to HomeKitManager's state changes.
@@ -770,7 +773,8 @@ actor WorkflowEngine: WorkflowEngineProtocol {
         // Validate value against characteristic metadata
         let device: DeviceModel? = await MainActor.run { homeKitManager.getDeviceState(id: action.deviceId) }
         if let device {
-            let targetServices = action.serviceId != nil ? device.services.filter({ $0.id == action.serviceId }) : device.services
+            let resolvedServiceId = action.serviceId.map { registry?.readHomeKitServiceId($0) ?? $0 }
+            let targetServices = resolvedServiceId != nil ? device.services.filter({ $0.id == resolvedServiceId }) : device.services
             if let characteristic = targetServices.flatMap(\.characteristics).first(where: { $0.type == resolvedType }) {
                 try CharacteristicValidator.validate(value: action.value.value, against: characteristic)
             }
@@ -1352,7 +1356,9 @@ actor WorkflowEngine: WorkflowEngineProtocol {
     private func findCharacteristicValue(in device: DeviceModel, characteristicType: String, serviceId: String?) -> Any? {
         let services: [ServiceModel]
         if let serviceId {
-            services = device.services.filter { $0.id == serviceId }
+            // Resolve stable registry ID → HomeKit UUID for service matching
+            let resolvedServiceId = registry?.readHomeKitServiceId(serviceId) ?? serviceId
+            services = device.services.filter { $0.id == resolvedServiceId }
         } else {
             services = device.services
         }

@@ -19,6 +19,7 @@ class MCPServer: ObservableObject, MCPServerProtocol, @unchecked Sendable {
     private let workflowEngine: WorkflowEngine
     private let workflowExecutionLogService: WorkflowExecutionLogService
     private let keychainService: KeychainService
+    private let registry: DeviceRegistryService?
 
     private static let encoder: JSONEncoder = {
         let encoder = JSONEncoder()
@@ -41,6 +42,7 @@ class MCPServer: ObservableObject, MCPServerProtocol, @unchecked Sendable {
         workflowEngine: WorkflowEngine,
         workflowExecutionLogService: WorkflowExecutionLogService,
         keychainService: KeychainService,
+        registry: DeviceRegistryService? = nil,
         port: Int = 3000,
         handler: MCPRequestHandler? = nil
     ) {
@@ -52,6 +54,7 @@ class MCPServer: ObservableObject, MCPServerProtocol, @unchecked Sendable {
         self.workflowEngine = workflowEngine
         self.workflowExecutionLogService = workflowExecutionLogService
         self.keychainService = keychainService
+        self.registry = registry
         self.handler = handler ?? MCPRequestHandler(
             homeKitManager: homeKitManager,
             loggingService: loggingService,
@@ -59,7 +62,8 @@ class MCPServer: ObservableObject, MCPServerProtocol, @unchecked Sendable {
             storage: storage,
             workflowStorageService: workflowStorageService,
             workflowEngine: workflowEngine,
-            workflowExecutionLogService: workflowExecutionLogService
+            workflowExecutionLogService: workflowExecutionLogService,
+            registry: registry
         )
     }
 
@@ -346,7 +350,8 @@ class MCPServer: ObservableObject, MCPServerProtocol, @unchecked Sendable {
     // MARK: - Scene REST Handlers
 
     private func handleRestGetScenes(_ req: Request) async throws -> Response {
-        let scenes = await MainActor.run { homeKitManager.getAllScenes() }
+        let rawScenes = await MainActor.run { homeKitManager.getAllScenes() }
+        let scenes = registry.map { reg in rawScenes.map { reg.withStableIds($0) } } ?? rawScenes
         let restScenes = scenes.map { RESTScene.from($0) }
 
         let data = try Self.encoder.encode(restScenes)

@@ -430,6 +430,71 @@ enum WorkflowMigrationService {
     }
 }
 
+// MARK: - Registry Migration (HomeKit UUIDs → Stable IDs)
+
+extension WorkflowMigrationService {
+    /// One-time migration: replaces all HomeKit UUIDs in workflows with stable registry IDs.
+    /// Uses the registry's nonisolated sync lookups so this can be called from any context.
+    ///
+    /// For each deviceId/serviceId/sceneId in a workflow, checks if it's a known HomeKit UUID
+    /// and replaces it with the corresponding stable registry ID.
+    static func migrateToStableIds(_ workflows: [Workflow], registry: DeviceRegistryService) -> (workflows: [Workflow], migratedCount: Int) {
+        var deviceIdMap: [String: String] = [:]
+        var serviceIdMap: [String: String] = [:]
+        var sceneIdMap: [String: String] = [:]
+
+        // Collect all unique IDs from all workflows and build remapping tables
+        for workflow in workflows {
+            for ref in collectDeviceReferences(from: workflow) {
+                if deviceIdMap[ref.deviceId] == nil {
+                    if let stableId = registry.readStableDeviceId(ref.deviceId) {
+                        deviceIdMap[ref.deviceId] = stableId
+                    }
+                }
+                if let svcId = ref.serviceId, serviceIdMap[svcId] == nil {
+                    if let stableId = registry.readStableServiceId(svcId) {
+                        serviceIdMap[svcId] = stableId
+                    }
+                }
+            }
+            for ref in collectSceneReferences(from: workflow) {
+                if sceneIdMap[ref.sceneId] == nil {
+                    if let stableId = registry.readStableSceneId(ref.sceneId) {
+                        sceneIdMap[ref.sceneId] = stableId
+                    }
+                }
+            }
+        }
+
+        let totalRemapped = deviceIdMap.count + serviceIdMap.count + sceneIdMap.count
+        if totalRemapped == 0 {
+            return (workflows, 0)
+        }
+
+        // Apply remapping using the same JSON approach
+        let combinedDeviceIdMap = deviceIdMap
+        let combinedServiceIdMap: [String: [String: String]] = ["_all": serviceIdMap]
+        let combinedSceneIdMap = sceneIdMap
+
+        var result: [Workflow] = []
+        for workflow in workflows {
+            if let migrated = applyRemapping(
+                to: workflow,
+                deviceIdMap: combinedDeviceIdMap,
+                serviceIdMap: combinedServiceIdMap,
+                sceneIdMap: combinedSceneIdMap
+            ) {
+                result.append(migrated)
+            } else {
+                result.append(workflow)
+            }
+        }
+
+        AppLogger.workflow.info("Registry migration: remapped \(deviceIdMap.count) device(s), \(serviceIdMap.count) service(s), \(sceneIdMap.count) scene(s)")
+        return (result, totalRemapped)
+    }
+}
+
 // MARK: - Metadata Enrichment
 
 extension WorkflowMigrationService {

@@ -8,6 +8,19 @@ struct DeviceModel: Identifiable, Codable {
     let categoryType: String
     let services: [ServiceModel]
     var isReachable: Bool
+
+    // Hardware identity from AccessoryInformation service (cross-device stable)
+    let manufacturer: String?
+    let model: String?
+    let serialNumber: String?
+    let firmwareRevision: String?
+
+    /// Composite hardware key for cross-device matching. Nil if any required field is missing.
+    var hardwareKey: String? {
+        guard let mfr = manufacturer, let mdl = model, let sn = serialNumber,
+              !mfr.isEmpty, !mdl.isEmpty, !sn.isEmpty else { return nil }
+        return "\(mfr):\(mdl):\(sn)"
+    }
 }
 
 struct ServiceModel: Identifiable, Codable {

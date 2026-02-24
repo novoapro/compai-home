@@ -9,6 +9,7 @@ class MCPRequestHandler {
     private let workflowStorageService: WorkflowStorageService
     private let workflowEngine: WorkflowEngine
     private let workflowExecutionLogService: WorkflowExecutionLogService
+    private let registry: DeviceRegistryService?
 
     private static let encoder: JSONEncoder = {
         let encoder = JSONEncoder()
@@ -23,7 +24,8 @@ class MCPRequestHandler {
     }()
 
     init(homeKitManager: HomeKitManager, loggingService: LoggingService, configService: DeviceConfigurationService, storage: StorageService,
-         workflowStorageService: WorkflowStorageService, workflowEngine: WorkflowEngine, workflowExecutionLogService: WorkflowExecutionLogService) {
+         workflowStorageService: WorkflowStorageService, workflowEngine: WorkflowEngine, workflowExecutionLogService: WorkflowExecutionLogService,
+         registry: DeviceRegistryService? = nil) {
         self.homeKitManager = homeKitManager
         self.loggingService = loggingService
         self.configService = configService
@@ -31,6 +33,7 @@ class MCPRequestHandler {
         self.workflowStorageService = workflowStorageService
         self.workflowEngine = workflowEngine
         self.workflowExecutionLogService = workflowExecutionLogService
+        self.registry = registry
     }
 
     func handle(_ request: JSONRPCRequest) async -> JSONRPCResponse {
@@ -79,6 +82,7 @@ class MCPRequestHandler {
             var filteredServices: [ServiceModel] = []
             for service in device.services {
                 let filteredChars = service.characteristics.filter { char in
+                    // Config keys use HomeKit UUIDs (filtering happens before stable ID transformation)
                     let key = "\(device.id):\(service.id):\(char.id)"
                     return (allConfigs[key] ?? .default).externalAccessEnabled
                 }
@@ -98,11 +102,29 @@ class MCPRequestHandler {
                     roomName: device.roomName,
                     categoryType: device.categoryType,
                     services: filteredServices,
-                    isReachable: device.isReachable
+                    isReachable: device.isReachable,
+                    manufacturer: device.manufacturer,
+                    model: device.model,
+                    serialNumber: device.serialNumber,
+                    firmwareRevision: device.firmwareRevision
                 ))
             }
         }
-        return result
+        // Transform to stable registry IDs for external consumers
+        return toStableIds(result)
+    }
+
+    /// Transforms device models to use stable registry IDs for external consumers.
+    /// Config filtering must be done BEFORE this transformation (config keys use HomeKit UUIDs).
+    private func toStableIds(_ devices: [DeviceModel]) -> [DeviceModel] {
+        guard let registry else { return devices }
+        return devices.map { registry.withStableIds($0) }
+    }
+
+    /// Transforms scene models to use stable registry IDs for external consumers.
+    private func toStableIds(_ scenes: [SceneModel]) -> [SceneModel] {
+        guard let registry else { return scenes }
+        return scenes.map { registry.withStableIds($0) }
     }
 
     /// Checks whether a specific device + characteristic is exposed for external access.
@@ -240,7 +262,7 @@ class MCPRequestHandler {
             return JSONRPCResponse.success(id: id, result: AnyCodable(result))
 
         case "homekit://scenes":
-            let scenes = await MainActor.run { homeKitManager.getAllScenes() }
+            let scenes = toStableIds(await MainActor.run { homeKitManager.getAllScenes() })
             let restScenes = scenes.map { RESTScene.from($0) }
 
             guard let jsonData = try? Self.encoder.encode(restScenes),
@@ -606,7 +628,7 @@ class MCPRequestHandler {
     // MARK: - Scene Tool Handlers
 
     private func handleListScenes(id: JSONRPCId?) async -> JSONRPCResponse {
-        let scenes = await MainActor.run { homeKitManager.getAllScenes() }
+        let scenes = toStableIds(await MainActor.run { homeKitManager.getAllScenes() })
 
         var lines: [String] = []
         for scene in scenes {

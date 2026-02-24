@@ -22,6 +22,8 @@ protocol StorageServiceProtocol: AnyObject {
     var workflowsEnabled: Bool { get set }
     var autoBackupEnabled: Bool { get set }
     var webhookPrivateIPAllowlist: [String] { get set }
+    var registryMigrationCompleted: Bool { get set }
+    var workflowSyncEnabled: Bool { get set }
 
     // MARK: - Derived
     func isWebhookConfigured() -> Bool
@@ -41,5 +43,7 @@ protocol StorageServiceProtocol: AnyObject {
     nonisolated func readWorkflowsEnabled() -> Bool
     nonisolated func readMCPProtocolEnabled() -> Bool
     nonisolated func readRestApiEnabled() -> Bool
+    nonisolated func readRegistryMigrationCompleted() -> Bool
+    nonisolated func readWorkflowSyncEnabled() -> Bool
     nonisolated func readWebhookPrivateIPAllowlist() -> [String]
 }

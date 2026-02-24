@@ -45,7 +45,11 @@ enum PreviewData {
             roomName: "Living Room",
             categoryType: "HMAccessoryCategoryTypeLightbulb",
             services: [sampleService],
-            isReachable: true
+            isReachable: true,
+            manufacturer: "Philips",
+            model: "Hue White",
+            serialNumber: "AA:BB:CC:DD:01",
+            firmwareRevision: "1.50.2"
         ),
         DeviceModel(
             id: "device-2",
@@ -53,7 +57,11 @@ enum PreviewData {
             roomName: "Bedroom",
             categoryType: "HMAccessoryCategoryTypeLightbulb",
             services: [sampleService],
-            isReachable: true
+            isReachable: true,
+            manufacturer: "Philips",
+            model: "Hue White",
+            serialNumber: "AA:BB:CC:DD:02",
+            firmwareRevision: "1.50.2"
         ),
         DeviceModel(
             id: "device-3",
@@ -61,7 +69,11 @@ enum PreviewData {
             roomName: "Hallway",
             categoryType: "HMAccessoryCategoryTypeDoorLock",
             services: [],
-            isReachable: false
+            isReachable: false,
+            manufacturer: "Yale",
+            model: "Assure Lock",
+            serialNumber: "YL-0001",
+            firmwareRevision: "2.1.0"
         )
     ]
 
@@ -375,10 +387,12 @@ enum PreviewData {
         let backupService = BackupService(storage: storage, keychainService: keychainService, configService: configService, workflowStorageService: workflowStorage, homeKitManager: manager, loggingService: loggingService)
         let cloudBackupService = CloudBackupService(backupService: backupService, storage: storage, workflowStorageService: workflowStorage)
         let appleSignInService = AppleSignInService(keychainService: keychainService)
+        let registryService = DeviceRegistryService()
         return SettingsViewModel(
             storage: storage, webhookService: webhookService, mcpServer: mcpServer, configService: configService,
             keychainService: keychainService, aiWorkflowService: aiWorkflowService,
-            backupService: backupService, cloudBackupService: cloudBackupService, appleSignInService: appleSignInService
+            backupService: backupService, cloudBackupService: cloudBackupService, appleSignInService: appleSignInService,
+            deviceRegistryService: registryService, homeKitManager: manager
         )
     }
 

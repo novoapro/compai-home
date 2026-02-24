@@ -1,0 +1,624 @@
+import Foundation
+
+// MARK: - Registry Models
+
+/// A device (accessory) entry in the registry.
+struct DeviceRegistryEntry: Codable {
+    let stableId: String
+    var homeKitId: String?
+    var hardwareKey: String?
+    var name: String
+    var roomName: String?
+    var categoryType: String
+    var services: [ServiceRegistryEntry]
+    var isResolved: Bool
+}
+
+/// A service entry nested within a device entry.
+struct ServiceRegistryEntry: Codable {
+    let stableServiceId: String
+    var homeKitServiceId: String?
+    var serviceType: String
+    var serviceIndex: Int
+    var characteristics: [CharacteristicRegistryEntry]
+}
+
+/// A characteristic entry nested within a service entry.
+struct CharacteristicRegistryEntry: Codable {
+    let stableCharacteristicId: String
+    var homeKitCharacteristicId: String?
+    var characteristicType: String
+}
+
+/// A scene (action set) entry in the registry.
+struct SceneRegistryEntry: Codable {
+    let stableId: String
+    var homeKitId: String?
+    var name: String
+    var isResolved: Bool
+}
+
+/// Snapshot of the full registry for persistence.
+struct RegistrySnapshot: Codable {
+    var devices: [String: DeviceRegistryEntry]
+    var scenes: [String: SceneRegistryEntry]
+}
+
+// MARK: - Device Registry Service
+
+/// Maintains a stable identity registry that maps app-generated stable IDs to HomeKit's device-local UUIDs.
+///
+/// The registry covers: devices, services, characteristics, and scenes.
+/// Workflows reference stable IDs (which never change). The registry maps those to
+/// HomeKit UUIDs (which can differ per device or after backup restore).
+/// If HomeKit UUIDs change, update the registry once — all workflows automatically work.
+actor DeviceRegistryService {
+
+    // MARK: - State
+
+    private var devices: [String: DeviceRegistryEntry] = [:]
+    private var scenes: [String: SceneRegistryEntry] = [:]
+
+    // Reverse lookups (built from devices/scenes)
+    private var hkDeviceIdToStableId: [String: String] = [:]
+    private var hkServiceIdToStableId: [String: String] = [:]
+    private var hkCharIdToStableId: [String: String] = [:]
+    private var hkSceneIdToStableId: [String: String] = [:]
+    private var hardwareKeyToStableId: [String: String] = [:]
+    private var nameKeyToStableId: [String: String] = [:]
+    private var sceneNameToStableId: [String: String] = [:]
+
+    // Thread-safe nonisolated lookups (NSLock-protected, updated after every sync).
+    // These allow synchronous callers (e.g., HomeKitManager on MainActor) to resolve IDs
+    // without awaiting the actor. Marked nonisolated(unsafe) because thread safety is
+    // manually managed via syncLock.
+    private nonisolated(unsafe) let syncLock = NSLock()
+    private nonisolated(unsafe) var _stableToHkDevice: [String: String] = [:]
+    private nonisolated(unsafe) var _hkToStableDevice: [String: String] = [:]
+    private nonisolated(unsafe) var _stableToHkService: [String: String] = [:]
+    private nonisolated(unsafe) var _hkToStableService: [String: String] = [:]
+    private nonisolated(unsafe) var _stableToHkChar: [String: String] = [:]
+    private nonisolated(unsafe) var _hkToStableChar: [String: String] = [:]
+    private nonisolated(unsafe) var _stableToHkScene: [String: String] = [:]
+    private nonisolated(unsafe) var _hkToStableScene: [String: String] = [:]
+
+    // MARK: - Persistence
+
+    private let fileURL: URL
+    private var saveTask: Task<Void, Never>?
+
+    private static let encoder: JSONEncoder = {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        return encoder
+    }()
+
+    // MARK: - Init
+
+    init() {
+        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        let appDir = appSupport.appendingPathComponent("HomeKitMCP")
+        try? FileManager.default.createDirectory(at: appDir, withIntermediateDirectories: true)
+        self.fileURL = appDir.appendingPathComponent("device-registry.json")
+
+        if let data = try? Data(contentsOf: fileURL),
+           let saved = try? JSONDecoder().decode(RegistrySnapshot.self, from: data) {
+            self.devices = saved.devices
+            self.scenes = saved.scenes
+            rebuildReverseLookups()
+        }
+    }
+
+    // MARK: - Sync Devices with HomeKit
+
+    /// Synchronizes the device registry with the current HomeKit device list.
+    /// Called after HomeKitManager rebuilds its device cache.
+    func syncDevices(_ deviceModels: [DeviceModel]) {
+        var matchedStableIds = Set<String>()
+
+        // Detect ambiguous hardware keys
+        var hwKeyCount: [String: Int] = [:]
+        for device in deviceModels {
+            if let key = device.hardwareKey {
+                hwKeyCount[key, default: 0] += 1
+            }
+        }
+        let ambiguousHwKeys = Set(hwKeyCount.filter { $0.value > 1 }.keys)
+
+        for device in deviceModels {
+            let stableId: String
+
+            if let existing = hkDeviceIdToStableId[device.id] {
+                // Case 1: HomeKit UUID already known
+                stableId = existing
+            } else if let hwKey = device.hardwareKey,
+                      !ambiguousHwKeys.contains(hwKey),
+                      let existing = hardwareKeyToStableId[hwKey] {
+                // Case 2: UUID changed but hardware key matches
+                AppLogger.registry.info("Device '\(device.name)' re-mapped via hardware key")
+                stableId = existing
+            } else if let existing = nameKeyToStableId[deviceNameKey(device)] {
+                // Case 3: Fallback to name+room+category
+                AppLogger.registry.info("Device '\(device.name)' re-mapped via name+room")
+                stableId = existing
+            } else {
+                // Case 4: New device
+                stableId = UUID().uuidString
+                AppLogger.registry.info("New device registered: '\(device.name)' → \(stableId)")
+            }
+
+            matchedStableIds.insert(stableId)
+            devices[stableId] = buildDeviceEntry(stableId: stableId, from: device, existing: devices[stableId])
+        }
+
+        // Mark unmatched entries as unresolved
+        for (stableId, entry) in devices where !matchedStableIds.contains(stableId) {
+            if entry.isResolved {
+                var updated = entry
+                updated.homeKitId = nil
+                updated.isResolved = false
+                for i in updated.services.indices {
+                    updated.services[i].homeKitServiceId = nil
+                    for j in updated.services[i].characteristics.indices {
+                        updated.services[i].characteristics[j].homeKitCharacteristicId = nil
+                    }
+                }
+                devices[stableId] = updated
+                AppLogger.registry.warning("Device '\(entry.name)' is now unresolved")
+            }
+        }
+
+        rebuildReverseLookups()
+        debouncedSave()
+    }
+
+    // MARK: - Sync Scenes with HomeKit
+
+    /// Synchronizes the scene registry with the current HomeKit scene list.
+    func syncScenes(_ sceneModels: [SceneModel]) {
+        var matchedStableIds = Set<String>()
+
+        for scene in sceneModels {
+            let stableId: String
+
+            if let existing = hkSceneIdToStableId[scene.id] {
+                stableId = existing
+            } else if let existing = sceneNameToStableId[scene.name.lowercased()] {
+                // Scenes have no hardware key — match by name
+                AppLogger.registry.info("Scene '\(scene.name)' re-mapped via name")
+                stableId = existing
+            } else {
+                stableId = UUID().uuidString
+                AppLogger.registry.info("New scene registered: '\(scene.name)' → \(stableId)")
+            }
+
+            matchedStableIds.insert(stableId)
+            scenes[stableId] = SceneRegistryEntry(
+                stableId: stableId,
+                homeKitId: scene.id,
+                name: scene.name,
+                isResolved: true
+            )
+        }
+
+        // Mark unmatched scenes as unresolved
+        for (stableId, entry) in scenes where !matchedStableIds.contains(stableId) {
+            if entry.isResolved {
+                var updated = entry
+                updated.homeKitId = nil
+                updated.isResolved = false
+                scenes[stableId] = updated
+                AppLogger.registry.warning("Scene '\(entry.name)' is now unresolved")
+            }
+        }
+
+        rebuildReverseLookups()
+        debouncedSave()
+    }
+
+    // MARK: - Nonisolated Sync Lookups (thread-safe, for synchronous callers)
+
+    /// Resolves a stable device ID → HomeKit UUID. Call from any thread.
+    nonisolated func readHomeKitDeviceId(_ stableId: String) -> String? {
+        syncLock.lock()
+        defer { syncLock.unlock() }
+        return _stableToHkDevice[stableId]
+    }
+
+    /// Resolves a HomeKit UUID → stable device ID. Call from any thread.
+    nonisolated func readStableDeviceId(_ homeKitId: String) -> String? {
+        syncLock.lock()
+        defer { syncLock.unlock() }
+        return _hkToStableDevice[homeKitId]
+    }
+
+    /// Resolves a stable service ID → HomeKit service UUID. Call from any thread.
+    nonisolated func readHomeKitServiceId(_ stableServiceId: String) -> String? {
+        syncLock.lock()
+        defer { syncLock.unlock() }
+        return _stableToHkService[stableServiceId]
+    }
+
+    /// Resolves a HomeKit service UUID → stable service ID. Call from any thread.
+    nonisolated func readStableServiceId(_ homeKitServiceId: String) -> String? {
+        syncLock.lock()
+        defer { syncLock.unlock() }
+        return _hkToStableService[homeKitServiceId]
+    }
+
+    /// Resolves a stable characteristic ID → HomeKit characteristic UUID. Call from any thread.
+    nonisolated func readHomeKitCharacteristicId(_ stableCharId: String) -> String? {
+        syncLock.lock()
+        defer { syncLock.unlock() }
+        return _stableToHkChar[stableCharId]
+    }
+
+    /// Resolves a HomeKit characteristic UUID → stable characteristic ID. Call from any thread.
+    nonisolated func readStableCharacteristicId(_ homeKitCharId: String) -> String? {
+        syncLock.lock()
+        defer { syncLock.unlock() }
+        return _hkToStableChar[homeKitCharId]
+    }
+
+    /// Resolves a stable scene ID → HomeKit scene UUID. Call from any thread.
+    nonisolated func readHomeKitSceneId(_ stableSceneId: String) -> String? {
+        syncLock.lock()
+        defer { syncLock.unlock() }
+        return _stableToHkScene[stableSceneId]
+    }
+
+    /// Resolves a HomeKit scene UUID → stable scene ID. Call from any thread.
+    nonisolated func readStableSceneId(_ homeKitSceneId: String) -> String? {
+        syncLock.lock()
+        defer { syncLock.unlock() }
+        return _hkToStableScene[homeKitSceneId]
+    }
+
+    // MARK: - Actor-Isolated Resolution (async)
+
+    func resolveDeviceHomeKitId(_ stableId: String) -> String? {
+        devices[stableId]?.homeKitId
+    }
+
+    func resolveServiceHomeKitId(_ stableServiceId: String) -> String? {
+        for entry in devices.values {
+            if let svc = entry.services.first(where: { $0.stableServiceId == stableServiceId }) {
+                return svc.homeKitServiceId
+            }
+        }
+        return nil
+    }
+
+    func resolveCharacteristicHomeKitId(_ stableCharId: String) -> String? {
+        for entry in devices.values {
+            for svc in entry.services {
+                if let char = svc.characteristics.first(where: { $0.stableCharacteristicId == stableCharId }) {
+                    return char.homeKitCharacteristicId
+                }
+            }
+        }
+        return nil
+    }
+
+    func resolveSceneHomeKitId(_ stableId: String) -> String? {
+        scenes[stableId]?.homeKitId
+    }
+
+    func stableDeviceId(forHomeKitId hkId: String) -> String? {
+        hkDeviceIdToStableId[hkId]
+    }
+
+    func stableServiceId(forHomeKitId hkId: String) -> String? {
+        hkServiceIdToStableId[hkId]
+    }
+
+    func stableCharacteristicId(forHomeKitId hkId: String) -> String? {
+        hkCharIdToStableId[hkId]
+    }
+
+    func stableSceneId(forHomeKitId hkId: String) -> String? {
+        hkSceneIdToStableId[hkId]
+    }
+
+    // MARK: - Model Transformation (nonisolated, for MCP output)
+
+    /// Returns a DeviceModel with all IDs replaced by stable registry IDs.
+    /// If a mapping is not found, the original ID is preserved.
+    nonisolated func withStableIds(_ device: DeviceModel) -> DeviceModel {
+        let stableDeviceId = readStableDeviceId(device.id) ?? device.id
+        let stableServices = device.services.map { service in
+            let stableServiceId = readStableServiceId(service.id) ?? service.id
+            let stableChars = service.characteristics.map { char in
+                CharacteristicModel(
+                    id: readStableCharacteristicId(char.id) ?? char.id,
+                    type: char.type,
+                    value: char.value,
+                    format: char.format,
+                    units: char.units,
+                    permissions: char.permissions,
+                    minValue: char.minValue,
+                    maxValue: char.maxValue,
+                    stepValue: char.stepValue,
+                    validValues: char.validValues
+                )
+            }
+            return ServiceModel(id: stableServiceId, name: service.name, type: service.type, characteristics: stableChars)
+        }
+        return DeviceModel(
+            id: stableDeviceId,
+            name: device.name,
+            roomName: device.roomName,
+            categoryType: device.categoryType,
+            services: stableServices,
+            isReachable: device.isReachable,
+            manufacturer: device.manufacturer,
+            model: device.model,
+            serialNumber: device.serialNumber,
+            firmwareRevision: device.firmwareRevision
+        )
+    }
+
+    /// Returns a SceneModel with its ID replaced by the stable registry ID.
+    nonisolated func withStableIds(_ scene: SceneModel) -> SceneModel {
+        let stableSceneId = readStableSceneId(scene.id) ?? scene.id
+        return SceneModel(
+            id: stableSceneId,
+            name: scene.name,
+            type: scene.type,
+            isExecuting: scene.isExecuting,
+            actions: scene.actions
+        )
+    }
+
+    // MARK: - Query
+
+    func allDeviceEntries() -> [DeviceRegistryEntry] { Array(devices.values) }
+    func allSceneEntries() -> [SceneRegistryEntry] { Array(scenes.values) }
+    func deviceEntry(for stableId: String) -> DeviceRegistryEntry? { devices[stableId] }
+    func sceneEntry(for stableId: String) -> SceneRegistryEntry? { scenes[stableId] }
+
+    func unresolvedDevices() -> [DeviceRegistryEntry] { devices.values.filter { !$0.isResolved } }
+    func unresolvedScenes() -> [SceneRegistryEntry] { scenes.values.filter { !$0.isResolved } }
+
+    // MARK: - Manual Remap & Remove
+
+    /// Re-maps an orphaned registry entry to a different HomeKit device.
+    /// Preserves the stable ID so all workflow references remain valid.
+    func remapDevice(stableId: String, to device: DeviceModel) {
+        guard devices[stableId] != nil else { return }
+        devices[stableId] = buildDeviceEntry(stableId: stableId, from: device, existing: devices[stableId])
+        rebuildReverseLookups()
+        debouncedSave()
+        AppLogger.registry.info("Manually remapped device '\(device.name)' → stableId \(stableId)")
+    }
+
+    /// Removes a device entry entirely from the registry.
+    func removeDevice(stableId: String) {
+        guard let entry = devices.removeValue(forKey: stableId) else { return }
+        rebuildReverseLookups()
+        debouncedSave()
+        AppLogger.registry.info("Removed device '\(entry.name)' (stableId \(stableId)) from registry")
+    }
+
+    /// Re-maps an orphaned scene entry to a different HomeKit scene.
+    func remapScene(stableId: String, to scene: SceneModel) {
+        guard scenes[stableId] != nil else { return }
+        scenes[stableId] = SceneRegistryEntry(
+            stableId: stableId,
+            homeKitId: scene.id,
+            name: scene.name,
+            isResolved: true
+        )
+        rebuildReverseLookups()
+        debouncedSave()
+        AppLogger.registry.info("Manually remapped scene '\(scene.name)' → stableId \(stableId)")
+    }
+
+    /// Removes a scene entry entirely from the registry.
+    func removeScene(stableId: String) {
+        guard let entry = scenes.removeValue(forKey: stableId) else { return }
+        rebuildReverseLookups()
+        debouncedSave()
+        AppLogger.registry.info("Removed scene '\(entry.name)' (stableId \(stableId)) from registry")
+    }
+
+    /// Returns the full registry snapshot (for backup/export).
+    func snapshot() -> RegistrySnapshot {
+        RegistrySnapshot(devices: devices, scenes: scenes)
+    }
+
+    /// Replaces the entire registry from a snapshot (for restore/import).
+    func restore(from snapshot: RegistrySnapshot) {
+        devices = snapshot.devices
+        scenes = snapshot.scenes
+        rebuildReverseLookups()
+        saveNow()
+    }
+
+    // MARK: - Private Helpers
+
+    private func buildDeviceEntry(stableId: String, from device: DeviceModel, existing: DeviceRegistryEntry?) -> DeviceRegistryEntry {
+        // Build service+characteristic entries, preserving existing stable IDs where possible
+        let existingServicesByTypeIndex: [String: ServiceRegistryEntry] = {
+            guard let existing else { return [:] }
+            return Dictionary(uniqueKeysWithValues: existing.services.map {
+                ("\($0.serviceType):\($0.serviceIndex)", $0)
+            })
+        }()
+
+        let services: [ServiceRegistryEntry] = device.services.enumerated().map { index, service in
+            let typeIndexKey = "\(service.type):\(index)"
+            let existingService = existingServicesByTypeIndex[typeIndexKey]
+
+            // Build characteristic entries, preserving existing stable IDs
+            let existingCharsByType: [String: CharacteristicRegistryEntry] = {
+                guard let existingService else { return [:] }
+                return Dictionary(uniqueKeysWithValues: existingService.characteristics.map {
+                    ($0.characteristicType, $0)
+                })
+            }()
+
+            let chars: [CharacteristicRegistryEntry] = service.characteristics.map { char in
+                if let existingChar = existingCharsByType[char.type] {
+                    return CharacteristicRegistryEntry(
+                        stableCharacteristicId: existingChar.stableCharacteristicId,
+                        homeKitCharacteristicId: char.id,
+                        characteristicType: char.type
+                    )
+                } else {
+                    return CharacteristicRegistryEntry(
+                        stableCharacteristicId: UUID().uuidString,
+                        homeKitCharacteristicId: char.id,
+                        characteristicType: char.type
+                    )
+                }
+            }
+
+            return ServiceRegistryEntry(
+                stableServiceId: existingService?.stableServiceId ?? UUID().uuidString,
+                homeKitServiceId: service.id,
+                serviceType: service.type,
+                serviceIndex: index,
+                characteristics: chars
+            )
+        }
+
+        return DeviceRegistryEntry(
+            stableId: stableId,
+            homeKitId: device.id,
+            hardwareKey: device.hardwareKey ?? existing?.hardwareKey,
+            name: device.name,
+            roomName: device.roomName,
+            categoryType: device.categoryType,
+            services: services,
+            isResolved: true
+        )
+    }
+
+    private func deviceNameKey(_ device: DeviceModel) -> String {
+        "\(device.name.lowercased())\0\(device.roomName?.lowercased() ?? "")\0\(device.categoryType)"
+    }
+
+    private func deviceNameKey(_ entry: DeviceRegistryEntry) -> String {
+        "\(entry.name.lowercased())\0\(entry.roomName?.lowercased() ?? "")\0\(entry.categoryType)"
+    }
+
+    private func rebuildReverseLookups() {
+        hkDeviceIdToStableId.removeAll()
+        hkServiceIdToStableId.removeAll()
+        hkCharIdToStableId.removeAll()
+        hkSceneIdToStableId.removeAll()
+        hardwareKeyToStableId.removeAll()
+        nameKeyToStableId.removeAll()
+        sceneNameToStableId.removeAll()
+
+        // Track ambiguous hardware keys and name keys
+        var hwKeyCounts: [String: Int] = [:]
+        var nameKeyCounts: [String: Int] = [:]
+        for entry in devices.values {
+            if let hwKey = entry.hardwareKey { hwKeyCounts[hwKey, default: 0] += 1 }
+            nameKeyCounts[deviceNameKey(entry), default: 0] += 1
+        }
+
+        for entry in devices.values {
+            if let hkId = entry.homeKitId {
+                hkDeviceIdToStableId[hkId] = entry.stableId
+            }
+            if let hwKey = entry.hardwareKey, hwKeyCounts[hwKey] == 1 {
+                hardwareKeyToStableId[hwKey] = entry.stableId
+            }
+            let nk = deviceNameKey(entry)
+            if nameKeyCounts[nk] == 1 {
+                nameKeyToStableId[nk] = entry.stableId
+            }
+
+            for service in entry.services {
+                if let hkId = service.homeKitServiceId {
+                    hkServiceIdToStableId[hkId] = service.stableServiceId
+                }
+                for char in service.characteristics {
+                    if let hkId = char.homeKitCharacteristicId {
+                        hkCharIdToStableId[hkId] = char.stableCharacteristicId
+                    }
+                }
+            }
+        }
+
+        // Scene lookups
+        var sceneNameCounts: [String: Int] = [:]
+        for entry in scenes.values {
+            sceneNameCounts[entry.name.lowercased(), default: 0] += 1
+        }
+        for entry in scenes.values {
+            if let hkId = entry.homeKitId {
+                hkSceneIdToStableId[hkId] = entry.stableId
+            }
+            let key = entry.name.lowercased()
+            if sceneNameCounts[key] == 1 {
+                sceneNameToStableId[key] = entry.stableId
+            }
+        }
+
+        // Update thread-safe nonisolated lookup dictionaries
+        syncLock.lock()
+        _stableToHkDevice.removeAll()
+        _hkToStableDevice = hkDeviceIdToStableId.reduce(into: [:]) { $0[$1.value] = $1.key }
+        _stableToHkService.removeAll()
+        _hkToStableService = hkServiceIdToStableId.reduce(into: [:]) { $0[$1.value] = $1.key }
+        _stableToHkChar.removeAll()
+        _hkToStableChar = hkCharIdToStableId.reduce(into: [:]) { $0[$1.value] = $1.key }
+        _stableToHkScene.removeAll()
+        _hkToStableScene = hkSceneIdToStableId.reduce(into: [:]) { $0[$1.value] = $1.key }
+
+        // Forward lookups: stableId → homeKitId
+        for entry in devices.values {
+            if let hkId = entry.homeKitId {
+                _stableToHkDevice[entry.stableId] = hkId
+            }
+            for svc in entry.services {
+                if let hkId = svc.homeKitServiceId {
+                    _stableToHkService[svc.stableServiceId] = hkId
+                }
+                for char in svc.characteristics {
+                    if let hkId = char.homeKitCharacteristicId {
+                        _stableToHkChar[char.stableCharacteristicId] = hkId
+                    }
+                }
+            }
+        }
+        for entry in scenes.values {
+            if let hkId = entry.homeKitId {
+                _stableToHkScene[entry.stableId] = hkId
+            }
+        }
+
+        // Reverse lookups: homeKitId → stableId
+        _hkToStableDevice = hkDeviceIdToStableId
+        _hkToStableService = hkServiceIdToStableId
+        _hkToStableChar = hkCharIdToStableId
+        _hkToStableScene = hkSceneIdToStableId
+        syncLock.unlock()
+    }
+
+    // MARK: - Persistence
+
+    private func debouncedSave() {
+        saveTask?.cancel()
+        saveTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+            guard !Task.isCancelled else { return }
+            await self?.saveNow()
+        }
+    }
+
+    private func saveNow() {
+        do {
+            let snapshot = RegistrySnapshot(devices: devices, scenes: scenes)
+            let data = try Self.encoder.encode(snapshot)
+            try data.write(to: fileURL, options: .atomic)
+            try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: fileURL.path)
+        } catch {
+            AppLogger.registry.error("Failed to save device registry: \(error)")
+        }
+    }
+}

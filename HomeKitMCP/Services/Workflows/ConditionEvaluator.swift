@@ -6,15 +6,17 @@ struct ConditionEvaluator {
     private let homeKitManager: HomeKitManager
     private let storage: StorageService?
     private let loggingService: LoggingService?
+    private let registry: DeviceRegistryService?
 
     /// Workflow context for orphan logging. Set by the engine before evaluation.
     var workflowId: UUID?
     var workflowName: String?
 
-    init(homeKitManager: HomeKitManager, storage: StorageService? = nil, loggingService: LoggingService? = nil) {
+    init(homeKitManager: HomeKitManager, storage: StorageService? = nil, loggingService: LoggingService? = nil, registry: DeviceRegistryService? = nil) {
         self.homeKitManager = homeKitManager
         self.storage = storage
         self.loggingService = loggingService
+        self.registry = registry
     }
 
     /// Evaluate a single condition. Returns a tree-structured result with sub-results for compound conditions.
@@ -242,7 +244,9 @@ struct ConditionEvaluator {
     private func findCharacteristicValue(in device: DeviceModel, characteristicType: String, serviceId: String?) -> Any? {
         let services: [ServiceModel]
         if let serviceId {
-            services = device.services.filter { $0.id == serviceId }
+            // Resolve stable registry ID → HomeKit UUID for service matching
+            let resolvedServiceId = registry?.readHomeKitServiceId(serviceId) ?? serviceId
+            services = device.services.filter { $0.id == resolvedServiceId }
         } else {
             services = device.services
         }

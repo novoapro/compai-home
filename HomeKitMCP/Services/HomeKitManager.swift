@@ -23,6 +23,7 @@ class HomeKitManager: NSObject, ObservableObject, HomeKitManaging {
     private let webhookService: WebhookService
     private let storage: StorageService
     let configService: DeviceConfigurationService
+    var deviceRegistryService: DeviceRegistryService?
     private var cancellables = Set<AnyCancellable>()
 
     /// Publishes every HomeKit state change. WorkflowEngine subscribes to this
@@ -68,14 +69,20 @@ class HomeKitManager: NSObject, ObservableObject, HomeKitManaging {
         cachedScenes
     }
 
-    /// Returns a single scene by ID, or nil if not found.
+    /// Returns a single scene by ID. Accepts both stable registry IDs and HomeKit UUIDs.
     func getScene(id: String) -> SceneModel? {
-        cachedScenes.first { $0.id == id }
+        if let scene = cachedScenes.first(where: { $0.id == id }) { return scene }
+        // Try resolving as a stable registry ID → HomeKit UUID
+        if let hkId = deviceRegistryService?.readHomeKitSceneId(id) {
+            return cachedScenes.first(where: { $0.id == hkId })
+        }
+        return nil
     }
 
-    /// Executes a HomeKit scene (action set) by its ID.
+    /// Executes a HomeKit scene (action set) by its ID. Accepts both stable and HomeKit IDs.
     func executeScene(id: String) async throws {
-        guard let (home, actionSet) = findActionSet(id: id) else {
+        let resolvedId = deviceRegistryService?.readHomeKitSceneId(id) ?? id
+        guard let (home, actionSet) = findActionSet(id: resolvedId) else {
             throw HomeKitError.sceneNotFound
         }
 
@@ -159,7 +166,11 @@ class HomeKitManager: NSObject, ObservableObject, HomeKitManaging {
     }
 
     func updateDevice(id: String, characteristicType: String, value: Any, serviceId: String? = nil) async throws {
-        guard let accessory = allAccessories.first(where: { $0.uniqueIdentifier.uuidString == id }) else {
+        // Resolve ID through registry: accept both stable IDs and HomeKit UUIDs
+        let resolvedDeviceId = resolveDeviceId(id)
+        let resolvedServiceId = serviceId.flatMap { resolveServiceId($0) } ?? serviceId
+
+        guard let accessory = allAccessories.first(where: { $0.uniqueIdentifier.uuidString == resolvedDeviceId }) else {
             throw HomeKitError.deviceNotFound
         }
 
@@ -168,8 +179,8 @@ class HomeKitManager: NSObject, ObservableObject, HomeKitManaging {
 
         // When a serviceId is provided, target only that specific service
         let targetServices: [HMService]
-        if let serviceId {
-            guard let matchedService = accessory.services.first(where: { $0.uniqueIdentifier.uuidString == serviceId }) else {
+        if let resolvedServiceId {
+            guard let matchedService = accessory.services.first(where: { $0.uniqueIdentifier.uuidString == resolvedServiceId }) else {
                 throw HomeKitError.serviceNotFound
             }
             targetServices = [matchedService]
@@ -187,12 +198,25 @@ class HomeKitManager: NSObject, ObservableObject, HomeKitManaging {
         throw HomeKitError.characteristicNotFound
     }
 
-    /// O(1) device lookup by ID using the cached dictionary.
+    /// O(1) device lookup by ID. Accepts both stable registry IDs and HomeKit UUIDs.
     /// Thread-safe: protected by deviceLookupLock.
     func getDeviceState(id: String) -> DeviceModel? {
         deviceLookupLock.lock()
         defer { deviceLookupLock.unlock() }
-        return deviceLookup[id]
+        if let device = deviceLookup[id] { return device }
+        // Try resolving as a stable registry ID → HomeKit UUID
+        let hkId = deviceRegistryService?.readHomeKitDeviceId(id)
+        return hkId.flatMap { deviceLookup[$0] }
+    }
+
+    /// Resolves an ID that may be either a stable registry ID or a HomeKit UUID to a HomeKit UUID.
+    func resolveDeviceId(_ id: String) -> String {
+        deviceRegistryService?.readHomeKitDeviceId(id) ?? id
+    }
+
+    /// Resolves a service ID that may be either a stable registry ID or a HomeKit UUID.
+    func resolveServiceId(_ id: String) -> String {
+        deviceRegistryService?.readHomeKitServiceId(id) ?? id
     }
 
     // MARK: - Device Cache
@@ -201,6 +225,28 @@ class HomeKitManager: NSObject, ObservableObject, HomeKitManaging {
     /// Called when accessories change, characteristic values are read, or settings change.
     private func rebuildDeviceCache() {
         let devices = allAccessories.compactMap { accessory -> DeviceModel? in
+            // Read hardware identity from AccessoryInformation service
+            var manufacturer: String?
+            var model: String?
+            var serialNumber: String?
+            var firmwareRevision: String?
+            if let infoService = accessory.services.first(where: { $0.serviceType == HMServiceTypeAccessoryInformation }) {
+                for char in infoService.characteristics {
+                    switch char.characteristicType {
+                    case HMCharacteristicTypeManufacturer:
+                        manufacturer = char.value as? String
+                    case HMCharacteristicTypeModel:
+                        model = char.value as? String
+                    case HMCharacteristicTypeSerialNumber:
+                        serialNumber = char.value as? String
+                    case HMCharacteristicTypeFirmwareVersion:
+                        firmwareRevision = char.value as? String
+                    default:
+                        break
+                    }
+                }
+            }
+
             let services = accessory.services.compactMap { service -> ServiceModel? in
                 guard service.serviceType != HMServiceTypeAccessoryInformation else { return nil }
                 guard ServiceTypes.isSupported(service.serviceType) else { return nil }
@@ -245,7 +291,11 @@ class HomeKitManager: NSObject, ObservableObject, HomeKitManaging {
                 roomName: accessory.room?.name,
                 categoryType: accessory.category.categoryType,
                 services: services,
-                isReachable: accessory.isReachable
+                isReachable: accessory.isReachable,
+                manufacturer: manufacturer,
+                model: model,
+                serialNumber: serialNumber,
+                firmwareRevision: firmwareRevision
             )
         }
 
@@ -254,6 +304,12 @@ class HomeKitManager: NSObject, ObservableObject, HomeKitManaging {
         deviceLookup = Dictionary(uniqueKeysWithValues: devices.map { ($0.id, $0) })
         deviceLookupLock.unlock()
         objectWillChange.send()
+
+        // Sync the device registry with the latest HomeKit state
+        if let registry = deviceRegistryService {
+            let snapshot = devices
+            Task { await registry.syncDevices(snapshot) }
+        }
     }
 
     // MARK: - Scene Cache
@@ -289,6 +345,12 @@ class HomeKitManager: NSObject, ObservableObject, HomeKitManaging {
         }
         cachedScenes = scenes.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
         objectWillChange.send()
+
+        // Sync the scene registry
+        if let registry = deviceRegistryService {
+            let snapshot = cachedScenes
+            Task { await registry.syncScenes(snapshot) }
+        }
     }
 
     /// Maps HMActionSetType constants to human-readable names.
@@ -361,7 +423,11 @@ class HomeKitManager: NSObject, ObservableObject, HomeKitManaging {
             roomName: device.roomName,
             categoryType: device.categoryType,
             services: updatedServices,
-            isReachable: device.isReachable
+            isReachable: device.isReachable,
+            manufacturer: device.manufacturer,
+            model: device.model,
+            serialNumber: device.serialNumber,
+            firmwareRevision: device.firmwareRevision
         )
 
         // Patch the device in cachedDevices and deviceLookup.
@@ -560,10 +626,14 @@ class HomeKitManager: NSObject, ObservableObject, HomeKitManaging {
                 category: .stateChange
             )
 
+            // Translate to stable registry IDs for published StateChange
+            let stableDeviceId = self.deviceRegistryService?.readStableDeviceId(deviceId) ?? deviceId
+            let stableServiceId = self.deviceRegistryService?.readStableServiceId(serviceId) ?? serviceId
+
             let change = StateChange(
-                deviceId: deviceId,
+                deviceId: stableDeviceId,
                 deviceName: formattedName,
-                serviceId: serviceId,
+                serviceId: stableServiceId,
                 serviceName: serviceName,
                 characteristicType: characteristic.characteristicType,
                 oldValue: cachedValue,
@@ -697,6 +767,28 @@ class HomeKitManager: NSObject, ObservableObject, HomeKitManaging {
         isReady = true
         // Build initial cache with stale/nil values while reads happen
         rebuildDeviceCache()
+
+        // Read AccessoryInformation characteristics (serial, manufacturer, model, firmware)
+        // so hardware identity is available when the cache rebuilds after all reads complete.
+        let accessoryInfoTypes: Set<String> = [
+            HMCharacteristicTypeManufacturer,
+            HMCharacteristicTypeModel,
+            HMCharacteristicTypeSerialNumber,
+            HMCharacteristicTypeFirmwareVersion
+        ]
+        for accessory in accessories where accessory.isReachable {
+            if let infoService = accessory.services.first(where: { $0.serviceType == HMServiceTypeAccessoryInformation }) {
+                for char in infoService.characteristics where accessoryInfoTypes.contains(char.characteristicType) {
+                    if char.properties.contains(HMCharacteristicPropertyReadable) {
+                        char.readValue { error in
+                            if let error {
+                                AppLogger.homeKit.warning("Failed to read AccessoryInfo \(char.characteristicType) on \(accessory.name): \(error)")
+                            }
+                        }
+                    }
+                }
+            }
+        }
 
         for accessory in accessories where accessory.isReachable {
             for service in accessory.services {
@@ -877,10 +969,15 @@ extension HomeKitManager: HMAccessoryDelegate {
                 category: .stateChange
             )
 
+            // Translate to stable registry IDs for published StateChange.
+            // Workflows and triggers reference stable IDs, so StateChange must use them.
+            let stableDeviceId = self.deviceRegistryService?.readStableDeviceId(deviceId) ?? deviceId
+            let stableServiceId = self.deviceRegistryService?.readStableServiceId(serviceId) ?? serviceId
+
             let change = StateChange(
-                deviceId: deviceId,
+                deviceId: stableDeviceId,
                 deviceName: formattedName,
-                serviceId: serviceId,
+                serviceId: stableServiceId,
                 serviceName: serviceName,
                 characteristicType: characteristic.characteristicType,
                 oldValue: nil,
@@ -899,6 +996,7 @@ extension HomeKitManager: HMAccessoryDelegate {
             // Using a publisher decouples HomeKitManager from WorkflowEngine entirely.
             // Use targeted cache update — patch only the affected characteristic instead
             // of rebuilding the entire O(A×S×C) device model graph.
+            // Note: cache update still uses HomeKit UUIDs (internal cache indexing).
             await MainActor.run {
                 self.stateChangePublisher.send(change)
                 self.updateCachedCharacteristic(

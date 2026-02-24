@@ -99,19 +99,23 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
         // One-shot migration: when HomeKit devices first become available, check all
         // workflows for orphaned device UUIDs and remap them automatically.
+        // Also performs one-time migration from HomeKit UUIDs to stable registry IDs.
         container.homeKitManager.$cachedDevices
             .first(where: { !$0.isEmpty })
             .receive(on: DispatchQueue.global(qos: .utility))
             .sink { [weak self] devices in
                 guard let self else { return }
                 Task {
-                    let workflows = await self.container.workflowStorageService.getAllWorkflows()
+                    var workflows = await self.container.workflowStorageService.getAllWorkflows()
                     guard !workflows.isEmpty else { return }
                     let scenes = await MainActor.run { self.container.homeKitManager.cachedScenes }
+
+                    // --- Legacy orphan migration (name+room matching) ---
                     let migration = WorkflowMigrationService.migrateAll(workflows, using: devices, scenes: scenes)
                     let totalRemapped = migration.totalRemappedDevices + migration.totalRemappedScenes
                     if totalRemapped > 0 {
                         await self.container.workflowStorageService.replaceAll(workflows: migration.workflows)
+                        workflows = migration.workflows
                         AppLogger.workflow.info("Startup migration: remapped \(migration.totalRemappedDevices) device(s), \(migration.totalRemappedScenes) scene(s)")
                     }
                     // Log orphans
@@ -130,6 +134,24 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                             )
                             await self.container.loggingService.logEntry(logEntry)
                         }
+                    }
+
+                    // --- Registry migration: HomeKit UUIDs → stable IDs (one-time) ---
+                    if !self.container.storageService.readRegistryMigrationCompleted() {
+                        let registry = self.container.deviceRegistryService
+                        // Ensure registry is synced (may not have completed yet)
+                        await registry.syncDevices(devices)
+                        await registry.syncScenes(scenes)
+
+                        let (migratedWorkflows, count) = WorkflowMigrationService.migrateToStableIds(workflows, registry: registry)
+                        if count > 0 {
+                            await self.container.workflowStorageService.replaceAll(workflows: migratedWorkflows)
+                            AppLogger.registry.info("Registry migration: converted \(count) reference(s) to stable IDs")
+                        }
+                        await MainActor.run {
+                            self.container.storageService.registryMigrationCompleted = true
+                        }
+                        AppLogger.registry.info("Registry migration completed")
                     }
                 }
             }

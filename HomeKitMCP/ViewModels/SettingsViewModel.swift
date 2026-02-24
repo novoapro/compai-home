@@ -40,6 +40,9 @@ class SettingsViewModel: ObservableObject {
     @Published var workflowsEnabled: Bool {
         didSet { storage.workflowsEnabled = workflowsEnabled }
     }
+    @Published var workflowSyncEnabled: Bool {
+        didSet { storage.workflowSyncEnabled = workflowSyncEnabled }
+    }
     @Published var deviceStateLoggingEnabled: Bool {
         didSet { storage.deviceStateLoggingEnabled = deviceStateLoggingEnabled }
     }
@@ -106,6 +109,8 @@ class SettingsViewModel: ObservableObject {
     let backupService: BackupService
     let cloudBackupService: CloudBackupService
     let appleSignInService: AppleSignInService
+    let deviceRegistryService: DeviceRegistryService
+    let homeKitManager: HomeKitManager
     private var cancellables = Set<AnyCancellable>()
 
     init(
@@ -117,7 +122,9 @@ class SettingsViewModel: ObservableObject {
         aiWorkflowService: AIWorkflowService,
         backupService: BackupService,
         cloudBackupService: CloudBackupService,
-        appleSignInService: AppleSignInService
+        appleSignInService: AppleSignInService,
+        deviceRegistryService: DeviceRegistryService,
+        homeKitManager: HomeKitManager
     ) {
         self.storage = storage
         self.webhookService = webhookService
@@ -128,12 +135,15 @@ class SettingsViewModel: ObservableObject {
         self.backupService = backupService
         self.cloudBackupService = cloudBackupService
         self.appleSignInService = appleSignInService
+        self.deviceRegistryService = deviceRegistryService
+        self.homeKitManager = homeKitManager
         self.webhookEnabled = storage.webhookEnabled
         self.hideRoomNameInTheApp = storage.hideRoomNameInTheApp
         self.detailedLogsEnabled = storage.detailedLogsEnabled
         self.pollingEnabled = storage.pollingEnabled
         self.pollingInterval = storage.pollingInterval
         self.workflowsEnabled = storage.workflowsEnabled
+        self.workflowSyncEnabled = storage.workflowSyncEnabled
         self.deviceStateLoggingEnabled = storage.deviceStateLoggingEnabled
         self.webhookPrivateIPAllowlist = storage.webhookPrivateIPAllowlist
         self.sunEventLatitude = storage.sunEventLatitude

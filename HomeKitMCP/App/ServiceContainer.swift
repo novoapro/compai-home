@@ -17,6 +17,7 @@ final class ServiceContainer {
 
     let loggingService: LoggingService = LoggingService()
     let configService: DeviceConfigurationService = DeviceConfigurationService()
+    let deviceRegistryService: DeviceRegistryService = DeviceRegistryService()
     let workflowStorageService: WorkflowStorageService = WorkflowStorageService()
     let workflowExecutionLogService: WorkflowExecutionLogService = WorkflowExecutionLogService()
     let aiInteractionLogService: AIInteractionLogService = AIInteractionLogService()
@@ -40,7 +41,8 @@ final class ServiceContainer {
         homeKitManager: homeKitManager,
         loggingService: loggingService,
         executionLogService: workflowExecutionLogService,
-        storage: storageService
+        storage: storageService,
+        registry: deviceRegistryService
     )
 
     lazy var aiWorkflowService: AIWorkflowService = AIWorkflowService(
@@ -59,6 +61,7 @@ final class ServiceContainer {
         workflowEngine: workflowEngine,
         workflowExecutionLogService: workflowExecutionLogService,
         keychainService: keychainService,
+        registry: deviceRegistryService,
         port: storageService.mcpServerPort
     )
 
@@ -83,6 +86,11 @@ final class ServiceContainer {
         workflowStorageService: workflowStorageService
     )
 
+    lazy var workflowSyncService: WorkflowSyncService = WorkflowSyncService(
+        workflowStorageService: workflowStorageService,
+        storage: storageService
+    )
+
     // MARK: - View Models
 
     lazy var homeKitViewModel: HomeKitViewModel = HomeKitViewModel(
@@ -105,7 +113,9 @@ final class ServiceContainer {
         aiWorkflowService: aiWorkflowService,
         backupService: backupService,
         cloudBackupService: cloudBackupService,
-        appleSignInService: appleSignInService
+        appleSignInService: appleSignInService,
+        deviceRegistryService: deviceRegistryService,
+        homeKitManager: homeKitManager
     )
 
     lazy var workflowViewModel: WorkflowViewModel = WorkflowViewModel(
@@ -124,6 +134,9 @@ final class ServiceContainer {
     /// - HomeKitManager.stateChangePublisher → WorkflowEngine.processStateChange
     ///   (replaces the old post-init `homeKitManager.workflowEngine = workflowEngine` assignment)
     func wireServices() {
+        homeKitManager.deviceRegistryService = deviceRegistryService
         workflowEngine.subscribeToStateChanges(from: homeKitManager.stateChangePublisher)
+        // Touch workflowSyncService to initialize it (sets up Combine subscriptions)
+        _ = workflowSyncService
     }
 }
