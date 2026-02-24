@@ -258,9 +258,14 @@ struct ContentView: View {
             }
         case .nav(.logs):
             NavigationStack {
-                LogViewerView(viewModel: logViewModel, onCancelExecution: { executionId in
-                    workflowViewModel.cancelExecution(executionId: executionId)
-                })
+                LogViewerView(
+                    viewModel: logViewModel,
+                    registryService: settingsViewModel.deviceRegistryService,
+                    homeKitManager: settingsViewModel.homeKitManager,
+                    onCancelExecution: { executionId in
+                        workflowViewModel.cancelExecution(executionId: executionId)
+                    }
+                )
             }
         case .nav(.settings):
             NavigationStack {

@@ -13,6 +13,7 @@ struct ComparisonValueRow: View {
     var fallbackFormat: String? = nil
     var fallbackMinValue: Double? = nil
     var fallbackMaxValue: Double? = nil
+    var fallbackStepValue: Double? = nil
     var fallbackValidValues: [Int]? = nil
 
     private var characteristic: CharacteristicModel? {
@@ -25,6 +26,7 @@ struct ComparisonValueRow: View {
         let fmt = characteristic?.format ?? fallbackFormat
         let minVal = characteristic?.minValue ?? fallbackMinValue
         let maxVal = characteristic?.maxValue ?? fallbackMaxValue
+        let stepVal = characteristic?.stepValue ?? fallbackStepValue
         let validVals = characteristic?.validValues ?? fallbackValidValues
         guard let fmt else {
             return .textField(inputType: .text)
@@ -34,6 +36,7 @@ struct ComparisonValueRow: View {
             format: fmt,
             minValue: minVal,
             maxValue: maxVal,
+            stepValue: stepVal,
             validValues: validVals
         )
     }
@@ -48,6 +51,32 @@ struct ComparisonValueRow: View {
                     Toggle("", isOn: boolBinding)
                         .labelsHidden()
                         .tint(Theme.Tint.main)
+                }
+
+            case let .labeledToggle(offLabel, onLabel, offValue, onValue):
+                HStack {
+                    comparisonMenu
+                    Spacer()
+                    Text(offLabel)
+                        .font(.subheadline)
+                        .foregroundColor(value == onValue ? Theme.Text.secondary : .primary)
+                    Toggle("", isOn: labeledToggleBinding(offValue: offValue, onValue: onValue))
+                        .labelsHidden()
+                        .tint(Theme.Tint.main)
+                    Text(onLabel)
+                        .font(.subheadline)
+                        .foregroundColor(value == onValue ? .primary : Theme.Text.secondary)
+                }
+
+            case let .segmentedPicker(options):
+                VStack(alignment: .leading, spacing: 4) {
+                    comparisonMenu
+                    Picker("", selection: $value) {
+                        ForEach(options, id: \.value) { option in
+                            Text(option.label).tag(option.value)
+                        }
+                    }
+                    .pickerStyle(.segmented)
                 }
 
             case let .slider(min, max, step, unit):
@@ -84,7 +113,7 @@ struct ComparisonValueRow: View {
                         }
                     } label: {
                         HStack(spacing: 4) {
-                            Text(currentPickerLabel(options) ?? "Select…")
+                            Text(currentPickerLabel(options) ?? "Select\u{2026}")
                             Image(systemName: "chevron.up.chevron.down")
                                 .font(.caption2)
                                 .foregroundColor(Theme.Text.secondary)
@@ -121,6 +150,12 @@ struct ComparisonValueRow: View {
         switch inputControlType {
         case .toggle:
             value = "false"
+        case let .labeledToggle(_, _, offValue, _):
+            value = offValue
+        case let .segmentedPicker(options):
+            if let first = options.first {
+                value = first.value
+            }
         case let .slider(min, _, _, _):
             value = min == min.rounded() ? "\(Int(min))" : String(format: "%.1f", min)
         case let .picker(options):
@@ -170,6 +205,13 @@ struct ComparisonValueRow: View {
         Binding(
             get: { value.lowercased() == "true" || value == "1" },
             set: { value = $0 ? "true" : "false" }
+        )
+    }
+
+    private func labeledToggleBinding(offValue: String, onValue: String) -> Binding<Bool> {
+        Binding(
+            get: { value == onValue },
+            set: { value = $0 ? onValue : offValue }
         )
     }
 

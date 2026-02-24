@@ -379,6 +379,7 @@ private struct ConditionLeafEditSheet: View {
                     condition.characteristicFormat = char?.format
                     condition.characteristicMinValue = char?.minValue
                     condition.characteristicMaxValue = char?.maxValue
+                    condition.characteristicStepValue = char?.stepValue
                     condition.characteristicValidValues = char?.validValues
                 }
             )
@@ -392,6 +393,7 @@ private struct ConditionLeafEditSheet: View {
                 fallbackFormat: condition.characteristicFormat,
                 fallbackMinValue: condition.characteristicMinValue,
                 fallbackMaxValue: condition.characteristicMaxValue,
+                fallbackStepValue: condition.characteristicStepValue,
                 fallbackValidValues: condition.characteristicValidValues
             )
         case .timeCondition:

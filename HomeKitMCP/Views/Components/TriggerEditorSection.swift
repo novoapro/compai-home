@@ -158,6 +158,7 @@ private struct TriggerRow: View {
                 trigger.characteristicFormat = char?.format
                 trigger.characteristicMinValue = char?.minValue
                 trigger.characteristicMaxValue = char?.maxValue
+                trigger.characteristicStepValue = char?.stepValue
                 trigger.characteristicValidValues = char?.validValues
             }
         )
@@ -195,6 +196,7 @@ private struct TriggerRow: View {
                     fallbackFormat: trigger.characteristicFormat,
                     fallbackMinValue: trigger.characteristicMinValue,
                     fallbackMaxValue: trigger.characteristicMaxValue,
+                    fallbackStepValue: trigger.characteristicStepValue,
                     fallbackValidValues: trigger.characteristicValidValues
                 )
             }

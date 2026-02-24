@@ -2,7 +2,6 @@ import SwiftUI
 
 struct WorkflowSettingsView: View {
     @ObservedObject var viewModel: SettingsViewModel
-    @State private var orphanCount = 0
 
     var body: some View {
         Form {
@@ -20,29 +19,6 @@ struct WorkflowSettingsView: View {
                 Label("Cross-Device Sync", systemImage: "icloud")
             } footer: {
                 Text("When enabled, workflows are synced across all your devices via iCloud. Workflows use stable device identifiers — if a device isn't found on this Mac, its references remain intact until matched.")
-            }
-
-            Section {
-                NavigationLink {
-                    OrphanedDevicesView(
-                        registryService: viewModel.deviceRegistryService,
-                        homeKitManager: viewModel.homeKitManager
-                    )
-                } label: {
-                    HStack {
-                        Label("Device Registry", systemImage: "externaldrive.connected.to.line.below")
-                        Spacer()
-                        if orphanCount > 0 {
-                            Text("\(orphanCount) unresolved")
-                                .font(.subheadline)
-                                .foregroundStyle(.orange)
-                        }
-                    }
-                }
-            } header: {
-                Label("Device Identity", systemImage: "cpu")
-            } footer: {
-                Text("The device registry maps stable identifiers to HomeKit devices. View and manage orphaned devices that could not be automatically resolved.")
             }
 
             Section {
@@ -115,11 +91,6 @@ struct WorkflowSettingsView: View {
         .scrollContentBackground(.hidden)
         .background(Theme.mainBackground)
         .navigationTitle("Workflows")
-        .task {
-            let devices = await viewModel.deviceRegistryService.unresolvedDevices()
-            let scenes = await viewModel.deviceRegistryService.unresolvedScenes()
-            orphanCount = devices.count + scenes.count
-        }
     }
 }
 

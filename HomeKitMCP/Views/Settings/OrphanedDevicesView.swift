@@ -3,6 +3,7 @@ import SwiftUI
 struct OrphanedDevicesView: View {
     let registryService: DeviceRegistryService
     let homeKitManager: HomeKitManager
+    var viewModel: SettingsViewModel?
 
     @State private var orphanedDevices: [DeviceRegistryEntry] = []
     @State private var orphanedScenes: [SceneRegistryEntry] = []
@@ -10,9 +11,47 @@ struct OrphanedDevicesView: View {
     @State private var replaceSceneEntry: SceneRegistryEntry?
     @State private var removeDeviceEntry: DeviceRegistryEntry?
     @State private var removeSceneEntry: SceneRegistryEntry?
+    @State private var showingResetConfirmation = false
 
     var body: some View {
         Form {
+            if let vm = viewModel {
+                Section {
+                    Toggle("Enable State Polling", isOn: Binding(
+                        get: { vm.pollingEnabled },
+                        set: { vm.pollingEnabled = $0 }
+                    ))
+
+                    Picker("Polling Interval", selection: Binding(
+                        get: { vm.pollingInterval },
+                        set: { vm.pollingInterval = $0 }
+                    )) {
+                        Text("10 seconds").tag(10)
+                        Text("15 seconds").tag(15)
+                        Text("30 seconds").tag(30)
+                        Text("60 seconds").tag(60)
+                        Text("120 seconds").tag(120)
+                        Text("300 seconds").tag(300)
+                    }
+                    .disabled(!vm.pollingEnabled)
+                    .opacity(vm.pollingEnabled ? 1 : 0.5)
+                } header: {
+                    Label("State Polling", systemImage: "arrow.triangle.2.circlepath")
+                } footer: {
+                    Text("Periodically reads device states from HomeKit to detect missed callbacks. Logs corrections when actual state differs from cached state.")
+                }
+
+                Section {
+                    Button("Reset Device Configuration", role: .destructive) {
+                        showingResetConfirmation = true
+                    }
+                } header: {
+                    Label("Data", systemImage: "externaldrive")
+                } footer: {
+                    Text("Resets all per-device MCP visibility and webhook notification toggles to defaults.")
+                }
+            }
+
             if orphanedDevices.isEmpty && orphanedScenes.isEmpty {
                 Section {
                     HStack {
@@ -121,6 +160,14 @@ struct OrphanedDevicesView: View {
             Button("Cancel", role: .cancel) {}
         } message: { entry in
             Text("Remove \"\(entry.name)\" from the registry? Any workflows referencing this scene will no longer resolve.")
+        }
+        .alert("Reset Device Configuration?", isPresented: $showingResetConfirmation) {
+            Button("Cancel", role: .cancel) { }
+            Button("Reset", role: .destructive) {
+                viewModel?.resetDeviceConfiguration()
+            }
+        } message: {
+            Text("This will reset all MCP and webhook toggles to their defaults (MCP: on, Webhook: off).")
         }
     }
 

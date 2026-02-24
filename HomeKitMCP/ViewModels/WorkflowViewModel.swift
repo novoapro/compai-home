@@ -15,8 +15,19 @@ class WorkflowViewModel: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     private var clonedToastTask: Task<Void, Never>?
 
-    var devices: [DeviceModel] { homeKitManager.cachedDevices }
-    var scenes: [SceneModel] { homeKitManager.getAllScenes() }
+    /// Returns devices with stable registry IDs so picker tags match workflow stable IDs.
+    var devices: [DeviceModel] {
+        let raw = homeKitManager.cachedDevices
+        guard let registry = homeKitManager.deviceRegistryService else { return raw }
+        return raw.map { registry.withStableIds($0) }
+    }
+
+    /// Returns scenes with stable registry IDs so picker tags match workflow stable IDs.
+    var scenes: [SceneModel] {
+        let raw = homeKitManager.getAllScenes()
+        guard let registry = homeKitManager.deviceRegistryService else { return raw }
+        return raw.map { registry.withStableIds($0) }
+    }
 
     var filteredWorkflows: [Workflow] {
         guard !searchText.isEmpty else { return workflows }

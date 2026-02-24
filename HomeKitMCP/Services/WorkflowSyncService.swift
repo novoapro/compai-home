@@ -19,6 +19,8 @@ class WorkflowSyncService: ObservableObject {
     private let privateDB: CKDatabase
     private let workflowStorageService: WorkflowStorageService
     private let storage: StorageService
+    private let deviceRegistryService: DeviceRegistryService
+    private let homeKitManager: HomeKitManager
     private var cancellables = Set<AnyCancellable>()
     private var outboundTask: Task<Void, Never>?
     private var pollTask: Task<Void, Never>?
@@ -46,9 +48,11 @@ class WorkflowSyncService: ObservableObject {
         return decoder
     }()
 
-    init(workflowStorageService: WorkflowStorageService, storage: StorageService) {
+    init(workflowStorageService: WorkflowStorageService, storage: StorageService, deviceRegistryService: DeviceRegistryService, homeKitManager: HomeKitManager) {
         self.workflowStorageService = workflowStorageService
         self.storage = storage
+        self.deviceRegistryService = deviceRegistryService
+        self.homeKitManager = homeKitManager
         self.container = CKContainer(identifier: Self.containerIdentifier)
         self.privateDB = container.privateCloudDatabase
         self.deviceId = ProcessInfo.processInfo.hostName
@@ -281,6 +285,16 @@ class WorkflowSyncService: ObservableObject {
             lastSyncError = nil
 
             if changed {
+                // Reconcile foreign stable IDs from synced workflows against local registry
+                let reconciledCount = await deviceRegistryService.reconcileWorkflowReferences(
+                    allLocal,
+                    currentDevices: homeKitManager.getAllDevices(),
+                    currentScenes: homeKitManager.getAllScenes()
+                )
+                if reconciledCount > 0 {
+                    AppLogger.workflow.info("Workflow sync: reconciled \(reconciledCount) foreign registry references")
+                }
+
                 AppLogger.workflow.info("Workflow sync: applied remote changes")
             }
         } catch {

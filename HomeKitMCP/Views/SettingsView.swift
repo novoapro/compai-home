@@ -4,6 +4,7 @@ struct SettingsView: View {
     @ObservedObject var viewModel: SettingsViewModel
     @ObservedObject private var storage: StorageService
     @ObservedObject private var appleSignInService: AppleSignInService
+    @State private var unresolvedCount = 0
 
     init(viewModel: SettingsViewModel) {
         self.viewModel = viewModel
@@ -105,6 +106,22 @@ struct SettingsView: View {
                     )
                 }
 
+                // Device Registry
+                NavigationLink {
+                    OrphanedDevicesView(
+                        registryService: viewModel.deviceRegistryService,
+                        homeKitManager: viewModel.homeKitManager,
+                        viewModel: viewModel
+                    )
+                } label: {
+                    settingsRow(
+                        icon: "externaldrive.connected.to.line.below",
+                        iconColor: .gray,
+                        title: "Device Registry",
+                        badge: registryBadge
+                    )
+                }
+
                 // Account
                 NavigationLink {
                     AccountSettingsView(viewModel: viewModel)
@@ -136,6 +153,11 @@ struct SettingsView: View {
         .scrollContentBackground(.hidden)
         .background(Theme.mainBackground)
         .navigationTitle("Settings")
+        .task {
+            let devices = await viewModel.deviceRegistryService.unresolvedDevices()
+            let scenes = await viewModel.deviceRegistryService.unresolvedScenes()
+            unresolvedCount = devices.count + scenes.count
+        }
     }
 
     // MARK: - Status Badges
@@ -173,6 +195,11 @@ struct SettingsView: View {
             return StatusBadge(text: "Enabled", color: Theme.Status.active)
         }
         return nil
+    }
+
+    private var registryBadge: StatusBadge? {
+        guard unresolvedCount > 0 else { return nil }
+        return StatusBadge(text: "\(unresolvedCount) unresolved", color: .orange)
     }
 
     private var accountBadge: StatusBadge? {

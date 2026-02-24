@@ -422,6 +422,129 @@ actor DeviceRegistryService {
         AppLogger.registry.info("Removed scene '\(entry.name)' (stableId \(stableId)) from registry")
     }
 
+    // MARK: - Workflow Reconciliation
+
+    /// Reconciles foreign stable IDs in workflows against the local registry.
+    ///
+    /// When workflows arrive from another device (CloudKit sync) or from a backup,
+    /// they may contain stable IDs that don't exist in this device's registry.
+    /// This method creates local registry entries for those foreign IDs by:
+    /// 1. Matching by name against current HomeKit devices/scenes
+    /// 2. Creating resolved entries for matches (foreign stableId → local HomeKit UUID)
+    /// 3. Creating unresolved entries for non-matches (shows in orphan UI)
+    ///
+    /// Returns the number of new entries created.
+    @discardableResult
+    func reconcileWorkflowReferences(
+        _ workflows: [Workflow],
+        currentDevices: [DeviceModel],
+        currentScenes: [SceneModel]
+    ) -> Int {
+        var created = 0
+
+        // Build lookup tables for name-based matching
+        let devicesByName = buildNameRoomLookup(currentDevices)
+        let scenesByName = buildSceneNameLookup(currentScenes)
+
+        // Collect all device and scene references from workflows
+        for workflow in workflows {
+            let deviceRefs = WorkflowMigrationService.collectDeviceReferences(from: workflow)
+            let sceneRefs = WorkflowMigrationService.collectSceneReferences(from: workflow)
+
+            for ref in deviceRefs {
+                let id = ref.deviceId
+                guard !id.isEmpty, devices[id] == nil else { continue }
+                // Also skip if this ID is a known HomeKit UUID (already has a stable entry)
+                guard hkDeviceIdToStableId[id] == nil else { continue }
+
+                // Try to match by name+room, then name-only
+                if let match = findDeviceMatch(name: ref.contextName, room: ref.contextRoom, in: currentDevices, lookup: devicesByName) {
+                    devices[id] = buildDeviceEntry(stableId: id, from: match, existing: nil)
+                    AppLogger.registry.info("Reconciled device '\(match.name)' → foreign stableId \(id)")
+                } else {
+                    // Create unresolved entry with available metadata
+                    devices[id] = DeviceRegistryEntry(
+                        stableId: id,
+                        homeKitId: nil,
+                        hardwareKey: nil,
+                        name: ref.contextName ?? "Unknown Device",
+                        roomName: ref.contextRoom,
+                        categoryType: "other",
+                        services: [],
+                        isResolved: false
+                    )
+                    AppLogger.registry.warning("Unresolved foreign device reference: '\(ref.contextName ?? id)'")
+                }
+                created += 1
+            }
+
+            for ref in sceneRefs {
+                let id = ref.sceneId
+                guard !id.isEmpty, scenes[id] == nil else { continue }
+                guard hkSceneIdToStableId[id] == nil else { continue }
+
+                if let name = ref.sceneName, let match = scenesByName[name.lowercased()] {
+                    scenes[id] = SceneRegistryEntry(
+                        stableId: id,
+                        homeKitId: match.id,
+                        name: match.name,
+                        isResolved: true
+                    )
+                    AppLogger.registry.info("Reconciled scene '\(match.name)' → foreign stableId \(id)")
+                } else {
+                    scenes[id] = SceneRegistryEntry(
+                        stableId: id,
+                        homeKitId: nil,
+                        name: ref.sceneName ?? "Unknown Scene",
+                        isResolved: false
+                    )
+                    AppLogger.registry.warning("Unresolved foreign scene reference: '\(ref.sceneName ?? id)'")
+                }
+                created += 1
+            }
+        }
+
+        if created > 0 {
+            rebuildReverseLookups()
+            debouncedSave()
+            AppLogger.registry.info("Reconciliation: created \(created) registry entries from workflow references")
+        }
+
+        return created
+    }
+
+    /// Match a device reference by name+room against current HomeKit devices.
+    private func findDeviceMatch(name: String?, room: String?, in devices: [DeviceModel], lookup: [String: DeviceModel]) -> DeviceModel? {
+        guard let name else { return nil }
+        // Try name+room first
+        if let room {
+            let key = "\(name.lowercased())\0\(room.lowercased())"
+            if let match = lookup[key] { return match }
+        }
+        // Fall back to name-only (unique match only)
+        let nameMatches = devices.filter { $0.name.lowercased() == name.lowercased() }
+        return nameMatches.count == 1 ? nameMatches[0] : nil
+    }
+
+    /// Build name+room → DeviceModel lookup (unique matches only).
+    private func buildNameRoomLookup(_ models: [DeviceModel]) -> [String: DeviceModel] {
+        var groups: [String: [DeviceModel]] = [:]
+        for device in models {
+            let key = "\(device.name.lowercased())\0\((device.roomName ?? "").lowercased())"
+            groups[key, default: []].append(device)
+        }
+        return groups.compactMapValues { $0.count == 1 ? $0[0] : nil }
+    }
+
+    /// Build sceneName → SceneModel lookup (unique matches only).
+    private func buildSceneNameLookup(_ models: [SceneModel]) -> [String: SceneModel] {
+        var groups: [String: [SceneModel]] = [:]
+        for scene in models {
+            groups[scene.name.lowercased(), default: []].append(scene)
+        }
+        return groups.compactMapValues { $0.count == 1 ? $0[0] : nil }
+    }
+
     /// Returns the full registry snapshot (for backup/export).
     func snapshot() -> RegistrySnapshot {
         RegistrySnapshot(devices: devices, scenes: scenes)

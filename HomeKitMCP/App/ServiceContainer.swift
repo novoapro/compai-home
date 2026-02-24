@@ -77,7 +77,8 @@ final class ServiceContainer {
         configService: configService,
         workflowStorageService: workflowStorageService,
         homeKitManager: homeKitManager,
-        loggingService: loggingService
+        loggingService: loggingService,
+        deviceRegistryService: deviceRegistryService
     )
 
     lazy var cloudBackupService: CloudBackupService = CloudBackupService(
@@ -88,7 +89,9 @@ final class ServiceContainer {
 
     lazy var workflowSyncService: WorkflowSyncService = WorkflowSyncService(
         workflowStorageService: workflowStorageService,
-        storage: storageService
+        storage: storageService,
+        deviceRegistryService: deviceRegistryService,
+        homeKitManager: homeKitManager
     )
 
     // MARK: - View Models

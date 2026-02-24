@@ -263,7 +263,7 @@ class HomeKitManager: NSObject, ObservableObject, HomeKitManaging {
                         minValue: char.metadata?.minimumValue?.doubleValue,
                         maxValue: char.metadata?.maximumValue?.doubleValue,
                         stepValue: char.metadata?.stepValue?.doubleValue,
-                        validValues: extractValidValues(for: char.characteristicType)
+                        validValues: extractValidValues(for: char)
                     )
                 }
 
@@ -686,30 +686,51 @@ class HomeKitManager: NSObject, ObservableObject, HomeKitManaging {
         }
     }
 
-    /// Extracts valid values for discrete characteristics (door state, lock state, etc.)
-    /// Returns nil if the characteristic doesn't have defined discrete values.
-    private func extractValidValues(for characteristicType: String) -> [Int]? {
-        switch characteristicType {
-        case HMCharacteristicTypeCurrentDoorState,
-             HMCharacteristicTypeTargetDoorState:
-            return [0, 1, 2, 3, 4]  // Open, Closed, Opening, Closing, Stopped
-
-        case HMCharacteristicTypeCurrentLockMechanismState,
-             HMCharacteristicTypeTargetLockMechanismState:
-            return [0, 1, 2, 3]  // Unsecured, Secured, Jammed, Unknown
-
-        case HMCharacteristicTypeCurrentHeatingCooling,
-             HMCharacteristicTypeTargetHeatingCooling:
-            return [0, 1, 2, 3]  // Off, Heat, Cool, Auto
-
-        case HMCharacteristicTypeCurrentFanState,
-             HMCharacteristicTypeTargetFanState:
-            return [0, 1, 2]  // Inactive, Active, Jammed
-
-        default:
-            return nil
+    /// Extracts valid values for discrete characteristics.
+    /// Prefers device-reported metadata (respects device-specific subsets),
+    /// falls back to well-known HAP defaults by characteristic type.
+    private func extractValidValues(for characteristic: HMCharacteristic) -> [Int]? {
+        // 1. Prefer metadata.validValues from the actual device (device-specific subset)
+        if let metadataValues = characteristic.metadata?.validValues, !metadataValues.isEmpty {
+            return metadataValues.map { $0.intValue }.sorted()
         }
+
+        // 2. Fall back to well-known HAP defaults by characteristic type
+        return Self.defaultValidValues[characteristic.characteristicType]
     }
+
+    /// Well-known valid value sets from the HAP specification, keyed by characteristic type.
+    private static let defaultValidValues: [String: [Int]] = {
+        var map: [String: [Int]] = [:]
+
+        map[HMCharacteristicTypeCurrentDoorState] = [0, 1, 2, 3, 4]
+        map[HMCharacteristicTypeTargetDoorState] = [0, 1]
+        map[HMCharacteristicTypeCurrentLockMechanismState] = [0, 1, 2, 3]
+        map[HMCharacteristicTypeTargetLockMechanismState] = [0, 1]
+        map[HMCharacteristicTypeCurrentHeatingCooling] = [0, 1, 2]
+        map[HMCharacteristicTypeTargetHeatingCooling] = [0, 1, 2, 3]
+        map[HMCharacteristicTypeCurrentFanState] = [0, 1, 2]
+        map[HMCharacteristicTypeTargetFanState] = [0, 1]
+        map[HMCharacteristicTypeActive] = [0, 1]
+        map[HMCharacteristicTypeContactState] = [0, 1]
+        map[HMCharacteristicTypeOccupancyDetected] = [0, 1]
+        map[HMCharacteristicTypeSmokeDetected] = [0, 1]
+        map[HMCharacteristicTypeCarbonMonoxideDetected] = [0, 1]
+        map[HMCharacteristicTypeStatusLowBattery] = [0, 1]
+        map[HMCharacteristicTypeChargingState] = [0, 1, 2]
+        map[HMCharacteristicTypePositionState] = [0, 1, 2]
+        map[HMCharacteristicTypeTemperatureUnits] = [0, 1]
+        map[HMCharacteristicTypeInUse] = [0, 1]
+        map[HMCharacteristicTypeValveType] = [0, 1, 2, 3]
+        map[HMCharacteristicTypeProgramMode] = [0, 1, 2]
+        map[HMCharacteristicTypeIsConfigured] = [0, 1]
+        map[HMCharacteristicTypeInputEvent] = [0, 1, 2]
+        map[HMCharacteristicTypeStatusFault] = [0, 1]
+        map[HMCharacteristicTypeStatusTampered] = [0, 1]
+        map[HMCharacteristicTypeObstructionDetected] = [0, 1]
+
+        return map
+    }()
 
     private func registerForNotifications() {
         for home in homes {

@@ -2,6 +2,8 @@ import SwiftUI
 
 struct LogViewerView: View {
     @ObservedObject var viewModel: LogViewModel
+    var registryService: DeviceRegistryService?
+    var homeKitManager: HomeKitManager?
     var onCancelExecution: ((UUID) -> Void)?
     @State private var showingClearConfirmation = false
 
@@ -38,8 +40,19 @@ struct LogViewerView: View {
                             ForEach(group.logs) { unifiedLog in
                                 switch unifiedLog {
                                 case .stateChange(let log):
-                                    LogRow(log: log, detailedLogsEnabled: viewModel.detailedLogsEnabled)
+                                    if log.category == .backupRestore,
+                                       let registry = registryService,
+                                       let hkManager = homeKitManager {
+                                        NavigationLink {
+                                            OrphanedDevicesView(registryService: registry, homeKitManager: hkManager)
+                                        } label: {
+                                            LogRow(log: log, detailedLogsEnabled: viewModel.detailedLogsEnabled)
+                                        }
                                         .listRowBackground(Theme.contentBackground)
+                                    } else {
+                                        LogRow(log: log, detailedLogsEnabled: viewModel.detailedLogsEnabled)
+                                            .listRowBackground(Theme.contentBackground)
+                                    }
                                 case .workflowExecution(let log):
                                     NavigationLink {
                                         WorkflowExecutionLogDetailView(logId: log.id, viewModel: viewModel, onCancel: onCancelExecution)

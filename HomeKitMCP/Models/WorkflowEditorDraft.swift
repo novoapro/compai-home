@@ -29,6 +29,19 @@ enum TriggerConditionType: String, CaseIterable, Identifiable {
         }
     }
 
+    var symbol: String {
+        switch self {
+        case .changed: return "Changed"
+        case .equals: return "="
+        case .notEquals: return "≠"
+        case .transitioned: return "Transitioned"
+        case .greaterThan: return ">"
+        case .lessThan: return "<"
+        case .greaterThanOrEqual: return "≥"
+        case .lessThanOrEqual: return "≤"
+        }
+    }
+
     var requiresValue: Bool {
         self != .changed
     }
@@ -209,6 +222,7 @@ struct TriggerDraft: Identifiable {
     var characteristicFormat: String?
     var characteristicMinValue: Double?
     var characteristicMaxValue: Double?
+    var characteristicStepValue: Double?
     var characteristicValidValues: [Int]?
 
     // Schedule fields
@@ -295,7 +309,11 @@ extension TriggerDraft {
             let room = device?.roomName ?? ""
             let devName = device?.nameIncludingService(serviceId: serviceId) ?? "Unknown"
             let charName = characteristicType.isEmpty ? "" : CharacteristicTypes.displayName(for: characteristicType)
-            let condDesc = conditionType == .changed ? "Changed" : "\(conditionType.displayName) \(conditionValue)"
+            let condDesc: String = {
+                if conditionType == .changed { return "Changed" }
+                let displayVal = CharacteristicInputConfig.displayValueForName(characteristicType: characteristicType, rawValue: conditionValue)
+                return "\(conditionType.symbol) \(displayVal)"
+            }()
             let parts = [room, devName, charName, condDesc].filter { !$0.isEmpty }
             return parts.joined(separator: " ")
         case .schedule:
@@ -353,7 +371,8 @@ extension ConditionDraft {
             let room = device?.roomName ?? ""
             let devName = device?.nameIncludingService(serviceId: serviceId) ?? "Unknown"
             let charName = characteristicType.isEmpty ? "" : CharacteristicTypes.displayName(for: characteristicType)
-            let comp = "\(comparisonType.displayName) \(comparisonValue)"
+            let displayVal = CharacteristicInputConfig.displayValueForName(characteristicType: characteristicType, rawValue: comparisonValue)
+            let comp = "\(comparisonType.symbol) \(displayVal)"
             let parts = [room, devName, charName, comp].filter { !$0.isEmpty }
             return parts.joined(separator: " ")
         case .timeCondition:
@@ -445,7 +464,8 @@ private extension ControlDeviceDraft {
         let devName = devices.resolvedName(deviceId: deviceId, serviceId: serviceId)
         let charName = characteristicType.isEmpty ? "" : CharacteristicTypes.displayName(for: characteristicType)
         if charName.isEmpty { return "Set \(devName)" }
-        let valStr = value.isEmpty ? "" : "= \(value)"
+        let displayVal = CharacteristicInputConfig.displayValueForName(characteristicType: characteristicType, rawValue: value)
+        let valStr = displayVal.isEmpty ? "" : "= \(displayVal)"
         return "Set \(devName) \(charName) \(valStr)".trimmingCharacters(in: .whitespaces)
     }
 }
@@ -486,7 +506,8 @@ private extension WaitForStateDraft {
         guard !deviceId.isEmpty else { return "Wait for State" }
         let devName = devices.resolvedName(deviceId: deviceId, serviceId: serviceId)
         let charName = characteristicType.isEmpty ? "" : CharacteristicTypes.displayName(for: characteristicType)
-        return "Wait \(devName) \(charName) \(comparisonType.displayName) \(comparisonValue)".trimmingCharacters(in: .whitespaces)
+        let displayVal = CharacteristicInputConfig.displayValueForName(characteristicType: characteristicType, rawValue: comparisonValue)
+        return "Wait \(devName) \(charName) \(comparisonType.symbol) \(displayVal)".trimmingCharacters(in: .whitespaces)
     }
 }
 
@@ -580,6 +601,7 @@ struct ConditionDraft: Identifiable {
     var characteristicFormat: String?
     var characteristicMinValue: Double?
     var characteristicMaxValue: Double?
+    var characteristicStepValue: Double?
     var characteristicValidValues: [Int]?
 
     // Time Condition fields
@@ -762,6 +784,7 @@ struct ControlDeviceDraft {
     var characteristicFormat: String?
     var characteristicMinValue: Double?
     var characteristicMaxValue: Double?
+    var characteristicStepValue: Double?
     var characteristicValidValues: [Int]?
 }
 
@@ -800,6 +823,7 @@ struct WaitForStateDraft {
     var characteristicFormat: String?
     var characteristicMinValue: Double?
     var characteristicMaxValue: Double?
+    var characteristicStepValue: Double?
     var characteristicValidValues: [Int]?
 }
 
@@ -923,15 +947,15 @@ extension WorkflowDraft {
 /// Look up characteristic metadata from a devices list for UI rendering fallback.
 private func lookupCharacteristicMeta(
     deviceId: String, characteristicType: String, in devices: [DeviceModel]
-) -> (format: String?, minValue: Double?, maxValue: Double?, validValues: [Int]?) {
+) -> (format: String?, minValue: Double?, maxValue: Double?, stepValue: Double?, validValues: [Int]?) {
     guard let device = devices.first(where: { $0.id == deviceId }) else {
-        return (nil, nil, nil, nil)
+        return (nil, nil, nil, nil, nil)
     }
     guard let char = device.services.flatMap(\.characteristics)
         .first(where: { $0.type == characteristicType }) else {
-        return (nil, nil, nil, nil)
+        return (nil, nil, nil, nil, nil)
     }
-    return (char.format, char.minValue, char.maxValue, char.validValues)
+    return (char.format, char.minValue, char.maxValue, char.stepValue, char.validValues)
 }
 
 extension WorkflowDraft {
@@ -967,6 +991,7 @@ extension WorkflowDraft {
                 characteristicFormat: meta.format,
                 characteristicMinValue: meta.minValue,
                 characteristicMaxValue: meta.maxValue,
+                characteristicStepValue: meta.stepValue,
                 characteristicValidValues: meta.validValues
             )
         case let .schedule(t):
@@ -1097,6 +1122,7 @@ extension WorkflowDraft {
                 characteristicFormat: meta.format,
                 characteristicMinValue: meta.minValue,
                 characteristicMaxValue: meta.maxValue,
+                characteristicStepValue: meta.stepValue,
                 characteristicValidValues: meta.validValues
             ))
         case let .timeCondition(c):
@@ -1173,6 +1199,7 @@ extension WorkflowDraft {
                 characteristicFormat: meta.format,
                 characteristicMinValue: meta.minValue,
                 characteristicMaxValue: meta.maxValue,
+                characteristicStepValue: meta.stepValue,
                 characteristicValidValues: meta.validValues
             )))
         case let .webhook(a):
@@ -1210,6 +1237,7 @@ extension WorkflowDraft {
                 characteristicFormat: meta.format,
                 characteristicMinValue: meta.minValue,
                 characteristicMaxValue: meta.maxValue,
+                characteristicStepValue: meta.stepValue,
                 characteristicValidValues: meta.validValues
             )))
         case let .conditional(b):

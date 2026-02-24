@@ -289,6 +289,7 @@ private struct ControlDeviceEditor: View {
                 draft.wrappedValue.characteristicFormat = char?.format
                 draft.wrappedValue.characteristicMinValue = char?.minValue
                 draft.wrappedValue.characteristicMaxValue = char?.maxValue
+                draft.wrappedValue.characteristicStepValue = char?.stepValue
                 draft.wrappedValue.characteristicValidValues = char?.validValues
             }
         )
@@ -300,6 +301,7 @@ private struct ControlDeviceEditor: View {
             fallbackFormat: draft.wrappedValue.characteristicFormat,
             fallbackMinValue: draft.wrappedValue.characteristicMinValue,
             fallbackMaxValue: draft.wrappedValue.characteristicMaxValue,
+            fallbackStepValue: draft.wrappedValue.characteristicStepValue,
             fallbackValidValues: draft.wrappedValue.characteristicValidValues
         )
     }
@@ -450,6 +452,7 @@ private struct WaitForStateEditor: View {
                 draft.wrappedValue.characteristicFormat = char?.format
                 draft.wrappedValue.characteristicMinValue = char?.minValue
                 draft.wrappedValue.characteristicMaxValue = char?.maxValue
+                draft.wrappedValue.characteristicStepValue = char?.stepValue
                 draft.wrappedValue.characteristicValidValues = char?.validValues
             }
         )
@@ -463,6 +466,7 @@ private struct WaitForStateEditor: View {
             fallbackFormat: draft.wrappedValue.characteristicFormat,
             fallbackMinValue: draft.wrappedValue.characteristicMinValue,
             fallbackMaxValue: draft.wrappedValue.characteristicMaxValue,
+            fallbackStepValue: draft.wrappedValue.characteristicStepValue,
             fallbackValidValues: draft.wrappedValue.characteristicValidValues
         )
 

@@ -12,6 +12,7 @@ class BackupService: ObservableObject, BackupServiceProtocol {
     private let workflowStorageService: WorkflowStorageService
     private let homeKitManager: HomeKitManager
     private let loggingService: LoggingService
+    private let deviceRegistryService: DeviceRegistryService
 
     init(
         storage: StorageService,
@@ -19,7 +20,8 @@ class BackupService: ObservableObject, BackupServiceProtocol {
         configService: DeviceConfigurationService,
         workflowStorageService: WorkflowStorageService,
         homeKitManager: HomeKitManager,
-        loggingService: LoggingService
+        loggingService: LoggingService,
+        deviceRegistryService: DeviceRegistryService = DeviceRegistryService()
     ) {
         self.storage = storage
         self.keychainService = keychainService
@@ -27,6 +29,7 @@ class BackupService: ObservableObject, BackupServiceProtocol {
         self.workflowStorageService = workflowStorageService
         self.homeKitManager = homeKitManager
         self.loggingService = loggingService
+        self.deviceRegistryService = deviceRegistryService
     }
 
     // MARK: - Create Backup
@@ -68,9 +71,21 @@ class BackupService: ObservableObject, BackupServiceProtocol {
         let rawWorkflows = await workflowStorageService.getAllWorkflows()
         let currentDevices = homeKitManager.cachedDevices
         let currentScenes = homeKitManager.cachedScenes
+
+        // Use stable-ID versions for enrichment so lookup keys match workflow stable IDs
+        let stableDevices: [DeviceModel]
+        let stableScenes: [SceneModel]
+        if let registry = homeKitManager.deviceRegistryService {
+            stableDevices = currentDevices.map { registry.withStableIds($0) }
+            stableScenes = currentScenes.map { registry.withStableIds($0) }
+        } else {
+            stableDevices = currentDevices
+            stableScenes = currentScenes
+        }
+
         let workflows = (currentDevices.isEmpty && currentScenes.isEmpty)
             ? rawWorkflows
-            : rawWorkflows.map { WorkflowMigrationService.enrichMetadata(in: $0, using: currentDevices, scenes: currentScenes) }
+            : rawWorkflows.map { WorkflowMigrationService.enrichMetadata(in: $0, using: stableDevices, scenes: stableScenes) }
         let deviceConfig = await configService.getAllConfigs()
 
         let deviceName = ProcessInfo.processInfo.hostName
@@ -216,6 +231,18 @@ class BackupService: ObservableObject, BackupServiceProtocol {
                 errorDetails: "Restored \(bundle.workflows.count) workflow(s). Device migration deferred — HomeKit devices not yet available."
             )
             await loggingService.logEntry(entry)
+        }
+
+        // Reconcile foreign stable IDs from restored workflows against local registry.
+        // This handles workflows that already use stable IDs (post-registry backup or synced).
+        let restoredWorkflows = await workflowStorageService.getAllWorkflows()
+        let reconciledCount = await deviceRegistryService.reconcileWorkflowReferences(
+            restoredWorkflows,
+            currentDevices: homeKitManager.cachedDevices,
+            currentScenes: homeKitManager.cachedScenes
+        )
+        if reconciledCount > 0 {
+            AppLogger.workflow.info("Backup restore: reconciled \(reconciledCount) foreign registry references")
         }
 
         // Restore device config

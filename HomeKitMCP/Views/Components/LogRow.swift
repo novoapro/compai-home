@@ -100,14 +100,7 @@ struct LogRow: View {
             }
         }
         .padding(.vertical, 8)
-        .contentShape(Rectangle())
-        .onTapGesture {
-            if detailedLogsEnabled && hasDetailedData {
-                withAnimation(Theme.Animation.expand) {
-                    isExpanded.toggle()
-                }
-            }
-        }
+        .modifier(ExpandableTapModifier(isExpandable: detailedLogsEnabled && hasDetailedData, isExpanded: $isExpanded))
         .contextMenu {
             Button {
                 let text = "\(log.deviceName) — \(log.characteristicType) — \(log.timestamp)"
@@ -345,6 +338,27 @@ struct LogRow: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(Color(.systemGray5))
             .cornerRadius(6)
+        }
+    }
+
+    /// Conditionally adds a tap gesture for expandable rows.
+    /// When not expandable, no gesture is attached, allowing NavigationLink to handle taps.
+    private struct ExpandableTapModifier: ViewModifier {
+        let isExpandable: Bool
+        @Binding var isExpanded: Bool
+
+        func body(content: Content) -> some View {
+            if isExpandable {
+                content
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        withAnimation(Theme.Animation.expand) {
+                            isExpanded.toggle()
+                        }
+                    }
+            } else {
+                content
+            }
         }
     }
 

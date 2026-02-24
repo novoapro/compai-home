@@ -2,7 +2,6 @@ import SwiftUI
 
 struct GeneralSettingsView: View {
     @ObservedObject var viewModel: SettingsViewModel
-    @State private var showingResetConfirmation = false
 
     var body: some View {
         Form {
@@ -20,48 +19,11 @@ struct GeneralSettingsView: View {
             } footer: {
                 Text("Device state change logs record every HomeKit device update. Detailed logs capture full request and response data for MCP, REST, and webhook entries.")
             }
-
-            Section {
-                Toggle("Enable State Polling", isOn: $viewModel.pollingEnabled)
-
-                Picker("Polling Interval", selection: $viewModel.pollingInterval) {
-                    Text("10 seconds").tag(10)
-                    Text("15 seconds").tag(15)
-                    Text("30 seconds").tag(30)
-                    Text("60 seconds").tag(60)
-                    Text("120 seconds").tag(120)
-                    Text("300 seconds").tag(300)
-                }
-                .disabled(!viewModel.pollingEnabled)
-                .opacity(viewModel.pollingEnabled ? 1 : 0.5)
-            } header: {
-                Label("State Polling", systemImage: "arrow.triangle.2.circlepath")
-            } footer: {
-                Text("Periodically reads device states from HomeKit to detect missed callbacks. Logs corrections when actual state differs from cached state.")
-            }
-
-            Section {
-                Button("Reset Device Configuration", role: .destructive) {
-                    showingResetConfirmation = true
-                }
-            } header: {
-                Label("Data", systemImage: "externaldrive")
-            } footer: {
-                Text("Resets all per-device MCP visibility and webhook notification toggles to defaults.")
-            }
         }
         .formStyle(.grouped)
         .scrollContentBackground(.hidden)
         .background(Theme.mainBackground)
         .navigationTitle("General")
-        .alert("Reset Device Configuration?", isPresented: $showingResetConfirmation) {
-            Button("Cancel", role: .cancel) { }
-            Button("Reset", role: .destructive) {
-                viewModel.resetDeviceConfiguration()
-            }
-        } message: {
-            Text("This will reset all MCP and webhook toggles to their defaults (MCP: on, Webhook: off).")
-        }
     }
 }
 
