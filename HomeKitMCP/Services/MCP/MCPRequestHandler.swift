@@ -326,6 +326,15 @@ class MCPRequestHandler {
             )
         }
 
+        // Block log access when disabled in settings
+        if toolName == "get_logs" && !storage.readLogAccessEnabled() {
+            return toolResult(
+                text: "Log access via API is disabled. Enable it in Settings > General > Logging.",
+                isError: true,
+                id: id
+            )
+        }
+
         switch toolName {
         case "list_devices":
             return await handleListDevices(id: id)
@@ -574,15 +583,65 @@ class MCPRequestHandler {
 
     private func handleGetLogs(id: JSONRPCId?, arguments: [String: Any]) async -> JSONRPCResponse {
         var logs = await loggingService.getLogs()
+        let allCount = logs.count
 
+        // Category filtering
+        if let categoryStrings = arguments["categories"] as? [String] {
+            let categories = categoryStrings.compactMap { LogCategory(rawValue: $0) }
+            if !categories.isEmpty {
+                let categorySet = Set(categories)
+                logs = logs.filter { categorySet.contains($0.category) }
+            }
+        }
+
+        // Device name filtering
         if let deviceName = arguments["device_name"] as? String {
             logs = logs.filter { $0.deviceName.localizedCaseInsensitiveContains(deviceName) }
         }
 
-        let limit = arguments["limit"] as? Int ?? 50
-        logs = Array(logs.prefix(limit))
+        // Date filtering
+        let iso8601 = ISO8601DateFormatter()
+        iso8601.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let iso8601NoFrac = ISO8601DateFormatter()
+        iso8601NoFrac.formatOptions = [.withInternetDateTime]
+        let dateOnly = DateFormatter()
+        dateOnly.dateFormat = "yyyy-MM-dd"
+        dateOnly.timeZone = TimeZone.current
 
+        if let dateString = arguments["date"] as? String {
+            guard let date = dateOnly.date(from: dateString) ?? iso8601.date(from: dateString) ?? iso8601NoFrac.date(from: dateString) else {
+                return toolResult(text: "Invalid date format: '\(dateString)'. Use 'yyyy-MM-dd' or ISO 8601.", isError: true, id: id)
+            }
+            let startOfDay = Calendar.current.startOfDay(for: date)
+            guard let endOfDay = Calendar.current.date(byAdding: .day, value: 1, to: startOfDay) else {
+                return toolResult(text: "Failed to compute date range.", isError: true, id: id)
+            }
+            logs = logs.filter { $0.timestamp >= startOfDay && $0.timestamp < endOfDay }
+        } else {
+            if let fromString = arguments["from"] as? String {
+                guard let fromDate = dateOnly.date(from: fromString) ?? iso8601.date(from: fromString) ?? iso8601NoFrac.date(from: fromString) else {
+                    return toolResult(text: "Invalid 'from' date format: '\(fromString)'. Use 'yyyy-MM-dd' or ISO 8601.", isError: true, id: id)
+                }
+                logs = logs.filter { $0.timestamp >= fromDate }
+            }
+            if let toString = arguments["to"] as? String {
+                guard let toDate = dateOnly.date(from: toString) ?? iso8601.date(from: toString) ?? iso8601NoFrac.date(from: toString) else {
+                    return toolResult(text: "Invalid 'to' date format: '\(toString)'. Use 'yyyy-MM-dd' or ISO 8601.", isError: true, id: id)
+                }
+                logs = logs.filter { $0.timestamp <= toDate }
+            }
+        }
+
+        // Pagination
+        let total = logs.count
+        let offset = arguments["offset"] as? Int ?? 0
+        let limit = arguments["limit"] as? Int ?? 50
+        logs = Array(logs.dropFirst(offset).prefix(limit))
+
+        // Format output
         var lines: [String] = []
+        lines.append("Showing \(offset + 1)-\(offset + logs.count) of \(total) logs (filtered from \(allCount) total)")
+
         let formatter = DateFormatter()
         formatter.dateStyle = .short
         formatter.timeStyle = .medium
@@ -592,10 +651,10 @@ class MCPRequestHandler {
             let oldVal = log.oldValue.map { CharacteristicTypes.formatValue($0.value, characteristicType: log.characteristicType) } ?? "nil"
             let newVal = log.newValue.map { CharacteristicTypes.formatValue($0.value, characteristicType: log.characteristicType) } ?? "nil"
             let serviceLabel = log.serviceName.map { " [\($0)]" } ?? ""
-            lines.append("[\(formatter.string(from: log.timestamp))] \(log.deviceName)\(serviceLabel) — \(charName): \(oldVal) → \(newVal)")
+            lines.append("[\(formatter.string(from: log.timestamp))] \(log.deviceName)\(serviceLabel) — \(charName): \(oldVal) → \(newVal) (\(log.category.rawValue))")
         }
 
-        if lines.isEmpty {
+        if logs.isEmpty {
             lines.append("No logs found.")
         }
 

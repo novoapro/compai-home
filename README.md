@@ -56,6 +56,7 @@ Settings are available in the app's Settings view:
 | Enable Webhooks | `true` | Send HTTP POST on device state changes |
 | Webhook URL | — | Destination URL for webhook notifications |
 | Detailed Logs | `false` | Log full request/response JSON bodies |
+| Log Access via API | `true` | Expose logs through the MCP `get_logs` tool and REST `/logs` endpoint |
 
 ---
 
@@ -80,7 +81,7 @@ The server implements the [Model Context Protocol](https://modelcontextprotocol.
 | `get_room_devices` | Get all devices in a specific room |
 | `get_devices_in_rooms` | Get devices from multiple rooms at once |
 | `get_devices_by_type` | Filter devices by service type (e.g. Lightbulb, Switch) |
-| `get_logs` | Get recent state change logs, optionally filtered by device |
+| `get_logs` | Get recent logs with filtering by device, category, date/date range, and pagination |
 
 ### Workflow Tools
 
@@ -111,6 +112,29 @@ The server implements the [Model Context Protocol](https://modelcontextprotocol.
 Use `service_id` when a device has multiple components (e.g. a ceiling fan with separate fan and light services).
 
 **Supported characteristic names:** `power`, `brightness`, `hue`, `saturation`, `color_temperature`, `target_temperature`, `target_position`, `lock_state`, `rotation_speed`, and more.
+
+#### `get_logs`
+
+```json
+{
+  "device_name": "Bedroom Light",
+  "categories": ["state_change", "mcp_call"],
+  "date": "2025-01-15",
+  "limit": 50,
+  "offset": 0
+}
+```
+
+All parameters are optional. Filter by:
+
+- **`device_name`** — case-insensitive substring match on device name
+- **`categories`** — array of log category values: `state_change`, `webhook_call`, `webhook_error`, `mcp_call`, `rest_call`, `server_error`, `workflow_execution`, `workflow_error`, `scene_execution`, `scene_error`, `backup_restore`
+- **`date`** — single calendar day (e.g. `2025-01-15`). Mutually exclusive with `from`/`to`
+- **`from`** / **`to`** — date range (ISO 8601, e.g. `2025-01-01` or `2025-01-01T00:00:00Z`)
+- **`limit`** — page size (default 50)
+- **`offset`** — entries to skip for pagination (default 0)
+
+Requires the "Log Access via API" setting to be enabled.
 
 #### `create_workflow`
 
@@ -307,6 +331,50 @@ Manually trigger a workflow execution.
 Get execution logs for a specific workflow.
 
 **Response:** Array of execution log objects.
+
+### Log Endpoints
+
+#### `GET /logs`
+
+Get state change logs with filtering and pagination.
+
+**Query parameters** (all optional):
+
+| Parameter | Example | Description |
+|-----------|---------|-------------|
+| `categories` | `mcp_call,rest_call` | Comma-separated log categories to include |
+| `device_name` | `Light` | Filter by device name (case-insensitive substring) |
+| `date` | `2025-01-15` | Single calendar day (mutually exclusive with `from`/`to`) |
+| `from` | `2025-01-01` | Start of date range (ISO 8601) |
+| `to` | `2025-01-31` | End of date range (ISO 8601) |
+| `limit` | `50` | Page size (default 50) |
+| `offset` | `0` | Entries to skip (default 0) |
+
+**Valid categories:** `state_change`, `webhook_call`, `webhook_error`, `mcp_call`, `rest_call`, `server_error`, `workflow_execution`, `workflow_error`, `scene_execution`, `scene_error`, `backup_restore`
+
+**Response:**
+
+```json
+{
+  "logs": [
+    {
+      "id": "uuid",
+      "timestamp": "2025-01-15T10:30:00Z",
+      "deviceId": "ABC-123",
+      "deviceName": "Bedroom Light",
+      "characteristicType": "Power",
+      "category": "state_change",
+      "oldValue": false,
+      "newValue": true
+    }
+  ],
+  "total": 142,
+  "offset": 0,
+  "limit": 50
+}
+```
+
+Requires the "Log Access via API" setting to be enabled. Returns `404` when disabled.
 
 ### Utility Endpoints
 

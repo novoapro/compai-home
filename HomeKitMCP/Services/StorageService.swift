@@ -111,6 +111,9 @@ class StorageService: ObservableObject, StorageServiceProtocol {
     @Published var workflowSyncEnabled: Bool {
         didSet { defaults.set(workflowSyncEnabled, forKey: Keys.workflowSyncEnabled) }
     }
+    @Published var logAccessEnabled: Bool {
+        didSet { defaults.set(logAccessEnabled, forKey: Keys.logAccessEnabled) }
+    }
     @Published var webhookPrivateIPAllowlist: [String] {
         didSet {
             if let data = try? JSONEncoder().encode(webhookPrivateIPAllowlist) {
@@ -142,7 +145,8 @@ class StorageService: ObservableObject, StorageServiceProtocol {
             Keys.autoBackupEnabled: false,
             Keys.deviceStateLoggingEnabled: true,
             Keys.registryMigrationCompleted: false,
-            Keys.workflowSyncEnabled: false
+            Keys.workflowSyncEnabled: false,
+            Keys.logAccessEnabled: true
         ])
 
         // Migrate webhook URL from UserDefaults to Keychain (one-time)
@@ -177,6 +181,7 @@ class StorageService: ObservableObject, StorageServiceProtocol {
         self.deviceStateLoggingEnabled = defaults.bool(forKey: Keys.deviceStateLoggingEnabled)
         self.registryMigrationCompleted = defaults.bool(forKey: Keys.registryMigrationCompleted)
         self.workflowSyncEnabled = defaults.bool(forKey: Keys.workflowSyncEnabled)
+        self.logAccessEnabled = defaults.bool(forKey: Keys.logAccessEnabled)
         if let data = defaults.data(forKey: Keys.webhookPrivateIPAllowlist),
            let list = try? JSONDecoder().decode([String].self, from: data) {
             self.webhookPrivateIPAllowlist = list
@@ -285,6 +290,10 @@ class StorageService: ObservableObject, StorageServiceProtocol {
         return (try? JSONDecoder().decode([String].self, from: data)) ?? []
     }
 
+    nonisolated func readLogAccessEnabled() -> Bool {
+        UserDefaults.standard.bool(forKey: Keys.logAccessEnabled)
+    }
+
     private enum Keys {
         static let webhookURL = "webhookURL"
         static let mcpServerPort = "mcpServerPort"
@@ -311,5 +320,6 @@ class StorageService: ObservableObject, StorageServiceProtocol {
         static let registryMigrationCompleted = "registryMigrationCompleted"
         static let workflowSyncEnabled = "workflowSyncEnabled"
         static let webhookPrivateIPAllowlist = "webhookPrivateIPAllowlist"
+        static let logAccessEnabled = "logAccessEnabled"
     }
 }

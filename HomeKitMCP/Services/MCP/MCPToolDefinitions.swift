@@ -123,17 +123,38 @@ enum MCPToolDefinitions {
 
         [
             "name": "get_logs",
-            "description": "Get recent state change logs for HomeKit devices. Optionally filter by device name.",
+            "description": "Get recent logs with filtering and pagination. Filter by device name, date range, and/or log categories (state_change, webhook_call, webhook_error, mcp_call, rest_call, server_error, workflow_execution, workflow_error, scene_execution, scene_error, backup_restore).",
             "inputSchema": [
                 "type": "object",
                 "properties": [
                     "device_name": [
                         "type": "string",
-                        "description": "Optional device name to filter logs by"
+                        "description": "Filter logs by device name (case-insensitive substring match)"
+                    ],
+                    "categories": [
+                        "type": "array",
+                        "items": ["type": "string"],
+                        "description": "Filter by log categories. Valid values: state_change, webhook_call, webhook_error, mcp_call, rest_call, server_error, workflow_execution, workflow_error, scene_execution, scene_error, backup_restore"
+                    ],
+                    "date": [
+                        "type": "string",
+                        "description": "Filter logs for a single calendar day (e.g. '2024-01-15'). Mutually exclusive with from/to."
+                    ],
+                    "from": [
+                        "type": "string",
+                        "description": "Start date for date range filter (ISO 8601, e.g. '2024-01-01' or '2024-01-01T00:00:00Z')"
+                    ],
+                    "to": [
+                        "type": "string",
+                        "description": "End date for date range filter (ISO 8601, e.g. '2024-01-31' or '2024-01-31T23:59:59Z')"
                     ],
                     "limit": [
                         "type": "integer",
-                        "description": "Maximum number of log entries to return (default 50)"
+                        "description": "Maximum number of log entries to return, acts as page size (default 50)"
+                    ],
+                    "offset": [
+                        "type": "integer",
+                        "description": "Number of entries to skip for pagination (default 0)"
                     ]
                 ] as [String: Any]
             ] as [String: Any]

@@ -14,10 +14,11 @@ struct GeneralSettingsView: View {
             Section {
                 Toggle("Device State Change Logs", isOn: $viewModel.deviceStateLoggingEnabled)
                 Toggle("Detailed Logs", isOn: $viewModel.detailedLogsEnabled)
+                Toggle("Log Access via API", isOn: $viewModel.logAccessEnabled)
             } header: {
                 Label("Logging", systemImage: "doc.text")
             } footer: {
-                Text("Device state change logs record every HomeKit device update. Detailed logs capture full request and response data for MCP, REST, and webhook entries.")
+                Text("Device state change logs record every HomeKit device update. Detailed logs capture full request and response data for MCP, REST, and webhook entries. Log Access via API exposes logs through the MCP get_logs tool and the REST /logs endpoint.")
             }
         }
         .formStyle(.grouped)

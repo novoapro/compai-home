@@ -549,6 +549,14 @@ actor WorkflowEngine: WorkflowEngineProtocol {
                     await executionLogService.update(logBox.execLog)
                 }
 
+                // Cancellation always stops immediately, regardless of continueOnError
+                if result.status == .cancelled || Task.isCancelled {
+                    logBox.execLog.status = .cancelled
+                    logBox.execLog.completedAt = Date()
+                    await finalizeExecution(logBox.execLog, workflow: workflow, succeeded: false)
+                    return logBox.execLog
+                }
+
                 if result.status == .failure {
                     failed = true
                     if !workflow.continueOnError {
@@ -957,17 +965,19 @@ actor WorkflowEngine: WorkflowEngineProtocol {
                 }
 
                 for (i, b) in blocksToRun.enumerated() {
+                    if Task.isCancelled { break }
                     let r = try await executeBlock(b, index: i, context: context, onUpdate: nestedUpdate)
                     if !nested.contains(where: { $0.id == r.id }) {
                         nested.append(r)
                     }
+                    if r.status == .cancelled || Task.isCancelled { break }
                     if r.status == .failure {
                         nestedFailed = true
                         if !context.workflow.continueOnError { break }
                     }
                 }
                 result.nestedResults = nested
-                result.status = nestedFailed ? .failure : .success
+                result.status = Task.isCancelled ? .cancelled : (nestedFailed ? .failure : .success)
 
             case let .repeat(block):
                 var nested: [BlockResult] = []
@@ -984,19 +994,23 @@ actor WorkflowEngine: WorkflowEngineProtocol {
                 }
 
                 for iteration in 0 ..< block.count {
+                    if Task.isCancelled { break }
                     result.detail = "Iteration \(iteration + 1)/\(block.count)"
                     await onUpdate(result)
 
                     for (i, b) in block.blocks.enumerated() {
+                        if Task.isCancelled { break }
                         let r = try await executeBlock(b, index: i, context: context, onUpdate: nestedUpdate)
                         if !nested.contains(where: { $0.id == r.id }) {
                             nested.append(r)
                         }
+                        if r.status == .cancelled || Task.isCancelled { break }
                         if r.status == .failure {
                             repeatFailed = true
                             if !context.workflow.continueOnError { break }
                         }
                     }
+                    if Task.isCancelled { break }
                     if repeatFailed && !context.workflow.continueOnError { break }
                     if let delay = block.delayBetweenSeconds, iteration < block.count - 1 {
                         try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
@@ -1004,7 +1018,7 @@ actor WorkflowEngine: WorkflowEngineProtocol {
                 }
                 result.detail = "Repeated \(block.count) times"
                 result.nestedResults = nested
-                result.status = repeatFailed ? .failure : .success
+                result.status = Task.isCancelled ? .cancelled : (repeatFailed ? .failure : .success)
 
             case let .repeatWhile(block):
                 var nested: [BlockResult] = []
@@ -1022,6 +1036,7 @@ actor WorkflowEngine: WorkflowEngineProtocol {
                 }
 
                 while iterations < block.maxIterations {
+                    if Task.isCancelled { break }
                     let condResult = await conditionEvaluator.evaluate(block.condition)
                     guard condResult.passed else { break }
 
@@ -1029,15 +1044,18 @@ actor WorkflowEngine: WorkflowEngineProtocol {
                     await onUpdate(result)
 
                     for (i, b) in block.blocks.enumerated() {
+                        if Task.isCancelled { break }
                         let r = try await executeBlock(b, index: i, context: context, onUpdate: nestedUpdate)
                         if !nested.contains(where: { $0.id == r.id }) {
                             nested.append(r)
                         }
+                        if r.status == .cancelled || Task.isCancelled { break }
                         if r.status == .failure {
                             repeatFailed = true
                             if !context.workflow.continueOnError { break }
                         }
                     }
+                    if Task.isCancelled { break }
                     if repeatFailed && !context.workflow.continueOnError { break }
 
                     iterations += 1
@@ -1047,7 +1065,7 @@ actor WorkflowEngine: WorkflowEngineProtocol {
                 }
                 result.detail = "Repeated \(iterations) times (max: \(block.maxIterations))"
                 result.nestedResults = nested
-                result.status = repeatFailed ? .failure : .success
+                result.status = Task.isCancelled ? .cancelled : (repeatFailed ? .failure : .success)
 
             case let .group(block):
                 var nested: [BlockResult] = []
@@ -1064,10 +1082,12 @@ actor WorkflowEngine: WorkflowEngineProtocol {
                 }
 
                 for (i, b) in block.blocks.enumerated() {
+                    if Task.isCancelled { break }
                     let r = try await executeBlock(b, index: i, context: context, onUpdate: nestedUpdate)
                     if !nested.contains(where: { $0.id == r.id }) {
                         nested.append(r)
                     }
+                    if r.status == .cancelled || Task.isCancelled { break }
                     if r.status == .failure {
                         groupFailed = true
                         if !context.workflow.continueOnError { break }
@@ -1075,7 +1095,7 @@ actor WorkflowEngine: WorkflowEngineProtocol {
                 }
                 result.detail = block.label ?? "Group"
                 result.nestedResults = nested
-                result.status = groupFailed ? .failure : .success
+                result.status = Task.isCancelled ? .cancelled : (groupFailed ? .failure : .success)
 
             case let .stop(block):
                 let msgSuffix = block.message.flatMap { $0.isEmpty ? nil : " — \($0)" } ?? ""

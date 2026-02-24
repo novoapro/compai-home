@@ -239,6 +239,14 @@ class MCPServer: ObservableObject, MCPServerProtocol, @unchecked Sendable {
             return try await self.handleRestExecuteScene(req)
         }
 
+        // Log REST Endpoint
+        protected.on(.GET, "logs") { [weak self] req async throws -> Response in
+            guard let self else { throw Abort(.serviceUnavailable) }
+            try self.guardRestApiEnabled()
+            try self.guardLogAccessEnabled()
+            return try await self.handleRestGetLogs(req)
+        }
+
         // Workflow REST Endpoints
         protected.on(.GET, "workflows") { [weak self] req async throws -> Response in
             guard let self else { throw Abort(.serviceUnavailable) }
@@ -303,6 +311,12 @@ class MCPServer: ObservableObject, MCPServerProtocol, @unchecked Sendable {
         }
     }
 
+    private func guardLogAccessEnabled() throws {
+        guard storage.readLogAccessEnabled() else {
+            throw Abort(.notFound)
+        }
+    }
+
     // MARK: - REST Handlers
 
     private func handleRestGetDevices(_ req: Request) async throws -> Response {
@@ -345,6 +359,87 @@ class MCPServer: ObservableObject, MCPServerProtocol, @unchecked Sendable {
                     fullResponseBody: storage.readDetailedLogsEnabled() ? String(data: data, encoding: .utf8) : nil)
 
         return jsonResponse(data: data)
+    }
+
+    // MARK: - Log REST Handler
+
+    private func handleRestGetLogs(_ req: Request) async throws -> Response {
+        var logs = await loggingService.getLogs()
+        let allCount = logs.count
+
+        // Category filtering: ?categories=mcp_call,rest_call
+        if let categoriesParam = req.query[String.self, at: "categories"] {
+            let categoryStrings = categoriesParam.split(separator: ",").map { String($0).trimmingCharacters(in: .whitespaces) }
+            let categories = categoryStrings.compactMap { LogCategory(rawValue: $0) }
+            if !categories.isEmpty {
+                let categorySet = Set(categories)
+                logs = logs.filter { categorySet.contains($0.category) }
+            }
+        }
+
+        // Device name filtering: ?device_name=Light
+        if let deviceName = req.query[String.self, at: "device_name"] {
+            logs = logs.filter { $0.deviceName.localizedCaseInsensitiveContains(deviceName) }
+        }
+
+        // Date filtering
+        let iso8601 = ISO8601DateFormatter()
+        iso8601.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let iso8601NoFrac = ISO8601DateFormatter()
+        iso8601NoFrac.formatOptions = [.withInternetDateTime]
+        let dateOnly = DateFormatter()
+        dateOnly.dateFormat = "yyyy-MM-dd"
+        dateOnly.timeZone = TimeZone.current
+
+        if let dateParam = req.query[String.self, at: "date"] {
+            guard let date = dateOnly.date(from: dateParam) ?? iso8601.date(from: dateParam) ?? iso8601NoFrac.date(from: dateParam) else {
+                logRESTCall(method: "GET", path: "/logs", statusCode: 400, resultSummary: "Invalid date format")
+                throw Abort(.badRequest, reason: "Invalid date format: '\(dateParam)'. Use 'yyyy-MM-dd' or ISO 8601.")
+            }
+            let startOfDay = Calendar.current.startOfDay(for: date)
+            guard let endOfDay = Calendar.current.date(byAdding: .day, value: 1, to: startOfDay) else {
+                throw Abort(.internalServerError, reason: "Failed to compute date range")
+            }
+            logs = logs.filter { $0.timestamp >= startOfDay && $0.timestamp < endOfDay }
+        } else {
+            if let fromParam = req.query[String.self, at: "from"] {
+                guard let fromDate = dateOnly.date(from: fromParam) ?? iso8601.date(from: fromParam) ?? iso8601NoFrac.date(from: fromParam) else {
+                    logRESTCall(method: "GET", path: "/logs", statusCode: 400, resultSummary: "Invalid from date")
+                    throw Abort(.badRequest, reason: "Invalid 'from' date format: '\(fromParam)'. Use 'yyyy-MM-dd' or ISO 8601.")
+                }
+                logs = logs.filter { $0.timestamp >= fromDate }
+            }
+            if let toParam = req.query[String.self, at: "to"] {
+                guard let toDate = dateOnly.date(from: toParam) ?? iso8601.date(from: toParam) ?? iso8601NoFrac.date(from: toParam) else {
+                    logRESTCall(method: "GET", path: "/logs", statusCode: 400, resultSummary: "Invalid to date")
+                    throw Abort(.badRequest, reason: "Invalid 'to' date format: '\(toParam)'. Use 'yyyy-MM-dd' or ISO 8601.")
+                }
+                logs = logs.filter { $0.timestamp <= toDate }
+            }
+        }
+
+        // Pagination
+        let total = logs.count
+        let offset = req.query[Int.self, at: "offset"] ?? 0
+        let limit = req.query[Int.self, at: "limit"] ?? 50
+        let paginatedLogs = Array(logs.dropFirst(offset).prefix(limit))
+
+        // Build response with pagination metadata
+        let logsData = try Self.encoder.encode(paginatedLogs)
+        let logsJson = (try? JSONSerialization.jsonObject(with: logsData)) ?? []
+        let response: [String: Any] = [
+            "logs": logsJson,
+            "total": total,
+            "offset": offset,
+            "limit": limit
+        ]
+        let responseData = try JSONSerialization.data(withJSONObject: response)
+
+        logRESTCall(method: "GET", path: "/logs", statusCode: 200,
+                    resultSummary: "\(paginatedLogs.count) of \(total) logs (offset \(offset))",
+                    fullResponseBody: storage.readDetailedLogsEnabled() ? String(data: responseData, encoding: .utf8) : nil)
+
+        return jsonResponse(data: responseData)
     }
 
     // MARK: - Scene REST Handlers

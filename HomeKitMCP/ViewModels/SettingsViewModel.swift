@@ -46,6 +46,9 @@ class SettingsViewModel: ObservableObject {
     @Published var deviceStateLoggingEnabled: Bool {
         didSet { storage.deviceStateLoggingEnabled = deviceStateLoggingEnabled }
     }
+    @Published var logAccessEnabled: Bool {
+        didSet { storage.logAccessEnabled = logAccessEnabled }
+    }
     @Published var webhookPrivateIPAllowlist: [String] {
         didSet { storage.webhookPrivateIPAllowlist = webhookPrivateIPAllowlist }
     }
@@ -148,6 +151,7 @@ class SettingsViewModel: ObservableObject {
         self.workflowsEnabled = storage.workflowsEnabled
         self.workflowSyncEnabled = storage.workflowSyncEnabled
         self.deviceStateLoggingEnabled = storage.deviceStateLoggingEnabled
+        self.logAccessEnabled = storage.logAccessEnabled
         self.webhookPrivateIPAllowlist = storage.webhookPrivateIPAllowlist
         self.sunEventLatitude = storage.sunEventLatitude
         self.sunEventLongitude = storage.sunEventLongitude

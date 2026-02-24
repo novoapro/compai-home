@@ -24,6 +24,7 @@ protocol StorageServiceProtocol: AnyObject {
     var webhookPrivateIPAllowlist: [String] { get set }
     var registryMigrationCompleted: Bool { get set }
     var workflowSyncEnabled: Bool { get set }
+    var logAccessEnabled: Bool { get set }
 
     // MARK: - Derived
     func isWebhookConfigured() -> Bool
@@ -46,4 +47,5 @@ protocol StorageServiceProtocol: AnyObject {
     nonisolated func readRegistryMigrationCompleted() -> Bool
     nonisolated func readWorkflowSyncEnabled() -> Bool
     nonisolated func readWebhookPrivateIPAllowlist() -> [String]
+    nonisolated func readLogAccessEnabled() -> Bool
 }
