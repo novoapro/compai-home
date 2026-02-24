@@ -136,8 +136,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                         }
                     }
 
-                    // --- Registry migration: HomeKit UUIDs → stable IDs (one-time) ---
-                    if !self.container.storageService.readRegistryMigrationCompleted() {
+                    // --- Registry normalization: HomeKit UUIDs → stable IDs (runs every startup, idempotent) ---
+                    do {
                         let registry = self.container.deviceRegistryService
                         // Ensure registry is synced (may not have completed yet)
                         await registry.syncDevices(devices)
@@ -146,12 +146,14 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                         let (migratedWorkflows, count) = WorkflowMigrationService.migrateToStableIds(workflows, registry: registry)
                         if count > 0 {
                             await self.container.workflowStorageService.replaceAll(workflows: migratedWorkflows)
-                            AppLogger.registry.info("Registry migration: converted \(count) reference(s) to stable IDs")
+                            AppLogger.registry.info("Startup normalization: converted \(count) reference(s) to stable IDs")
                         }
-                        await MainActor.run {
-                            self.container.storageService.registryMigrationCompleted = true
+                        if !self.container.storageService.readRegistryMigrationCompleted() {
+                            await MainActor.run {
+                                self.container.storageService.registryMigrationCompleted = true
+                            }
+                            AppLogger.registry.info("Registry migration completed")
                         }
-                        AppLogger.registry.info("Registry migration completed")
                     }
                 }
             }

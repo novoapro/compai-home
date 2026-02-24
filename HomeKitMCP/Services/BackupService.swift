@@ -68,8 +68,16 @@ class BackupService: ObservableObject, BackupServiceProtocol {
             webhookURL: keychainService.read(key: KeychainService.Keys.webhookURL)
         )
 
-        // Workflows already use stable IDs — include as-is
-        let workflows = await workflowStorageService.getAllWorkflows()
+        // Normalize workflow IDs to stable registry IDs before export
+        var workflows = await workflowStorageService.getAllWorkflows()
+        let (normalizedExportWorkflows, exportNormalizedCount) = WorkflowMigrationService.migrateToStableIds(
+            workflows, registry: deviceRegistryService
+        )
+        if exportNormalizedCount > 0 {
+            workflows = normalizedExportWorkflows
+            await workflowStorageService.replaceAll(workflows: normalizedExportWorkflows)
+            AppLogger.registry.info("Backup export: normalized \(exportNormalizedCount) workflow ID reference(s) to stable IDs")
+        }
 
         // Capture the full registry snapshot
         let registrySnapshot = await deviceRegistryService.snapshot()
@@ -161,16 +169,26 @@ class BackupService: ObservableObject, BackupServiceProtocol {
             storage.webhookURL = nil
         }
 
-        // Restore workflows (they contain only stable IDs)
+        // Restore workflows
         await workflowStorageService.replaceAll(workflows: bundle.workflows)
 
         // Import the backup's registry and consolidate with local HomeKit devices.
-        // Workflows already have the right stable IDs — no migration needed.
         let consolidation = await deviceRegistryService.importAndConsolidate(
             bundle.registry,
             currentDevices: homeKitManager.cachedDevices,
             currentScenes: homeKitManager.cachedScenes
         )
+
+        // Normalize any remaining HomeKit UUIDs in workflows to stable IDs.
+        // After consolidation, the registry has the correct mappings.
+        let restoredWorkflows = await workflowStorageService.getAllWorkflows()
+        let (normalizedRestoreWorkflows, restoreNormalizedCount) = WorkflowMigrationService.migrateToStableIds(
+            restoredWorkflows, registry: deviceRegistryService
+        )
+        if restoreNormalizedCount > 0 {
+            await workflowStorageService.replaceAll(workflows: normalizedRestoreWorkflows)
+            AppLogger.registry.info("Backup restore: normalized \(restoreNormalizedCount) workflow ID reference(s) to stable IDs")
+        }
 
         // Restore device config: keys are stable IDs, transform back to local HomeKit UUIDs
         let localConfig = transformConfigKeysToHomeKitIds(bundle.deviceConfig)
