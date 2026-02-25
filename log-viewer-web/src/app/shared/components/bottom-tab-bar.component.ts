@@ -37,10 +37,8 @@ import { ConfigService } from '../../core/services/config.service';
     .bottom-tabs {
       display: flex;
       align-items: stretch;
-      background: var(--glass-bg);
-      backdrop-filter: blur(var(--glass-blur));
-      -webkit-backdrop-filter: blur(var(--glass-blur));
-      border-top: 1px solid var(--glass-border);
+      background: var(--bg-content);
+      border-top: 1px solid var(--border-color);
       padding-bottom: env(safe-area-inset-bottom, 0px);
     }
 

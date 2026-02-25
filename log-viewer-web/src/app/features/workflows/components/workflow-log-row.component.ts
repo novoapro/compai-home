@@ -66,11 +66,11 @@ import { DurationPipe } from '../../../shared/pipes/duration.pipe';
       gap: var(--spacing-sm);
       padding: var(--card-padding);
       background: var(--bg-card);
-      border-radius: var(--radius-md);
-      box-shadow: var(--shadow-card);
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border-color);
       margin-bottom: var(--card-gap);
       cursor: pointer;
-      transition: box-shadow 150ms ease-out, transform 150ms cubic-bezier(0.34, 1.56, 0.64, 1);
+      transition: background 150ms ease, border-color 150ms ease, transform 150ms cubic-bezier(0.34, 1.56, 0.64, 1);
     }
     .workflow-card:active {
       transform: scale(0.985);

@@ -1,4 +1,13 @@
 <div class="logs-page">
+  <!-- Page header -->
+  <div class="page-header">
+    <h1 class="page-title">Activity Log</h1>
+    <span class="log-count-badge">{{ logCount() }}</span>
+    @if (polling.isLoading()) {
+      <span class="loading-dot"></span>
+    }
+  </div>
+
   <!-- Filter Bar -->
   <app-filter-bar
     [availableDevices]="availableDevices()"
@@ -11,17 +20,6 @@
     (dateRangeChange)="onDateRangeChange($event)"
     (clearAll)="onClearAll()"
   />
-
-  <!-- Header info bar -->
-  <div class="info-bar">
-    <span class="log-count">{{ logCount() }} logs</span>
-    @if (polling.isLoading()) {
-      <span class="loading-indicator">
-        <app-icon name="spinner" [size]="14" />
-        <span>Loading...</span>
-      </span>
-    }
-  </div>
 
   <!-- Error -->
   @if (polling.error()) {

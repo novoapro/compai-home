@@ -63,10 +63,9 @@
 .section {
   background: var(--bg-card);
   border: 1px solid var(--border-color);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-md);
   padding: var(--spacing-md);
   margin-bottom: var(--spacing-md);
-  box-shadow: var(--shadow-card);
   animation: cardEnter 350ms cubic-bezier(0, 0, 0.2, 1) backwards;
 }
 

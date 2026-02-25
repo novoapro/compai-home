@@ -112,7 +112,7 @@
     />
   </div>
   <button class="filter-trigger" [class.has-filters]="activeFilterCount() > 0" (click)="openSheet()">
-    <app-icon name="slider-horizontal" [size]="16" />
+    <app-icon name="filter" [size]="16" />
     @if (activeFilterCount() > 0) {
       <span class="filter-badge">{{ activeFilterCount() }}</span>
     }

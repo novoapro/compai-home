@@ -10,121 +10,135 @@ import { PollingService } from '../../core/services/polling.service';
   standalone: true,
   imports: [RouterLink, RouterLinkActive, IconComponent],
   template: `
-    <!-- Backdrop -->
+    <!-- Mobile backdrop -->
     @if (isOpen()) {
-      <div class="sidebar-backdrop" [class.visible]="isOpen()" (click)="close()"></div>
+      <div class="sidebar-backdrop" (click)="close()"></div>
     }
 
-    <!-- Sidebar Panel -->
-    <nav class="sidebar-panel" [class.open]="isOpen()">
-      <div class="sidebar-header">
-        <div class="sidebar-logo">
-          <app-icon name="house" [size]="22" />
-          <span>HomeKit Logs</span>
-        </div>
-        <button class="close-btn" (click)="close()">
-          <app-icon name="xmark" [size]="18" />
-        </button>
+    <!-- Sidebar -->
+    <nav class="sidebar" [class.collapsed]="collapsed()" [class.mobile-open]="isOpen()">
+      <!-- Logo -->
+      <div class="sidebar-logo">
+        <img src="favicon-192.png" alt="HomeKit" class="logo-img" />
+        <span class="logo-text">HomeKit</span>
       </div>
 
+      <!-- Mobile close -->
+      <button class="close-btn mobile-only" (click)="close()">
+        <app-icon name="xmark" [size]="18" />
+      </button>
+
+      <!-- Navigation -->
       <div class="sidebar-nav">
-        <a routerLink="/logs" routerLinkActive="active" class="nav-item" (click)="close()">
+        <a routerLink="/logs" routerLinkActive="active" class="nav-item" (click)="onNavClick()">
           <app-icon name="bolt-circle-fill" [size]="20" />
-          <span>Logs</span>
+          <span class="nav-label">Logs</span>
         </a>
-        <a routerLink="/workflows" routerLinkActive="active" class="nav-item" (click)="close()">
+        <a routerLink="/workflows" routerLinkActive="active" class="nav-item" (click)="onNavClick()">
           <app-icon name="play-circle-fill" [size]="20" />
-          <span>Workflows</span>
-        </a>
-        <a routerLink="/settings" routerLinkActive="active" class="nav-item" (click)="close()">
-          <app-icon name="gear" [size]="20" />
-          <span>Settings</span>
+          <span class="nav-label">Workflows</span>
         </a>
       </div>
 
-      <div class="sidebar-divider"></div>
+      <!-- Spacer -->
+      <div class="sidebar-spacer"></div>
 
-      <div class="sidebar-section">
-        <button class="sidebar-row" (click)="theme.toggle()">
+      <!-- Footer -->
+      <div class="sidebar-footer">
+        <div class="sidebar-divider"></div>
+
+        <!-- Theme toggle -->
+        <button class="nav-item footer-item" (click)="theme.toggle()">
           <app-icon [name]="theme.isDarkMode() ? 'sun' : 'moon'" [size]="20" />
-          <span>{{ theme.isDarkMode() ? 'Light Mode' : 'Dark Mode' }}</span>
+          <span class="nav-label">{{ theme.isDarkMode() ? 'Light Mode' : 'Dark Mode' }}</span>
         </button>
 
-        <div class="sidebar-row info-row">
-          <div class="connection-indicator" [class.connected]="config.isConfigured()"></div>
-          <span>{{ config.isConfigured() ? 'Connected' : 'Not configured' }}</span>
+        <!-- Connection status -->
+        <div class="nav-item footer-item status-item">
+          <div class="connection-dot" [class.connected]="config.isConfigured()"></div>
+          <span class="nav-label status-label">{{ config.isConfigured() ? 'Connected' : 'Not configured' }}</span>
         </div>
 
         @if (polling.lastPollTime()) {
-          <div class="sidebar-row info-row muted">
+          <div class="nav-item footer-item status-item muted">
             <app-icon name="clock" [size]="16" />
-            <span>Updated {{ polling.lastPollTime()!.toLocaleTimeString() }}</span>
+            <span class="nav-label">Updated {{ polling.lastPollTime()!.toLocaleTimeString() }}</span>
           </div>
         }
+
+        <!-- Settings -->
+        <a routerLink="/settings" routerLinkActive="active" class="nav-item footer-item" (click)="onNavClick()">
+          <app-icon name="gear" [size]="20" />
+          <span class="nav-label">Settings</span>
+        </a>
+
+        <!-- Collapse toggle (desktop only) -->
+        <button class="nav-item footer-item collapse-toggle desktop-only" (click)="toggleCollapse()">
+          <app-icon name="sidebar-left" [size]="18" />
+          <span class="nav-label">Collapse</span>
+        </button>
       </div>
     </nav>
   `,
   styles: [`
-    .sidebar-backdrop {
-      position: fixed;
-      inset: 0;
-      background: rgba(0, 0, 0, 0.4);
-      z-index: 999;
-      opacity: 0;
-      transition: opacity 0.3s ease;
-      -webkit-tap-highlight-color: transparent;
-    }
-
-    .sidebar-backdrop.visible {
-      opacity: 1;
-    }
-
-    .sidebar-panel {
+    /* ======== Desktop: Persistent sidebar ======== */
+    .sidebar {
       position: fixed;
       top: 0;
       left: 0;
       bottom: 0;
-      width: 280px;
-      max-width: 80vw;
+      width: var(--sidebar-width);
       background: var(--bg-content);
-      z-index: 1000;
-      transform: translateX(-100%);
-      transition: transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+      border-right: 1px solid var(--border-color);
       display: flex;
       flex-direction: column;
-      box-shadow: var(--shadow-dropdown);
-      overflow-y: auto;
-      -webkit-overflow-scrolling: touch;
+      z-index: 200;
+      transition: width var(--sidebar-transition);
+      overflow: hidden;
     }
 
-    .sidebar-panel.open {
-      transform: translateX(0);
+    .sidebar.collapsed {
+      width: var(--sidebar-collapsed-width);
     }
 
-    .sidebar-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: var(--spacing-md) var(--spacing-lg);
-      padding-top: calc(var(--spacing-md) + env(safe-area-inset-top, 0px));
-      border-bottom: 1px solid var(--border-color);
-    }
-
+    /* Logo */
     .sidebar-logo {
       display: flex;
       align-items: center;
       gap: var(--spacing-sm);
-      color: var(--tint-main);
+      padding: var(--spacing-md) var(--spacing-md);
+      height: 56px;
+      flex-shrink: 0;
+      overflow: hidden;
+    }
+
+    .logo-img {
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      flex-shrink: 0;
+    }
+
+    .logo-text {
       font-size: var(--font-size-lg);
       font-weight: var(--font-weight-bold);
-    }
-
-    .sidebar-logo span {
       color: var(--text-primary);
+      white-space: nowrap;
+      overflow: hidden;
+      transition: opacity 150ms ease;
     }
 
+    .sidebar.collapsed .logo-text {
+      opacity: 0;
+      width: 0;
+    }
+
+    /* Close button (mobile only) */
     .close-btn {
-      display: flex;
+      position: absolute;
+      top: var(--spacing-md);
+      right: var(--spacing-md);
+      display: none;
       align-items: center;
       justify-content: center;
       width: 32px;
@@ -140,77 +154,109 @@ import { PollingService } from '../../core/services/polling.service';
       color: var(--text-primary);
     }
 
+    /* Navigation */
     .sidebar-nav {
-      padding: var(--spacing-sm) 0;
+      padding: var(--spacing-xs) var(--spacing-sm);
+      flex-shrink: 0;
     }
 
     .nav-item {
       display: flex;
       align-items: center;
-      gap: var(--spacing-md);
-      padding: 12px var(--spacing-lg);
-      font-size: var(--font-size-base);
+      gap: 12px;
+      padding: 10px 12px;
+      border-radius: var(--radius-sm);
+      font-size: var(--font-size-sm);
       font-weight: var(--font-weight-medium);
       color: var(--text-secondary);
       text-decoration: none;
-      transition: all var(--transition-fast);
+      transition: all 150ms ease;
+      white-space: nowrap;
+      overflow: hidden;
+      position: relative;
+      cursor: pointer;
+      margin-bottom: 2px;
+      width: 100%;
+      background: none;
+      border: none;
+      text-align: left;
       -webkit-tap-highlight-color: transparent;
     }
 
     .nav-item:hover {
       background: var(--bg-hover);
       color: var(--text-primary);
+      text-decoration: none;
     }
 
     .nav-item.active {
-      color: var(--tint-main);
       background: color-mix(in srgb, var(--tint-main) 10%, transparent);
+      color: var(--tint-main);
+    }
+
+    .nav-item.active::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 6px;
+      bottom: 6px;
+      width: 3px;
+      border-radius: 0 2px 2px 0;
+      background: var(--tint-main);
+    }
+
+    .nav-label {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      transition: opacity 150ms ease;
+    }
+
+    .sidebar.collapsed .nav-label {
+      opacity: 0;
+      width: 0;
+    }
+
+    /* Spacer */
+    .sidebar-spacer {
+      flex: 1;
+    }
+
+    /* Footer */
+    .sidebar-footer {
+      padding: var(--spacing-xs) var(--spacing-sm);
+      padding-bottom: var(--spacing-md);
+      flex-shrink: 0;
     }
 
     .sidebar-divider {
       height: 1px;
       background: var(--border-color);
-      margin: var(--spacing-xs) var(--spacing-lg);
+      margin: var(--spacing-xs) var(--spacing-sm) var(--spacing-sm);
     }
 
-    .sidebar-section {
-      padding: var(--spacing-sm) 0;
+    .footer-item {
+      font-size: var(--font-size-xs);
     }
 
-    .sidebar-row {
-      display: flex;
-      align-items: center;
-      gap: var(--spacing-md);
-      padding: 10px var(--spacing-lg);
-      font-size: var(--font-size-sm);
-      color: var(--text-secondary);
-      width: 100%;
-      cursor: pointer;
-      transition: all var(--transition-fast);
-      -webkit-tap-highlight-color: transparent;
-      background: none;
-      border: none;
-      text-align: left;
-    }
-
-    .sidebar-row:hover {
-      background: var(--bg-hover);
-    }
-
-    .info-row {
+    .status-item {
       cursor: default;
     }
 
-    .info-row:hover {
+    .status-item:hover {
       background: transparent;
+      color: var(--text-secondary);
     }
 
     .muted {
       color: var(--text-tertiary);
-      font-size: var(--font-size-xs);
     }
 
-    .connection-indicator {
+    .muted:hover {
+      color: var(--text-tertiary);
+    }
+
+    .connection-dot {
       width: 8px;
       height: 8px;
       border-radius: 50%;
@@ -218,14 +264,123 @@ import { PollingService } from '../../core/services/polling.service';
       flex-shrink: 0;
     }
 
-    .connection-indicator.connected {
+    .connection-dot.connected {
       background: var(--status-active);
+      animation: connectionPulse 2s ease-in-out infinite;
+    }
+
+    /* Collapsed state */
+    .sidebar.collapsed .nav-item {
+      justify-content: center;
+      padding: 10px;
+    }
+
+    .sidebar.collapsed .sidebar-logo {
+      justify-content: center;
+      padding: var(--spacing-md) 0;
+    }
+
+    .sidebar.collapsed .sidebar-divider {
+      margin: var(--spacing-xs) 8px var(--spacing-sm);
+    }
+
+    .sidebar.collapsed .status-item {
+      justify-content: center;
+    }
+
+    .sidebar.collapsed .collapse-toggle {
+      justify-content: center;
+    }
+
+    /* Desktop / Mobile visibility */
+    .desktop-only {
+      display: flex;
+    }
+
+    .mobile-only {
+      display: none;
+    }
+
+    /* ======== Mobile: Overlay sidebar ======== */
+    @media (max-width: 768px) {
+      .sidebar {
+        transform: translateX(-100%);
+        width: 280px;
+        max-width: 80vw;
+        box-shadow: var(--shadow-dropdown);
+        z-index: 1000;
+        transition: transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+        padding-top: env(safe-area-inset-top, 0px);
+      }
+
+      .sidebar.mobile-open {
+        transform: translateX(0);
+      }
+
+      .sidebar.collapsed {
+        width: 280px;
+      }
+
+      .sidebar.collapsed .nav-label {
+        opacity: 1;
+        width: auto;
+      }
+
+      .sidebar.collapsed .logo-text {
+        opacity: 1;
+        width: auto;
+      }
+
+      .sidebar.collapsed .nav-item {
+        justify-content: flex-start;
+        padding: 10px 12px;
+      }
+
+      .sidebar.collapsed .sidebar-logo {
+        justify-content: flex-start;
+        padding: var(--spacing-md);
+      }
+
+      .sidebar.collapsed .status-item {
+        justify-content: flex-start;
+      }
+
+      .desktop-only {
+        display: none;
+      }
+
+      .mobile-only {
+        display: flex;
+      }
+    }
+
+    /* Backdrop */
+    .sidebar-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.4);
+      z-index: 999;
+      -webkit-tap-highlight-color: transparent;
+      animation: fadeIn 200ms ease forwards;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    @media (min-width: 769px) {
+      .sidebar-backdrop {
+        display: none;
+      }
     }
   `]
 })
 export class SidebarComponent implements AfterViewInit, OnDestroy {
   isOpen = input.required<boolean>();
+  collapsed = input<boolean>(false);
   closed = output<void>();
+  collapseToggled = output<void>();
 
   protected theme = inject(ThemeService);
   protected config = inject(ConfigService);
@@ -242,7 +397,7 @@ export class SidebarComponent implements AfterViewInit, OnDestroy {
   private boundTouchEnd = this.onTouchEnd.bind(this);
 
   ngAfterViewInit(): void {
-    this.panelEl = this.el.nativeElement.querySelector('.sidebar-panel');
+    this.panelEl = this.el.nativeElement.querySelector('.sidebar');
     if (this.panelEl) {
       this.panelEl.addEventListener('touchstart', this.boundTouchStart, { passive: true });
       this.panelEl.addEventListener('touchmove', this.boundTouchMove, { passive: false });
@@ -260,6 +415,16 @@ export class SidebarComponent implements AfterViewInit, OnDestroy {
 
   close(): void {
     this.closed.emit();
+  }
+
+  toggleCollapse(): void {
+    this.collapseToggled.emit();
+  }
+
+  onNavClick(): void {
+    if (window.innerWidth <= 768) {
+      this.close();
+    }
   }
 
   private onTouchStart(e: TouchEvent): void {

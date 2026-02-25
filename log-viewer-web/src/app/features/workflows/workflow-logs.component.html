@@ -1,27 +1,26 @@
 <div class="workflow-logs-page">
-  <!-- Toolbar -->
-  <div class="toolbar">
-    <div class="toolbar-left">
-      <app-icon name="bolt-circle-fill" [size]="20" />
-      <h2>Workflow Executions</h2>
-    </div>
-    <div class="toolbar-right">
-      @if (workflows().length > 0) {
-        <select
-          class="workflow-select"
-          [ngModel]="selectedWorkflowId()"
-          (ngModelChange)="onWorkflowChange($event)"
-        >
-          @for (wf of workflows(); track wf.id) {
-            <option [value]="wf.id">{{ wf.name }}</option>
-          }
-        </select>
-      }
-      <button class="refresh-btn" (click)="refresh()" [disabled]="isLoading()">
-        <app-icon name="refresh-circle-fill" [size]="16" [class.animate-spin]="isLoading()" />
-      </button>
-    </div>
+  <!-- Page header -->
+  <div class="page-header">
+    <h1 class="page-title">Workflows</h1>
+    @if (isLoading()) {
+      <span class="loading-dot"></span>
+    }
   </div>
+
+  <!-- Workflow selector -->
+  @if (workflows().length > 0) {
+    <div class="toolbar">
+      <select
+        class="workflow-select"
+        [ngModel]="selectedWorkflowId()"
+        (ngModelChange)="onWorkflowChange($event)"
+      >
+        @for (wf of workflows(); track wf.id) {
+          <option [value]="wf.id">{{ wf.name }}</option>
+        }
+      </select>
+    </div>
+  }
 
   <!-- Error -->
   @if (error()) {

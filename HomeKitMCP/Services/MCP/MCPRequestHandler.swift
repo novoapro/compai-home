@@ -63,10 +63,14 @@ class MCPRequestHandler {
             )
         }
 
-        // Single consolidated log entry with both request and response
-        let responseSummary = summarizeResponse(response)
-        await logMCPCall(method: request.method, request: requestSummary, response: responseSummary,
-                         fullRequest: request)
+        // Skip logging for get_logs to avoid noise (polled frequently)
+        let isGetLogs = request.method == "tools/call"
+            && (request.params?.value as? [String: Any])?["name"] as? String == "get_logs"
+        if !isGetLogs {
+            let responseSummary = summarizeResponse(response)
+            await logMCPCall(method: request.method, request: requestSummary, response: responseSummary,
+                             fullRequest: request)
+        }
 
         return response
     }
@@ -582,7 +586,14 @@ class MCPRequestHandler {
     }
 
     private func handleGetLogs(id: JSONRPCId?, arguments: [String: Any]) async -> JSONRPCResponse {
-        var logs = await loggingService.getLogs()
+        // Merge state change logs with workflow execution logs (converted on-the-fly)
+        var stateChangeLogs = await loggingService.getLogs()
+        let workflowExecLogs = await workflowExecutionLogService.getLogs()
+        stateChangeLogs.removeAll { $0.category == .workflowExecution || $0.category == .workflowError }
+        let convertedWorkflowLogs = workflowExecLogs
+            .filter { $0.status != .running }
+            .map { $0.toStateChangeLog() }
+        var logs = (stateChangeLogs + convertedWorkflowLogs).sorted { $0.timestamp > $1.timestamp }
         let allCount = logs.count
 
         // Category filtering

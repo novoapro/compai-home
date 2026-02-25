@@ -1,7 +1,8 @@
-import { Component, inject } from '@angular/core';
-import { RouterOutlet, RouterLink, RouterLinkActive } from '@angular/router';
+import { Component, inject, signal } from '@angular/core';
+import { RouterOutlet } from '@angular/router';
 import { IconComponent } from './shared/components/icon.component';
 import { BottomTabBarComponent } from './shared/components/bottom-tab-bar.component';
+import { SidebarComponent } from './shared/components/sidebar.component';
 import { ThemeService } from './core/services/theme.service';
 import { ConfigService } from './core/services/config.service';
 import { PollingService } from './core/services/polling.service';
@@ -10,13 +11,13 @@ import { trigger, transition, style, animate, query } from '@angular/animations'
 const routeAnimation = trigger('routeAnimation', [
   transition('* <=> *', [
     query(':enter', [
-      style({ opacity: 0, transform: 'translateY(6px)' })
+      style({ opacity: 0, transform: 'translateY(4px)' })
     ], { optional: true }),
     query(':leave', [
-      animate('150ms ease-out', style({ opacity: 0 }))
+      animate('120ms ease-out', style({ opacity: 0 }))
     ], { optional: true }),
     query(':enter', [
-      animate('250ms 50ms cubic-bezier(0, 0, 0.2, 1)', style({ opacity: 1, transform: 'translateY(0)' }))
+      animate('200ms 40ms cubic-bezier(0, 0, 0.2, 1)', style({ opacity: 1, transform: 'translateY(0)' }))
     ], { optional: true }),
   ])
 ]);
@@ -24,7 +25,7 @@ const routeAnimation = trigger('routeAnimation', [
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, IconComponent, BottomTabBarComponent],
+  imports: [RouterOutlet, IconComponent, BottomTabBarComponent, SidebarComponent],
   templateUrl: './app.html',
   styleUrl: './app.css',
   animations: [routeAnimation]
@@ -34,7 +35,14 @@ export class App {
   protected config = inject(ConfigService);
   protected polling = inject(PollingService);
 
-  onRefresh(): void {
-    this.polling.refresh();
+  sidebarOpen = signal(false);
+  sidebarCollapsed = signal(
+    localStorage.getItem('hk-log-viewer:sidebar-collapsed') === 'true'
+  );
+
+  toggleSidebarCollapse(): void {
+    const next = !this.sidebarCollapsed();
+    this.sidebarCollapsed.set(next);
+    localStorage.setItem('hk-log-viewer:sidebar-collapsed', String(next));
   }
 }

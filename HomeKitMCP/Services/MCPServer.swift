@@ -374,7 +374,20 @@ class MCPServer: ObservableObject, MCPServerProtocol, @unchecked Sendable {
     // MARK: - Log REST Handler
 
     private func handleRestGetLogs(_ req: Request) async throws -> Response {
-        var logs = await loggingService.getLogs()
+        // Fetch both log sources
+        var stateChangeLogs = await loggingService.getLogs()
+        let workflowExecLogs = await workflowExecutionLogService.getLogs()
+
+        // Remove old persisted workflow entries from state change logs (avoid duplicates)
+        stateChangeLogs.removeAll { $0.category == .workflowExecution || $0.category == .workflowError }
+
+        // Convert completed workflow execution logs on-the-fly and merge
+        let convertedWorkflowLogs = workflowExecLogs
+            .filter { $0.status != .running }
+            .map { $0.toStateChangeLog() }
+
+        var logs = (stateChangeLogs + convertedWorkflowLogs)
+            .sorted { $0.timestamp > $1.timestamp }
 
         // Category filtering: ?categories=mcp_call,rest_call
         if let categoriesParam = req.query[String.self, at: "categories"] {
@@ -402,7 +415,6 @@ class MCPServer: ObservableObject, MCPServerProtocol, @unchecked Sendable {
 
         if let dateParam = req.query[String.self, at: "date"] {
             guard let date = dateOnly.date(from: dateParam) ?? iso8601.date(from: dateParam) ?? iso8601NoFrac.date(from: dateParam) else {
-                logRESTCall(method: "GET", path: "/logs", statusCode: 400, resultSummary: "Invalid date format")
                 throw Abort(.badRequest, reason: "Invalid date format: '\(dateParam)'. Use 'yyyy-MM-dd' or ISO 8601.")
             }
             let startOfDay = Calendar.current.startOfDay(for: date)
@@ -413,14 +425,12 @@ class MCPServer: ObservableObject, MCPServerProtocol, @unchecked Sendable {
         } else {
             if let fromParam = req.query[String.self, at: "from"] {
                 guard let fromDate = dateOnly.date(from: fromParam) ?? iso8601.date(from: fromParam) ?? iso8601NoFrac.date(from: fromParam) else {
-                    logRESTCall(method: "GET", path: "/logs", statusCode: 400, resultSummary: "Invalid from date")
                     throw Abort(.badRequest, reason: "Invalid 'from' date format: '\(fromParam)'. Use 'yyyy-MM-dd' or ISO 8601.")
                 }
                 logs = logs.filter { $0.timestamp >= fromDate }
             }
             if let toParam = req.query[String.self, at: "to"] {
                 guard let toDate = dateOnly.date(from: toParam) ?? iso8601.date(from: toParam) ?? iso8601NoFrac.date(from: toParam) else {
-                    logRESTCall(method: "GET", path: "/logs", statusCode: 400, resultSummary: "Invalid to date")
                     throw Abort(.badRequest, reason: "Invalid 'to' date format: '\(toParam)'. Use 'yyyy-MM-dd' or ISO 8601.")
                 }
                 logs = logs.filter { $0.timestamp <= toDate }
@@ -443,10 +453,6 @@ class MCPServer: ObservableObject, MCPServerProtocol, @unchecked Sendable {
             "limit": limit
         ]
         let responseData = try JSONSerialization.data(withJSONObject: response)
-
-        logRESTCall(method: "GET", path: "/logs", statusCode: 200,
-                    resultSummary: "\(paginatedLogs.count) of \(total) logs (offset \(offset))",
-                    req: req)
 
         return jsonResponse(data: responseData)
     }

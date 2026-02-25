@@ -131,11 +131,34 @@ import { Component, input } from '@angular/core';
           <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" fill="none" opacity="0.25"/>
           <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/>
         }
+        @case ('sidebar-left') {
+          <rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" stroke-width="2" fill="none"/>
+          <path d="M9 3v18" stroke="currentColor" stroke-width="2" fill="none"/>
+        }
         @case ('menu') {
           <path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/>
         }
         @case ('xmark') {
           <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/>
+        }
+        @case ('funnel') {
+          <path d="M3 4a1 1 0 0 1 1-1h16a1 1 0 0 1 1 1v2.5a1 1 0 0 1-.293.707L14 13.914V19a1 1 0 0 1-.553.894l-4 2A1 1 0 0 1 8 21v-7.086L3.293 7.207A1 1 0 0 1 3 6.5V4z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+        }
+        @case ('filter') {
+          <path d="M3 6h18M6 12h12M10 18h4" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/>
+        }
+        @case ('trash') {
+          <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M10 11v6M14 11v6M5 6l1 14a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2l1-14" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+        }
+        @case ('plus') {
+          <path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/>
+        }
+        @case ('eye') {
+          <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2" fill="none"/>
+          <path d="M2.458 12C3.732 7.943 7.523 5 12 5c4.477 0 8.268 2.943 9.542 7-1.274 4.057-5.065 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/>
+        }
+        @case ('eye-slash') {
+          <path d="M9.88 9.88a3 3 0 1 0 4.24 4.24M10.73 5.08A10.43 10.43 0 0 1 12 5c4.477 0 8.268 2.943 9.542 7a10.26 10.26 0 0 1-2.04 3.3M8.47 18.15C7.4 17.7 6.39 17.07 5.5 16.3M2 2l20 20" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/>
         }
         @default {
           <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" fill="none"/>

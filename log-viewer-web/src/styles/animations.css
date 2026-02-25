@@ -125,3 +125,36 @@
   animation: shimmer 1.5s infinite;
   border-radius: var(--radius-sm);
 }
+
+/* Page content fade-in */
+@keyframes pageFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Staggered list item entry (refined) */
+@keyframes listItemEnter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-page-in {
+  animation: pageFadeIn 250ms var(--ease-decelerate) forwards;
+}
+
+.animate-list-item {
+  animation: listItemEnter 300ms var(--ease-decelerate) backwards;
+  opacity: 0;
+}
