@@ -234,16 +234,6 @@ class LogViewModel: ObservableObject {
     ) -> [UnifiedLog] {
         var result = logs
 
-        // Exclude workflowExecution and workflowError from StateChangeLog (we show them separately as WorkflowExecutionLog)
-        result = result.filter { log in
-            switch log {
-            case .stateChange(let stateLog):
-                return stateLog.category != .workflowExecution && stateLog.category != .workflowError
-            case .workflowExecution(_):
-                return true
-            }
-        }
-
         // Category filter
         if !categories.isEmpty {
             result = result.filter { log in

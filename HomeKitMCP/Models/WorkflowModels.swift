@@ -1531,57 +1531,15 @@ struct WorkflowExecutionLog: Identifiable, Codable {
     }
 
     /// Converts to a `StateChangeLog` for the unified `/logs` API response.
+    /// The full `WorkflowExecutionLog` is embedded in the payload so clients receive the complete
+    /// block execution tree without a second request.
     func toStateChangeLog() -> StateChangeLog {
         let category: LogCategory = (status == .failure || status == .cancelled) ? .workflowError : .workflowExecution
-
-        let triggerDescription: String? = {
-            if let desc = triggerEvent?.triggerDescription { return desc }
-            if let deviceName = triggerEvent?.deviceName {
-                let charName = triggerEvent?.characteristicType.map { CharacteristicTypes.displayName(for: $0) } ?? ""
-                let oldStr = triggerEvent?.oldValue.map { "\($0.value)" } ?? "?"
-                let newStr = triggerEvent?.newValue.map { "\($0.value)" } ?? "?"
-                return "\(deviceName) \(charName): \(oldStr) → \(newStr)"
-            }
-            return nil
-        }()
-
-        let blockSummary: String? = blockResults.isEmpty ? nil : {
-            var lines: [String] = []
-            func summarize(_ results: [BlockResult], depth: Int = 0) {
-                let indent = String(repeating: "  ", count: depth)
-                for r in results {
-                    let icon = r.status == .success ? "✓" : (r.status == .failure ? "✗" : "–")
-                    let name = r.blockName ?? r.blockType
-                    if let detail = r.detail, !detail.isEmpty {
-                        lines.append("\(indent)\(icon) \(name): \(detail)")
-                    } else {
-                        lines.append("\(indent)\(icon) \(name)")
-                    }
-                    if let nested = r.nestedResults, !nested.isEmpty {
-                        summarize(nested, depth: depth + 1)
-                    }
-                }
-            }
-            summarize(blockResults)
-            return lines.joined(separator: "\n")
-        }()
-
-        let payload = WorkflowPayload(
-            workflowId: workflowId.uuidString,
-            workflowName: workflowName,
-            status: status.rawValue,
-            triggerDescription: triggerDescription,
-            blockSummary: blockSummary,
-            errorDetails: errorMessage,
-            detailedRequest: nil,
-            returnOutcome: nil
-        )
-
         return StateChangeLog(
             id: id,
             timestamp: triggeredAt,
             category: category,
-            payload: category == .workflowError ? .workflowError(payload) : .workflowExecution(payload)
+            payload: category == .workflowError ? .workflowError(self) : .workflowExecution(self)
         )
     }
 }

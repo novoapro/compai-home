@@ -1,12 +1,13 @@
 import { Component, inject, signal, computed, effect, OnInit, OnDestroy, HostListener } from '@angular/core';
-import { Router } from '@angular/router';
 import { Subscription } from 'rxjs';
 import { PollingService } from '../../core/services/polling.service';
+import { ApiService } from '../../core/services/api.service';
 import { ConfigService } from '../../core/services/config.service';
 import { WebSocketService } from '../../core/services/websocket.service';
 import { LogFilterStateService } from '../../core/services/log-filter-state.service';
 import { MobileTopBarService } from '../../core/services/mobile-topbar.service';
-import { StateChangeLog } from '../../core/models/state-change-log.model';
+import { StateChangeLog, LogCategory } from '../../core/models/state-change-log.model';
+import { WorkflowExecutionLog } from '../../core/models/workflow-log.model';
 import { FilterBarComponent } from './components/filter-bar.component';
 import { LogRowComponent } from './components/log-row.component';
 import { EmptyStateComponent } from '../../shared/components/empty-state.component';
@@ -28,12 +29,14 @@ interface LogGroup {
 })
 export class LogsComponent implements OnInit, OnDestroy {
   protected polling = inject(PollingService);
+  private api = inject(ApiService);
   private config = inject(ConfigService);
-  private router = inject(Router);
   private filterState = inject(LogFilterStateService);
   private wsService = inject(WebSocketService);
   private topBar = inject(MobileTopBarService);
   private wsSub?: Subscription;
+  private wsWorkflowSub?: Subscription;
+  private wsClearedSub?: Subscription;
   private wsReconnectSub?: Subscription;
 
   private topBarEffect = effect(() => {
@@ -46,7 +49,7 @@ export class LogsComponent implements OnInit, OnDestroy {
   dateFrom = signal<string | null>(null);
   dateTo = signal<string | null>(null);
 
-  private searchTimeout: any;
+  private searchTimeout: ReturnType<typeof setTimeout> | undefined;
 
   readonly availableDevices = computed(() => {
     const devices = new Set<string>();
@@ -72,6 +75,24 @@ export class LogsComponent implements OnInit, OnDestroy {
         (l.requestBody && l.requestBody.toLowerCase().includes(search)) ||
         (l.responseBody && l.responseBody.toLowerCase().includes(search))
       );
+    }
+
+    // Client-side category filter — ensures WebSocket-injected logs respect the active filter
+    const cats = this.selectedCategories();
+    if (cats.size > 0) {
+      logs = logs.filter(l => cats.has(l.category));
+    }
+
+    // Client-side date range filter — ensures WebSocket-injected logs respect the active filter
+    const from = this.dateFrom();
+    const to = this.dateTo();
+    if (from) {
+      const fromMs = new Date(from).getTime();
+      logs = logs.filter(l => new Date(l.timestamp).getTime() >= fromMs);
+    }
+    if (to) {
+      const toMs = new Date(to).getTime();
+      logs = logs.filter(l => new Date(l.timestamp).getTime() <= toMs);
     }
 
     // Client-side device filter (already filtered server-side, but for local multi-device)
@@ -142,6 +163,18 @@ export class LogsComponent implements OnInit, OnDestroy {
     this.wsSub = this.wsService.logMessage$.subscribe(log => {
       this.polling.injectLog(log);
     });
+    // Workflow logs: inject new entries or update in-progress ones in the main list
+    this.wsWorkflowSub = this.wsService.workflowLogMessage$.subscribe(({ type, data }) => {
+      const entry = this.workflowExecToStateChangeLog(data);
+      if (type === 'new') {
+        this.polling.injectLog(entry);
+      } else {
+        this.polling.updateLog(entry);
+      }
+    });
+    this.wsClearedSub = this.wsService.logsCleared$.subscribe(() => {
+      this.polling.clearAll();
+    });
     this.wsReconnectSub = this.wsService.reconnected$.subscribe(() => {
       this.fetchWithFilters();
     });
@@ -151,6 +184,8 @@ export class LogsComponent implements OnInit, OnDestroy {
     this.saveFilterState();
     this.polling.stopPolling();
     this.wsSub?.unsubscribe();
+    this.wsWorkflowSub?.unsubscribe();
+    this.wsClearedSub?.unsubscribe();
     this.wsReconnectSub?.unsubscribe();
   }
 
@@ -190,8 +225,19 @@ export class LogsComponent implements OnInit, OnDestroy {
     this.fetchWithFilters();
   }
 
-  onNavigateToWorkflow(event: { workflowId: string; logId: string }): void {
-    this.router.navigate(['/workflows', event.workflowId, event.logId]);
+  onClearLogs(): void {
+    if (!confirm('Are you sure you want to clear all logs? This will permanently delete all activity logs and workflow execution history on the server.')) {
+      return;
+    }
+    this.api.clearLogs().subscribe({
+      next: () => {
+        // Server will broadcast logs_cleared via WebSocket, but clear locally immediately for responsiveness
+        this.polling.clearAll();
+      },
+      error: (err) => {
+        this.polling.error.set(err?.message || 'Failed to clear logs');
+      },
+    });
   }
 
   onPullRefresh = (): void => {
@@ -237,5 +283,20 @@ export class LogsComponent implements OnInit, OnDestroy {
 
   trackByGroup(_index: number, group: LogGroup): string {
     return group.date;
+  }
+
+  /** Convert a WorkflowExecutionLog to a StateChangeLog for the main log list. */
+  private workflowExecToStateChangeLog(e: WorkflowExecutionLog): StateChangeLog {
+    const isError = e.status === 'failure' || e.status === 'cancelled';
+    return {
+      id: e.id,
+      timestamp: e.triggeredAt,
+      deviceId: e.workflowId,
+      deviceName: e.workflowName,
+      characteristicType: isError ? 'workflow-error' : 'workflow-execution',
+      category: isError ? LogCategory.WorkflowError : LogCategory.WorkflowExecution,
+      newValue: e.status,
+      workflowExecution: e,
+    };
   }
 }

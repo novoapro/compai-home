@@ -7,7 +7,17 @@ struct LogRow: View {
     @State private var isExpanded = false
 
     private var hasDetailedData: Bool {
-        log.detailedRequestBody != nil
+        log.detailedRequestBody != nil || (log.workflowExecution?.blockResults.isEmpty == false)
+    }
+
+    private var workflowStatusColor: Color {
+        guard let e = log.workflowExecution else { return Theme.Status.active }
+        switch e.status {
+        case .success: return Theme.Status.active
+        case .cancelled: return Theme.Status.warning
+        case .running: return Theme.Status.active
+        default: return Theme.Status.error
+        }
     }
 
     private var categoryColor: Color {
@@ -17,19 +27,10 @@ struct LogRow: View {
         case .restCall: return Color.indigo
         case .webhookCall: return Theme.Tint.secondary
         case .webhookError, .serverError, .sceneError: return Theme.Status.error
-        case .workflowError(let p):
-            return returnOutcomeColor(p.returnOutcome) ?? Theme.Status.error
+        case .workflowError: return workflowStatusColor
         case .workflowExecution: return Theme.Status.active
         case .sceneExecution: return Theme.Tint.main
         case .backupRestore: return Color.orange
-        }
-    }
-
-    private func returnOutcomeColor(_ outcome: String?) -> Color? {
-        switch outcome {
-        case "success": return Theme.Status.active
-        case "cancelled": return Theme.Status.warning
-        default: return nil
         }
     }
 
@@ -93,34 +94,38 @@ struct LogRow: View {
                 .font(.headline)
                 .foregroundColor(Theme.Text.primary)
 
-            // Service badge for device-related categories
+            // Room + service badges for device-related categories
             switch log.payload {
             case .stateChange(let p):
-                if let serviceName = p.serviceName {
-                    serviceBadge(serviceName)
-                }
+                if let roomName = p.roomName { roomBadge(roomName) }
+                if let serviceName = p.serviceName { serviceBadge(serviceName) }
             case .webhookCall(let p):
-                if let serviceName = p.serviceName {
-                    serviceBadge(serviceName)
-                }
+                if let roomName = p.roomName { roomBadge(roomName) }
+                if let serviceName = p.serviceName { serviceBadge(serviceName) }
             case .webhookError(let p):
-                if let serviceName = p.serviceName {
-                    serviceBadge(serviceName)
-                }
-            case .workflowExecution(let p):
-                if let status = p.status {
-                    statusBadge(status)
-                }
-            case .workflowError(let p):
-                if let status = p.status {
-                    statusBadge(status)
-                }
+                if let roomName = p.roomName { roomBadge(roomName) }
+                if let serviceName = p.serviceName { serviceBadge(serviceName) }
+            case .workflowExecution(let e):
+                statusBadge(e.status.rawValue, color: Theme.Status.active)
+            case .workflowError(let e):
+                statusBadge(e.status.rawValue, color: workflowStatusColor)
             default:
                 EmptyView()
             }
 
             Spacer()
         }
+    }
+
+    private func roomBadge(_ name: String) -> some View {
+        Text(name)
+            .font(.footnote)
+            .fontWeight(.medium)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(Color(.systemGray5))
+            .foregroundColor(Theme.Text.secondary)
+            .cornerRadius(4)
     }
 
     private func serviceBadge(_ name: String) -> some View {
@@ -134,13 +139,8 @@ struct LogRow: View {
             .cornerRadius(4)
     }
 
-    private func statusBadge(_ status: String) -> some View {
-        let color: Color = switch status {
-        case "success": Theme.Status.active
-        case "cancelled": Theme.Status.warning
-        default: Theme.Status.error
-        }
-        return Text(status)
+    private func statusBadge(_ status: String, color: Color) -> some View {
+        Text(status)
             .font(.footnote)
             .fontWeight(.semibold)
             .padding(.horizontal, 6)
@@ -165,10 +165,10 @@ struct LogRow: View {
             Image(systemName: "paperplane.circle.fill")
         case .webhookError, .serverError, .sceneError:
             Image(systemName: "exclamationmark.circle.fill")
-        case .workflowError(let p):
-            switch p.returnOutcome {
-            case "success": Image(systemName: "checkmark.circle.fill")
-            case "cancelled": Image(systemName: "minus.circle.fill")
+        case .workflowError(let e):
+            switch e.status {
+            case .success: Image(systemName: "checkmark.circle.fill")
+            case .cancelled: Image(systemName: "minus.circle.fill")
             default: Image(systemName: "exclamationmark.circle.fill")
             }
         case .workflowExecution:
@@ -197,10 +197,10 @@ struct LogRow: View {
             webhookErrorContent(p)
         case .serverError(let p):
             errorContent(label: "Server Error", details: p.errorDetails)
-        case .workflowExecution(let p):
-            workflowContent(p, isError: false)
-        case .workflowError(let p):
-            workflowContent(p, isError: true)
+        case .workflowExecution(let e):
+            workflowContent(e, isError: false)
+        case .workflowError(let e):
+            workflowContent(e, isError: true)
         case .sceneExecution(let p):
             sceneContent(p)
         case .sceneError(let p):
@@ -293,21 +293,25 @@ struct LogRow: View {
         }
     }
 
-    private func workflowContent(_ p: WorkflowPayload, isError: Bool) -> some View {
-        let messageColor = returnOutcomeColor(p.returnOutcome) ?? (isError ? Theme.Status.error : Theme.Text.secondary)
+    private func workflowContent(_ e: WorkflowExecutionLog, isError: Bool) -> some View {
+        let messageColor = isError ? workflowStatusColor : Theme.Text.secondary
         return VStack(alignment: .leading, spacing: 4) {
-            if let triggerDescription = p.triggerDescription {
-                Text(triggerDescription)
-                    .font(.footnote)
-                    .foregroundColor(isError && p.returnOutcome == nil ? Theme.Status.error : Theme.Text.secondary)
+            if let trigger = e.triggerEvent {
+                let desc = trigger.triggerDescription ?? {
+                    guard let deviceName = trigger.deviceName else { return nil }
+                    let charName = trigger.characteristicType.map { CharacteristicTypes.displayName(for: $0) } ?? ""
+                    let oldStr = trigger.oldValue.map { "\($0.value)" } ?? "?"
+                    let newStr = trigger.newValue.map { "\($0.value)" } ?? "?"
+                    return "\(deviceName) \(charName): \(oldStr) → \(newStr)"
+                }()
+                if let desc {
+                    Text(desc)
+                        .font(.footnote)
+                        .foregroundColor(isError ? Theme.Status.error : Theme.Text.secondary)
+                }
             }
-            if let blockSummary = p.blockSummary {
-                Text(blockSummary)
-                    .font(.system(.caption2, design: .monospaced))
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            if let errorDetails = p.errorDetails {
-                Text(errorDetails)
+            if let errorMessage = e.errorMessage {
+                Text(errorMessage)
                     .font(.footnote)
                     .foregroundColor(messageColor)
                     .lineLimit(3)
@@ -355,7 +359,10 @@ struct LogRow: View {
     private var detailSection: some View {
         VStack(alignment: .leading, spacing: 6) {
             VStack(alignment: .leading, spacing: 6) {
-                if let detailedReq = log.detailedRequestBody {
+                // Workflow execution: show inline block tree
+                if let execLog = log.workflowExecution {
+                    workflowBlockTree(execLog)
+                } else if let detailedReq = log.detailedRequestBody {
                     HStack {
                         Text("Request:")
                             .font(.footnote)
@@ -381,6 +388,94 @@ struct LogRow: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(Color(.systemGray5))
             .cornerRadius(6)
+        }
+    }
+
+    @ViewBuilder
+    private func workflowBlockTree(_ e: WorkflowExecutionLog) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            if let conditionResults = e.conditionResults, !conditionResults.isEmpty {
+                Text("Conditions")
+                    .font(.footnote)
+                    .fontWeight(.semibold)
+                    .foregroundColor(Theme.Text.secondary)
+                ForEach(conditionResults.indices, id: \.self) { i in
+                    conditionRow(conditionResults[i], depth: 0)
+                }
+            }
+            if !e.blockResults.isEmpty {
+                if e.conditionResults != nil {
+                    Divider().padding(.vertical, 2)
+                }
+                Text("Steps")
+                    .font(.footnote)
+                    .fontWeight(.semibold)
+                    .foregroundColor(Theme.Text.secondary)
+                ForEach(e.blockResults.indices, id: \.self) { i in
+                    blockRow(e.blockResults[i], depth: 0)
+                }
+            }
+        }
+    }
+
+    private func conditionRow(_ c: ConditionResult, depth: Int) -> AnyView {
+        AnyView(VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 4) {
+                Text(String(repeating: "  ", count: depth))
+                    .font(.system(.caption2, design: .monospaced))
+                Text(c.passed ? "✓" : "✗")
+                    .font(.system(.caption2, design: .monospaced))
+                    .foregroundColor(c.passed ? Theme.Status.active : Theme.Status.error)
+                Text(c.conditionDescription)
+                    .font(.caption2)
+                    .foregroundColor(Theme.Text.secondary)
+            }
+            if let subs = c.subResults {
+                ForEach(subs.indices, id: \.self) { i in
+                    conditionRow(subs[i], depth: depth + 1)
+                }
+            }
+        })
+    }
+
+    private func blockRow(_ b: BlockResult, depth: Int) -> AnyView {
+        AnyView(VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 4) {
+                Text(String(repeating: "  ", count: depth))
+                    .font(.system(.caption2, design: .monospaced))
+                blockStatusIcon(b.status)
+                    .font(.system(size: 10))
+                Text(b.blockName ?? b.blockType)
+                    .font(.caption2)
+                    .foregroundColor(Theme.Text.secondary)
+                if let detail = b.detail, !detail.isEmpty {
+                    Text("· \(detail)")
+                        .font(.caption2)
+                        .foregroundColor(Theme.Text.secondary)
+                        .lineLimit(1)
+                }
+            }
+            if let nested = b.nestedResults {
+                ForEach(nested.indices, id: \.self) { i in
+                    blockRow(nested[i], depth: depth + 1)
+                }
+            }
+        })
+    }
+
+    @ViewBuilder
+    private func blockStatusIcon(_ status: ExecutionStatus) -> some View {
+        switch status {
+        case .success:
+            Image(systemName: "checkmark.circle.fill").foregroundColor(Theme.Status.active)
+        case .failure:
+            Image(systemName: "xmark.circle.fill").foregroundColor(Theme.Status.error)
+        case .skipped, .conditionNotMet:
+            Image(systemName: "minus.circle.fill").foregroundColor(Theme.Text.secondary)
+        case .cancelled:
+            Image(systemName: "minus.circle.fill").foregroundColor(Theme.Status.warning)
+        case .running:
+            Image(systemName: "arrow.triangle.2.circlepath.circle.fill").foregroundColor(Theme.Status.active)
         }
     }
 

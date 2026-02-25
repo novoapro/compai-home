@@ -8,7 +8,7 @@ import { LogCategory, CATEGORY_META } from '../../core/models/state-change-log.m
   imports: [IconComponent],
   template: `
     <div class="icon-circle" [style.color]="color()">
-      <app-icon [name]="iconName()" [size]="iconSize()" />
+      <app-icon [name]="iconName()" />
     </div>
   `,
   styles: [`
@@ -23,6 +23,7 @@ import { LogCategory, CATEGORY_META } from '../../core/models/state-change-log.m
   host: {
     '[style.width.px]': 'size()',
     '[style.height.px]': 'size()',
+    'style': 'display: flex; align-self: center; flex-shrink: 0;',
   }
 })
 export class CategoryIconComponent {

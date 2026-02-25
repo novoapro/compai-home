@@ -20,19 +20,6 @@ import { IconComponent } from '../../../shared/components/icon.component';
           </button>
         </div>
 
-        <!-- Search -->
-        <div class="sheet-section">
-          <div class="search-field">
-            <app-icon name="magnifying-glass" [size]="16" />
-            <input
-              type="text"
-              placeholder="Search logs..."
-              [ngModel]="searchText()"
-              (ngModelChange)="searchTextChange.emit($event)"
-            />
-          </div>
-        </div>
-
         <!-- Categories -->
         <div class="sheet-section">
           <label class="sheet-label">Category</label>
@@ -121,7 +108,6 @@ import { IconComponent } from '../../../shared/components/icon.component';
       padding: var(--spacing-sm) var(--spacing-md) var(--spacing-xl);
       padding-bottom: calc(var(--spacing-xl) + env(safe-area-inset-bottom, 0px));
       overflow-y: auto;
-      -webkit-overflow-scrolling: touch;
     }
 
     .sheet-handle {
@@ -169,29 +155,6 @@ import { IconComponent } from '../../../shared/components/icon.component';
       text-transform: uppercase;
       letter-spacing: 0.12em;
       margin-bottom: var(--spacing-sm);
-    }
-
-    .search-field {
-      display: flex;
-      align-items: center;
-      gap: var(--spacing-sm);
-      padding: 12px 14px;
-      background: var(--bg-detail);
-      border-radius: var(--radius-md);
-      color: var(--text-tertiary);
-    }
-
-    .search-field input {
-      border: none;
-      background: transparent;
-      outline: none;
-      font-size: var(--font-size-base);
-      color: var(--text-primary);
-      width: 100%;
-    }
-
-    .search-field input::placeholder {
-      color: var(--text-tertiary);
     }
 
     .chip-grid {
@@ -282,12 +245,9 @@ export class FilterSheetComponent {
   availableDevices = input<string[]>([]);
   selectedCategories = input<Set<string>>(new Set());
   selectedDevices = input<Set<string>>(new Set());
-  searchText = input('');
-
   closed = output<void>();
   categoriesChange = output<Set<string>>();
   devicesChange = output<Set<string>>();
-  searchTextChange = output<string>();
   dateRangeChange = output<{ from: string | null; to: string | null }>();
   clearAll = output<void>();
 
@@ -300,7 +260,6 @@ export class FilterSheetComponent {
   readonly hasActiveFilters = computed(() => {
     return this.selectedCategories().size > 0 ||
       this.selectedDevices().size > 0 ||
-      this.searchText() !== '' ||
       this.localDateFrom() !== '' ||
       this.localDateTo() !== '';
   });

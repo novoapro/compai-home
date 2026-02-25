@@ -1,3 +1,7 @@
+import type { WorkflowExecutionLog } from './workflow-log.model';
+
+export type { WorkflowExecutionLog };
+
 export enum LogCategory {
   StateChange = 'state_change',
   WebhookError = 'webhook_error',
@@ -17,6 +21,7 @@ export interface StateChangeLog {
   timestamp: string; // ISO8601
   deviceId: string;
   deviceName: string;
+  roomName?: string;
   serviceId?: string;
   serviceName?: string;
   characteristicType: string;
@@ -28,6 +33,8 @@ export interface StateChangeLog {
   requestBody?: string;
   responseBody?: string;
   detailedRequestBody?: string;
+  /** Full workflow execution data — present for workflow_execution and workflow_error entries. */
+  workflowExecution?: WorkflowExecutionLog;
 }
 
 export interface CategoryMeta {

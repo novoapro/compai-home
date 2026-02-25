@@ -574,13 +574,12 @@ class MCPRequestHandler {
     }
 
     private func handleGetLogs(id: JSONRPCId?, arguments: [String: Any]) async -> JSONRPCResponse {
-        // Merge state change logs with workflow execution logs (converted on-the-fly)
-        var stateChangeLogs = await loggingService.getLogs()
+        // Merge state change logs with workflow execution logs (converted on-the-fly).
+        // WorkflowExecutionLogService is the single source for workflow logs; LoggingService
+        // no longer persists workflow entries. Running executions are included.
+        let stateChangeLogs = await loggingService.getLogs()
         let workflowExecLogs = await workflowExecutionLogService.getLogs()
-        stateChangeLogs.removeAll { $0.category == .workflowExecution || $0.category == .workflowError }
-        let convertedWorkflowLogs = workflowExecLogs
-            .filter { $0.status != .running }
-            .map { $0.toStateChangeLog() }
+        let convertedWorkflowLogs = workflowExecLogs.map { $0.toStateChangeLog() }
         var logs = (stateChangeLogs + convertedWorkflowLogs).sorted { $0.timestamp > $1.timestamp }
         let allCount = logs.count
 

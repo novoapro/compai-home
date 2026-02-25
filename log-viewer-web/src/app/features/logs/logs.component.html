@@ -14,11 +14,13 @@
     [selectedCategories]="selectedCategories()"
     [selectedDevices]="selectedDevices()"
     [searchText]="searchText()"
+    [logCount]="logCount()"
     (categoriesChange)="onCategoriesChange($event)"
     (devicesChange)="onDevicesChange($event)"
     (searchTextChange)="onSearchTextChange($event)"
     (dateRangeChange)="onDateRangeChange($event)"
     (clearAll)="onClearAll()"
+    (clearLogs)="onClearLogs()"
   />
 
   <!-- Error -->
@@ -54,7 +56,7 @@
         <div class="date-group">
           <div class="date-header">{{ group.label }}</div>
           @for (log of group.logs; track log.id; let i = $index) {
-            <app-log-row [log]="log" [index]="i" (navigateToWorkflow)="onNavigateToWorkflow($event)" />
+            <app-log-row [log]="log" [index]="i" />
           }
         </div>
       }

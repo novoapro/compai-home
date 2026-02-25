@@ -210,10 +210,8 @@ class BackupService: ObservableObject, BackupServiceProtocol {
         if !validation.unresolvable.isEmpty {
             AppLogger.registry.warning("Backup restore validation: \(validation.unresolvable.count) unresolvable issue(s)")
             for issue in validation.unresolvable {
-                let logEntry = StateChangeLog.workflowError(
-                    workflowId: issue.workflowId.uuidString,
-                    workflowName: issue.workflowName,
-                    errorDetails: "[\(issue.location)] \(issue.detail)"
+                let logEntry = StateChangeLog.serverError(
+                    errorDetails: "[\(issue.workflowName)] Restore: \(issue.location): \(issue.detail)"
                 )
                 await loggingService.logEntry(logEntry)
             }

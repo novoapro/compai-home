@@ -26,6 +26,7 @@ export class WorkflowLogsComponent implements OnInit, OnDestroy {
   private wsService = inject(WebSocketService);
   private topBar = inject(MobileTopBarService);
   private wsSub?: Subscription;
+  private wsClearedSub?: Subscription;
 
   workflows = signal<Workflow[]>([]);
   selectedWorkflowId = signal<string>('');
@@ -44,6 +45,9 @@ export class WorkflowLogsComponent implements OnInit, OnDestroy {
     if (this.config.websocketEnabled() && !this.wsService.isConnected()) {
       this.wsService.connect();
     }
+    this.wsClearedSub = this.wsService.logsCleared$.subscribe(() => {
+      this.executionLogs.set([]);
+    });
     this.wsSub = this.wsService.workflowLogMessage$.subscribe(msg => {
       const selectedId = this.selectedWorkflowId();
       if (!selectedId || msg.data.workflowId !== selectedId) return;
@@ -66,6 +70,7 @@ export class WorkflowLogsComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.wsSub?.unsubscribe();
+    this.wsClearedSub?.unsubscribe();
   }
 
   loadWorkflows(): void {

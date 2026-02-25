@@ -49,6 +49,10 @@ export class ApiService {
     return this.http.get<PaginatedLogsResponse>(`${this.base}/logs`, { params: httpParams });
   }
 
+  clearLogs(): Observable<{ cleared: boolean }> {
+    return this.http.delete<{ cleared: boolean }>(`${this.base}/logs`);
+  }
+
   getWorkflows(): Observable<Workflow[]> {
     return this.http.get<Workflow[]>(`${this.base}/workflows`);
   }

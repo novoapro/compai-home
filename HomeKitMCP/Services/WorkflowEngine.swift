@@ -1214,16 +1214,8 @@ actor WorkflowEngine: WorkflowEngineProtocol {
             roomName.map { "\(name) (\($0))" } ?? name
         } ?? "unknown device"
 
-        let errorDetails = "\(location): device '\(deviceDesc)' not found — likely orphaned after iCloud restore"
-
+        // Orphan details are captured in the WorkflowExecutionLog's block results.
         AppLogger.workflow.warning("[\(workflowName)] Orphaned reference in \(location): \(deviceDesc)")
-
-        let logEntry = StateChangeLog.workflowError(
-            workflowId: workflowId.uuidString,
-            workflowName: workflowName,
-            errorDetails: errorDetails
-        )
-        await loggingService.logEntry(logEntry)
     }
 
     // MARK: - WaitForState

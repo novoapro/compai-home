@@ -295,22 +295,14 @@ struct ConditionEvaluator {
     // MARK: - Orphan Logging
 
     private func logOrphan(location: String, deviceName: String?, roomName: String?, detail: String) async {
-        guard let loggingService, let workflowId, let workflowName else { return }
+        guard let workflowName else { return }
 
         let deviceDesc = deviceName.map { name in
             roomName.map { "\(name) (\($0))" } ?? name
         } ?? "unknown device"
 
-        let errorDetails = "\(location): device '\(deviceDesc)' not found — likely orphaned after iCloud restore"
-
+        // Orphan details are captured in the WorkflowExecutionLog's condition/block results.
         AppLogger.workflow.warning("[\(workflowName)] Orphaned reference in \(location): \(deviceDesc)")
-
-        let logEntry = StateChangeLog.workflowError(
-            workflowId: workflowId.uuidString,
-            workflowName: workflowName,
-            errorDetails: errorDetails
-        )
-        await loggingService.logEntry(logEntry)
     }
 
     // MARK: - Comparison Logic

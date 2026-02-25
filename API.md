@@ -106,6 +106,7 @@ All messages are JSON objects with a `type` field.
 | `log` | New state-change log entry | `{"type":"log","data":{...StateChangeLog...}}` |
 | `workflow_log` | New workflow execution started | `{"type":"workflow_log","data":{...WorkflowExecutionLog...}}` |
 | `workflow_log_updated` | Existing workflow execution updated (completed/failed) | `{"type":"workflow_log_updated","data":{...WorkflowExecutionLog...}}` |
+| `logs_cleared` | All logs have been cleared on the server | `{"type":"logs_cleared"}` |
 | `pong` | Response to client ping | `{"type":"pong"}` |
 
 The `data` field in `log` messages has the same shape as items in the `GET /logs` response. The `data` field in `workflow_log` / `workflow_log_updated` messages has the same shape as items in the `GET /workflows/:id/logs` response.
@@ -205,6 +206,7 @@ Requires: **REST API enabled** + **Log Access enabled**
 | Method | Path | Description | Response |
 |---|---|---|---|
 | `GET` | `/logs` | Get filtered, paginated logs | Paginated log object |
+| `DELETE` | `/logs` | Clear all logs (state-change + workflow execution) | `{"cleared": true}` |
 
 **Query Parameters:**
 
@@ -229,7 +231,7 @@ Requires: **REST API enabled** + **Log Access enabled**
 }
 ```
 
-Each log entry is a flat JSON object (see [StateChangeLog](#statechangelog) in Data Models).
+Each log entry is a flat JSON object (see [StateChangeLog](#statechangelog) in Data Models). Workflow entries (categories `workflow_execution` and `workflow_error`) include a nested `workflowExecution` object with the full execution tree (see [WorkflowExecutionLog](#workflowexecutionlog)). Running (in-progress) workflow executions are included in the response.
 
 ---
 
@@ -1149,6 +1151,7 @@ Serialized as flat JSON for all log categories.
 | `responseBody` | string | yes | Result/block summary |
 | `detailedRequestBody` | string | yes | Full request detail |
 | `returnOutcome` | string | yes | Workflow return outcome |
+| `workflowExecution` | WorkflowExecutionLog | yes | Full workflow execution data (present only for `workflow_execution` and `workflow_error` categories) |
 
 ### LogCategory
 
@@ -1165,6 +1168,71 @@ Serialized as flat JSON for all log categories.
 | `scene_execution` | Scene executed |
 | `scene_error` | Scene execution failed |
 | `backup_restore` | Backup/restore operation |
+
+### WorkflowExecutionLog
+
+Embedded in `StateChangeLog` entries with `workflow_execution` or `workflow_error` category. Also returned directly by `GET /workflows/:id/logs`.
+
+| Field | Type | Nullable | Description |
+|---|---|---|---|
+| `id` | UUID | no | Execution log ID |
+| `workflowId` | UUID | no | Parent workflow ID |
+| `workflowName` | string | no | Workflow name at time of execution |
+| `triggeredAt` | string (ISO 8601) | no | When the execution was triggered |
+| `completedAt` | string (ISO 8601) | yes | When the execution finished (null if still running) |
+| `triggerEvent` | TriggerEvent | yes | What triggered the execution |
+| `conditionResults` | ConditionResult[] | yes | Results of workflow-level guard conditions |
+| `blockResults` | BlockResult[] | no | Execution results for each block |
+| `status` | ExecutionStatus | no | Current execution status |
+| `errorMessage` | string | yes | Top-level error message |
+
+#### ExecutionStatus
+
+| Value | Description |
+|---|---|
+| `running` | Currently executing |
+| `success` | Completed successfully |
+| `failure` | Failed with an error |
+| `skipped` | Skipped (e.g. condition not met for a block) |
+| `conditionNotMet` | Workflow-level guard conditions not met |
+| `cancelled` | Cancelled (by retrigger policy or return block) |
+
+#### TriggerEvent
+
+| Field | Type | Nullable | Description |
+|---|---|---|---|
+| `deviceId` | string | yes | Device that triggered the workflow |
+| `deviceName` | string | yes | Device name |
+| `serviceId` | string | yes | Service ID |
+| `characteristicType` | string | yes | Characteristic that changed |
+| `oldValue` | any | yes | Previous value |
+| `newValue` | any | yes | New value |
+| `triggerDescription` | string | yes | Human-readable trigger description |
+
+#### ConditionResult
+
+| Field | Type | Nullable | Description |
+|---|---|---|---|
+| `conditionDescription` | string | no | Human-readable description of the condition |
+| `passed` | boolean | no | Whether the condition passed |
+| `subResults` | ConditionResult[] | yes | Nested results for logical operators |
+| `logicOperator` | string | yes | `"and"`, `"or"`, or `"not"` for compound conditions |
+
+#### BlockResult
+
+| Field | Type | Nullable | Description |
+|---|---|---|---|
+| `id` | UUID | no | Block result ID |
+| `blockIndex` | integer | no | Position in the block list |
+| `blockKind` | string | no | `"action"` or `"flowControl"` |
+| `blockType` | string | no | Block type: `controlDevice`, `delay`, `conditional`, `repeat`, `repeatWhile`, `group`, `return`, `webhook`, `log`, `runScene`, `waitForState`, `executeWorkflow` |
+| `blockName` | string | yes | Optional block display name |
+| `status` | ExecutionStatus | no | Block execution status |
+| `startedAt` | string (ISO 8601) | no | When block execution started |
+| `completedAt` | string (ISO 8601) | yes | When block execution finished |
+| `detail` | string | yes | Execution detail (e.g. value set, scene name) |
+| `errorMessage` | string | yes | Error message if block failed |
+| `nestedResults` | BlockResult[] | yes | Results for nested blocks (conditional, repeat, group) |
 
 ---
 

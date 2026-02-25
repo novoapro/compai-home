@@ -192,6 +192,19 @@ class MCPServer: ObservableObject, MCPServerProtocol, @unchecked Sendable {
                 }
             }
             .store(in: &wsCancellables)
+
+        // Broadcast logs_cleared when either log store is cleared
+        loggingService.logsClearedSubject
+            .merge(with: workflowExecutionLogService.logsClearedSubject)
+            .receive(on: DispatchQueue.global(qos: .utility))
+            .sink { _ in
+                Task {
+                    guard await tracker.wsConnectionCount > 0 else { return }
+                    let msg = "{\"type\":\"logs_cleared\"}"
+                    await tracker.broadcastToWS(msg)
+                }
+            }
+            .store(in: &wsCancellables)
     }
 
     private func broadcastWorkflowLog(_ entry: WorkflowExecutionLog, type: String, tracker: ConnectionTracker) {
@@ -413,6 +426,17 @@ class MCPServer: ObservableObject, MCPServerProtocol, @unchecked Sendable {
             try self.guardRestApiEnabled()
             return try await self.handleRestGetWorkflowLogs(req)
         }
+
+        // Clear all logs (state-change logs + workflow execution logs)
+        protected.on(.DELETE, "logs") { [weak self] req async throws -> Response in
+            guard let self else { throw Abort(.serviceUnavailable) }
+            try self.guardRestApiEnabled()
+            guard self.storage.readLogAccessEnabled() else { throw Abort(.notFound) }
+            await self.loggingService.clearLogs()
+            await self.workflowExecutionLogService.clearLogs()
+            let body = try JSONSerialization.data(withJSONObject: ["cleared": true])
+            return Response(status: .ok, headers: ["Content-Type": "application/json"], body: .init(data: body))
+        }
     }
     
     // MARK: - REST Helpers
@@ -489,16 +513,13 @@ class MCPServer: ObservableObject, MCPServerProtocol, @unchecked Sendable {
 
     private func handleRestGetLogs(_ req: Request) async throws -> Response {
         // Fetch both log sources
-        var stateChangeLogs = await loggingService.getLogs()
+        let stateChangeLogs = await loggingService.getLogs()
         let workflowExecLogs = await workflowExecutionLogService.getLogs()
 
-        // Remove old persisted workflow entries from state change logs (avoid duplicates)
-        stateChangeLogs.removeAll { $0.category == .workflowExecution || $0.category == .workflowError }
-
-        // Convert completed workflow execution logs on-the-fly and merge
-        let convertedWorkflowLogs = workflowExecLogs
-            .filter { $0.status != .running }
-            .map { $0.toStateChangeLog() }
+        // Convert all workflow execution logs (including running ones) on-the-fly and merge.
+        // WorkflowExecutionLogService is the single source for workflow logs; LoggingService
+        // no longer persists workflow entries.
+        let convertedWorkflowLogs = workflowExecLogs.map { $0.toStateChangeLog() }
 
         var logs = (stateChangeLogs + convertedWorkflowLogs)
             .sorted { $0.timestamp > $1.timestamp }

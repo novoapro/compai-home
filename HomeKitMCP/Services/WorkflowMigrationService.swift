@@ -29,7 +29,7 @@ enum WorkflowMigrationService {
 
     /// Migrate all device/service/scene references in a workflow.
     /// Returns the (possibly updated) workflow and a summary of changes.
-    static func migrate(_ workflow: Workflow, using devices: [DeviceModel], scenes: [SceneModel] = []) -> MigrationResult {
+    static func migrate(_ workflow: Workflow, using devices: [DeviceModel], scenes: [SceneModel] = [], registry: DeviceRegistryService? = nil) -> MigrationResult {
         let knownDeviceIds = Set(devices.map(\.id))
         let knownSceneIds = Set(scenes.map(\.id))
 
@@ -53,6 +53,7 @@ enum WorkflowMigrationService {
         // Pass 1: Match devices (deduplicated by deviceId)
         for ref in allDeviceRefs {
             if knownDeviceIds.contains(ref.deviceId) { continue }
+            if registry?.readHomeKitDeviceId(ref.deviceId) != nil { continue }
             if idMap[ref.deviceId] != nil || orphanedDeviceIds.contains(ref.deviceId) { continue }
 
             if let match = findMatch(for: ref, in: devices, lookup: devicesByNameRoom) {
@@ -95,6 +96,7 @@ enum WorkflowMigrationService {
 
         for ref in allSceneRefs {
             if knownSceneIds.contains(ref.sceneId) { continue }
+            if registry?.readHomeKitSceneId(ref.sceneId) != nil { continue }
             if sceneIdMap[ref.sceneId] != nil { continue }
 
             if let match = findSceneMatch(for: ref, lookup: scenesByName) {
@@ -542,14 +544,14 @@ extension WorkflowMigrationService {
     }
 
     /// Migrate multiple workflows at once. Returns updated workflows, remapping counts, and orphan details.
-    static func migrateAll(_ workflows: [Workflow], using devices: [DeviceModel], scenes: [SceneModel] = []) -> BatchMigrationResult {
+    static func migrateAll(_ workflows: [Workflow], using devices: [DeviceModel], scenes: [SceneModel] = [], registry: DeviceRegistryService? = nil) -> BatchMigrationResult {
         var result: [Workflow] = []
         var totalRemappedDevices = 0
         var totalRemappedScenes = 0
         var allOrphans: [String: [OrphanedReference]] = [:]
 
         for workflow in workflows {
-            let migration = migrate(workflow, using: devices, scenes: scenes)
+            let migration = migrate(workflow, using: devices, scenes: scenes, registry: registry)
             result.append(migration.workflow)
             totalRemappedDevices += migration.remappedDevices
             totalRemappedScenes += migration.remappedScenes

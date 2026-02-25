@@ -591,9 +591,12 @@ class HomeKitManager: NSObject, ObservableObject, HomeKitManaging {
                 hideRoomName: self.storage.readHideRoomName()
             )
 
+            let roomName = accessory.room?.name
+
             let logEntry = StateChangeLog.stateChange(
                 deviceId: deviceId,
                 deviceName: formattedName,
+                roomName: roomName,
                 serviceName: serviceName,
                 characteristicType: characteristic.characteristicType,
                 oldValue: cachedValue.map { AnyCodable($0) },
@@ -607,6 +610,7 @@ class HomeKitManager: NSObject, ObservableObject, HomeKitManaging {
             let change = StateChange(
                 deviceId: stableDeviceId,
                 deviceName: formattedName,
+                roomName: roomName,
                 serviceId: stableServiceId,
                 serviceName: serviceName,
                 characteristicType: characteristic.characteristicType,
@@ -950,9 +954,12 @@ extension HomeKitManager: HMAccessoryDelegate {
                 hideRoomName: storage.readHideRoomName()
             )
 
+            let roomName = accessory.room?.name
+
             let logEntry = StateChangeLog.stateChange(
                 deviceId: accessory.uniqueIdentifier.uuidString,
                 deviceName: formattedName,
+                roomName: roomName,
                 serviceName: ServiceTypes.displayName(for: service.serviceType),
                 characteristicType: characteristic.characteristicType,
                 newValue: value.map { AnyCodable($0) }
@@ -966,6 +973,7 @@ extension HomeKitManager: HMAccessoryDelegate {
             let change = StateChange(
                 deviceId: stableDeviceId,
                 deviceName: formattedName,
+                roomName: roomName,
                 serviceId: stableServiceId,
                 serviceName: serviceName,
                 characteristicType: characteristic.characteristicType,

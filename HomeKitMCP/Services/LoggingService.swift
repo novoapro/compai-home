@@ -12,6 +12,7 @@ actor LoggingService: LoggingServiceProtocol {
 
     nonisolated let logsSubject = PassthroughSubject<[StateChangeLog], Never>()
     nonisolated let logEntrySubject = PassthroughSubject<StateChangeLog, Never>()
+    nonisolated let logsClearedSubject = PassthroughSubject<Void, Never>()
 
     init(storage: StorageService) {
         self.storage = storage
@@ -65,6 +66,7 @@ actor LoggingService: LoggingServiceProtocol {
     func clearLogs() {
         logs.removeAll()
         logsSubject.send(logs)
+        logsClearedSubject.send()
         saveNow()
     }
 

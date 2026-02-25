@@ -37,7 +37,7 @@ actor WebhookService: WebhookServiceProtocol {
             newValue: change.newValue.map { AnyCodable($0) }
         )
 
-        await send(to: url, payload: payload, deviceName: change.deviceName)
+        await send(to: url, payload: payload, deviceName: change.deviceName, roomName: change.roomName)
     }
 
     /// Send a test webhook to verify the configured URL works.
@@ -64,7 +64,7 @@ actor WebhookService: WebhookServiceProtocol {
         return await sendOnce(to: url, payload: payload)
     }
 
-    private func send(to url: URL, payload: WebhookPayload, attempt: Int = 1, deviceName: String) async {
+    private func send(to url: URL, payload: WebhookPayload, attempt: Int = 1, deviceName: String, roomName: String? = nil) async {
         statusSubject.send(.sending)
 
         do {
@@ -81,6 +81,7 @@ actor WebhookService: WebhookServiceProtocol {
             let logEntry = StateChangeLog.webhookCall(
                 deviceId: payload.deviceId,
                 deviceName: deviceName,
+                roomName: roomName,
                 serviceId: payload.serviceId,
                 serviceName: payload.serviceName,
                 characteristicType: payload.characteristicType,
@@ -95,7 +96,7 @@ actor WebhookService: WebhookServiceProtocol {
             if attempt < maxRetries {
                 let delay = pow(2.0, Double(attempt))
                 try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
-                await send(to: url, payload: payload, attempt: attempt + 1, deviceName: deviceName)
+                await send(to: url, payload: payload, attempt: attempt + 1, deviceName: deviceName, roomName: roomName)
             } else {
                 let errorDesc = error.localizedDescription
                 statusSubject.send(.lastFailure(date: Date(), error: errorDesc))
@@ -103,6 +104,7 @@ actor WebhookService: WebhookServiceProtocol {
                 let logEntry = StateChangeLog.webhookError(
                     deviceId: payload.deviceId,
                     deviceName: deviceName,
+                    roomName: roomName,
                     serviceId: payload.serviceId,
                     serviceName: payload.serviceName,
                     characteristicType: payload.characteristicType,

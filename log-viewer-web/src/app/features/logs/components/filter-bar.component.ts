@@ -17,11 +17,14 @@ export class FilterBarComponent {
   selectedDevices = input<Set<string>>(new Set());
   searchText = input('');
 
+  logCount = input(0);
+
   categoriesChange = output<Set<string>>();
   devicesChange = output<Set<string>>();
   searchTextChange = output<string>();
   dateRangeChange = output<{ from: string | null; to: string | null }>();
   clearAll = output<void>();
+  clearLogs = output<void>();
 
   showCategoryDropdown = signal(false);
   showDeviceDropdown = signal(false);

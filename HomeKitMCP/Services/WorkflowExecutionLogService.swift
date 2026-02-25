@@ -10,6 +10,7 @@ actor WorkflowExecutionLogService: WorkflowExecutionLogServiceProtocol {
     nonisolated let logsSubject = PassthroughSubject<[WorkflowExecutionLog], Never>()
     nonisolated let logAddedSubject = PassthroughSubject<WorkflowExecutionLog, Never>()
     nonisolated let logUpdatedSubject = PassthroughSubject<WorkflowExecutionLog, Never>()
+    nonisolated let logsClearedSubject = PassthroughSubject<Void, Never>()
 
     init() {
         let appDir = FileManager.appSupportDirectory
@@ -58,12 +59,14 @@ actor WorkflowExecutionLogService: WorkflowExecutionLogServiceProtocol {
     func clearLogs() {
         logs.removeAll()
         logsSubject.send(logs)
+        logsClearedSubject.send()
         saveNow()
     }
 
     func clearLogs(forWorkflow id: UUID) {
         logs.removeAll { $0.workflowId == id }
         logsSubject.send(logs)
+        logsClearedSubject.send()
         debouncedSave()
     }
 

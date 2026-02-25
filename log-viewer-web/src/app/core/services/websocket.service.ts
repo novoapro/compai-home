@@ -1,4 +1,4 @@
-import { Injectable, inject, signal, computed, DestroyRef } from '@angular/core';
+import { Injectable, inject, signal, computed, DestroyRef, NgZone } from '@angular/core';
 import { Subject } from 'rxjs';
 import { ConfigService } from './config.service';
 import { StateChangeLog } from '../models/state-change-log.model';
@@ -10,9 +10,10 @@ export type WSConnectionState = 'disconnected' | 'connecting' | 'connected';
 export class WebSocketService {
   private config = inject(ConfigService);
   private destroyRef = inject(DestroyRef);
+  private zone = inject(NgZone);
 
   private ws: WebSocket | null = null;
-  private reconnectTimer: any = null;
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private reconnectAttempts = 0;
   private readonly maxReconnectAttempts = 10;
   private readonly baseReconnectDelay = 1000;
@@ -24,6 +25,7 @@ export class WebSocketService {
 
   readonly logMessage$ = new Subject<StateChangeLog>();
   readonly workflowLogMessage$ = new Subject<{ type: 'new' | 'updated'; data: WorkflowExecutionLog }>();
+  readonly logsCleared$ = new Subject<void>();
   readonly reconnected$ = new Subject<void>();
 
   constructor() {
@@ -62,17 +64,22 @@ export class WebSocketService {
     this.ws.onmessage = (event) => {
       try {
         const msg = JSON.parse(event.data);
-        switch (msg.type) {
-          case 'log':
-            this.logMessage$.next(msg.data as StateChangeLog);
-            break;
-          case 'workflow_log':
-            this.workflowLogMessage$.next({ type: 'new', data: msg.data as WorkflowExecutionLog });
-            break;
-          case 'workflow_log_updated':
-            this.workflowLogMessage$.next({ type: 'updated', data: msg.data as WorkflowExecutionLog });
-            break;
-        }
+        this.zone.run(() => {
+          switch (msg.type) {
+            case 'log':
+              this.logMessage$.next(msg.data as StateChangeLog);
+              break;
+            case 'workflow_log':
+              this.workflowLogMessage$.next({ type: 'new', data: msg.data as WorkflowExecutionLog });
+              break;
+            case 'workflow_log_updated':
+              this.workflowLogMessage$.next({ type: 'updated', data: msg.data as WorkflowExecutionLog });
+              break;
+            case 'logs_cleared':
+              this.logsCleared$.next();
+              break;
+          }
+        });
       } catch {
         // Ignore malformed messages
       }

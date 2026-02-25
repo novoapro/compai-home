@@ -101,6 +101,13 @@ export class PollingService {
     ).subscribe();
   }
 
+  /** Reset all logs (e.g. when server clears logs). */
+  clearAll(): void {
+    this.logs.set([]);
+    this.totalCount.set(0);
+    this.latestTimestamp = null;
+  }
+
   /** Merge a single log entry pushed via WebSocket into the current log list. */
   injectLog(log: StateChangeLog): void {
     const current = this.logs();
@@ -108,6 +115,20 @@ export class PollingService {
     this.logs.set([log, ...current]);
     this.totalCount.update(c => c + 1);
     this.updateLatestTimestamp([log]);
+  }
+
+  /** Update an existing log entry in-place (e.g. a running workflow whose blocks are progressing). */
+  updateLog(log: StateChangeLog): void {
+    const current = this.logs();
+    const idx = current.findIndex(l => l.id === log.id);
+    if (idx === -1) {
+      // Not yet in the list — inject it as new
+      this.injectLog(log);
+      return;
+    }
+    const updated = [...current];
+    updated[idx] = log;
+    this.logs.set(updated);
   }
 
   private fetchLogs() {

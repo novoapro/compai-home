@@ -71,7 +71,6 @@
   flex: 1;
   overflow-y: auto;
   padding: var(--spacing-sm) var(--spacing-md);
-  -webkit-overflow-scrolling: touch;
 }
 
 /* Date group headers */

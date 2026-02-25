@@ -111,7 +111,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                     let scenes = await MainActor.run { self.container.homeKitManager.cachedScenes }
 
                     // --- Legacy orphan migration (name+room matching) ---
-                    let migration = WorkflowMigrationService.migrateAll(workflows, using: devices, scenes: scenes)
+                    let migration = WorkflowMigrationService.migrateAll(workflows, using: devices, scenes: scenes, registry: self.container.deviceRegistryService)
                     let totalRemapped = migration.totalRemappedDevices + migration.totalRemappedScenes
                     if totalRemapped > 0 {
                         await self.container.workflowStorageService.replaceAll(workflows: migration.workflows)
@@ -124,10 +124,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                             let kind = orphan.isScene ? "scene" : "device"
                             let desc = orphan.referenceName ?? orphan.referenceId
                             AppLogger.workflow.warning("Startup migration: workflow '\(workflowName)' has orphaned \(kind) '\(desc)' in \(orphan.location)")
-                            let logEntry = StateChangeLog.workflowError(
-                                workflowId: workflowName,
-                                workflowName: workflowName,
-                                errorDetails: "Orphaned \(kind) '\(desc)' in \(orphan.location) — not found after migration"
+                            let logEntry = StateChangeLog.serverError(
+                                errorDetails: "[\(workflowName)] Orphaned \(kind) '\(desc)' in \(orphan.location) — not found after migration"
                             )
                             await self.container.loggingService.logEntry(logEntry)
                         }
@@ -194,10 +192,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                         if !validation.unresolvable.isEmpty {
                             AppLogger.registry.warning("Startup validation: \(validation.unresolvable.count) unresolvable issue(s)")
                             for issue in validation.unresolvable {
-                                let logEntry = StateChangeLog.workflowError(
-                                    workflowId: issue.workflowId.uuidString,
-                                    workflowName: issue.workflowName,
-                                    errorDetails: "[\(issue.location)] \(issue.detail)"
+                                let logEntry = StateChangeLog.serverError(
+                                    errorDetails: "[\(issue.workflowName)] \(issue.location): \(issue.detail)"
                                 )
                                 await self.container.loggingService.logEntry(logEntry)
                             }

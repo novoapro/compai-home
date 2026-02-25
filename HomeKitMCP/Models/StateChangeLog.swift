@@ -21,6 +21,7 @@ enum LogCategory: String, Codable {
 struct DeviceStatePayload: Codable {
     let deviceId: String
     let deviceName: String
+    let roomName: String?
     let serviceId: String?
     let serviceName: String?
     let characteristicType: String
@@ -31,6 +32,7 @@ struct DeviceStatePayload: Codable {
 struct WebhookLogPayload: Codable {
     let deviceId: String
     let deviceName: String
+    let roomName: String?
     let serviceId: String?
     let serviceName: String?
     let characteristicType: String
@@ -51,17 +53,6 @@ struct APICallPayload: Codable {
 
 struct ServerErrorPayload: Codable {
     let errorDetails: String
-}
-
-struct WorkflowPayload: Codable {
-    let workflowId: String
-    let workflowName: String
-    let status: String?
-    let triggerDescription: String?
-    let blockSummary: String?
-    let errorDetails: String?
-    let detailedRequest: String?
-    let returnOutcome: String?
 }
 
 struct ScenePayload: Codable {
@@ -86,8 +77,10 @@ enum LogPayload {
     case mcpCall(APICallPayload)
     case restCall(APICallPayload)
     case serverError(ServerErrorPayload)
-    case workflowExecution(WorkflowPayload)
-    case workflowError(WorkflowPayload)
+    /// Workflow execution (success/skipped/conditionNotMet). Full execution data is embedded.
+    case workflowExecution(WorkflowExecutionLog)
+    /// Workflow execution that failed or was cancelled. Full execution data is embedded.
+    case workflowError(WorkflowExecutionLog)
     case sceneExecution(ScenePayload)
     case sceneError(ScenePayload)
     case backupRestore(BackupRestorePayload)
@@ -108,6 +101,7 @@ extension StateChangeLog {
     static func stateChange(
         deviceId: String,
         deviceName: String,
+        roomName: String? = nil,
         serviceId: String? = nil,
         serviceName: String? = nil,
         characteristicType: String,
@@ -118,6 +112,7 @@ extension StateChangeLog {
             id: UUID(), timestamp: Date(), category: .stateChange,
             payload: .stateChange(DeviceStatePayload(
                 deviceId: deviceId, deviceName: deviceName,
+                roomName: roomName,
                 serviceId: serviceId, serviceName: serviceName,
                 characteristicType: characteristicType,
                 oldValue: oldValue, newValue: newValue
@@ -128,6 +123,7 @@ extension StateChangeLog {
     static func webhookCall(
         deviceId: String,
         deviceName: String,
+        roomName: String? = nil,
         serviceId: String? = nil,
         serviceName: String? = nil,
         characteristicType: String,
@@ -141,6 +137,7 @@ extension StateChangeLog {
             id: UUID(), timestamp: Date(), category: .webhookCall,
             payload: .webhookCall(WebhookLogPayload(
                 deviceId: deviceId, deviceName: deviceName,
+                roomName: roomName,
                 serviceId: serviceId, serviceName: serviceName,
                 characteristicType: characteristicType,
                 oldValue: oldValue, newValue: newValue,
@@ -153,6 +150,7 @@ extension StateChangeLog {
     static func webhookError(
         deviceId: String,
         deviceName: String,
+        roomName: String? = nil,
         serviceId: String? = nil,
         serviceName: String? = nil,
         characteristicType: String,
@@ -167,6 +165,7 @@ extension StateChangeLog {
             id: UUID(), timestamp: Date(), category: .webhookError,
             payload: .webhookError(WebhookLogPayload(
                 deviceId: deviceId, deviceName: deviceName,
+                roomName: roomName,
                 serviceId: serviceId, serviceName: serviceName,
                 characteristicType: characteristicType,
                 oldValue: oldValue, newValue: newValue,
@@ -213,48 +212,6 @@ extension StateChangeLog {
         )
     }
 
-    static func workflowExecution(
-        workflowId: String,
-        workflowName: String,
-        status: String? = nil,
-        triggerDescription: String? = nil,
-        blockSummary: String? = nil,
-        errorDetails: String? = nil,
-        detailedRequest: String? = nil,
-        returnOutcome: String? = nil
-    ) -> StateChangeLog {
-        StateChangeLog(
-            id: UUID(), timestamp: Date(), category: .workflowExecution,
-            payload: .workflowExecution(WorkflowPayload(
-                workflowId: workflowId, workflowName: workflowName,
-                status: status, triggerDescription: triggerDescription,
-                blockSummary: blockSummary, errorDetails: errorDetails,
-                detailedRequest: detailedRequest, returnOutcome: returnOutcome
-            ))
-        )
-    }
-
-    static func workflowError(
-        workflowId: String,
-        workflowName: String,
-        status: String? = nil,
-        triggerDescription: String? = nil,
-        blockSummary: String? = nil,
-        errorDetails: String? = nil,
-        detailedRequest: String? = nil,
-        returnOutcome: String? = nil
-    ) -> StateChangeLog {
-        StateChangeLog(
-            id: UUID(), timestamp: Date(), category: .workflowError,
-            payload: .workflowError(WorkflowPayload(
-                workflowId: workflowId, workflowName: workflowName,
-                status: status, triggerDescription: triggerDescription,
-                blockSummary: blockSummary, errorDetails: errorDetails,
-                detailedRequest: detailedRequest, returnOutcome: returnOutcome
-            ))
-        )
-    }
-
     static func sceneExecution(
         sceneId: String,
         sceneName: String,
@@ -297,7 +254,7 @@ extension StateChangeLog {
     }
 }
 
-// MARK: - Convenience Accessors (backward compat for consumers)
+// MARK: - Convenience Accessors
 
 extension StateChangeLog {
     var deviceId: String {
@@ -308,8 +265,8 @@ extension StateChangeLog {
         case .mcpCall: return "mcp-rpc"
         case .restCall: return "mcp"
         case .serverError: return "system"
-        case .workflowExecution(let p): return p.workflowId
-        case .workflowError(let p): return p.workflowId
+        case .workflowExecution(let e): return e.workflowId.uuidString
+        case .workflowError(let e): return e.workflowId.uuidString
         case .sceneExecution(let p): return p.sceneId
         case .sceneError(let p): return p.sceneId
         case .backupRestore: return "backup-restore"
@@ -324,8 +281,8 @@ extension StateChangeLog {
         case .mcpCall: return "MCP"
         case .restCall: return "MCP Server"
         case .serverError: return "MCP Server"
-        case .workflowExecution(let p): return p.workflowName
-        case .workflowError(let p): return p.workflowName
+        case .workflowExecution(let e): return e.workflowName
+        case .workflowError(let e): return e.workflowName
         case .sceneExecution(let p): return p.sceneName
         case .sceneError(let p): return p.sceneName
         case .backupRestore: return "Backup Restore"
@@ -346,6 +303,15 @@ extension StateChangeLog {
         case .stateChange(let p): return p.serviceName
         case .webhookCall(let p): return p.serviceName
         case .webhookError(let p): return p.serviceName
+        default: return nil
+        }
+    }
+
+    var roomName: String? {
+        switch payload {
+        case .stateChange(let p): return p.roomName
+        case .webhookCall(let p): return p.roomName
+        case .webhookError(let p): return p.roomName
         default: return nil
         }
     }
@@ -382,8 +348,8 @@ extension StateChangeLog {
         case .webhookError(let p): return p.newValue
         case .sceneExecution(let p): return AnyCodable(p.succeeded)
         case .sceneError(let p): return AnyCodable(p.succeeded)
-        case .workflowExecution(let p): return p.status.map { AnyCodable($0) }
-        case .workflowError(let p): return p.status.map { AnyCodable($0) }
+        case .workflowExecution(let e): return AnyCodable(e.status.rawValue)
+        case .workflowError(let e): return AnyCodable(e.status.rawValue)
         default: return nil
         }
     }
@@ -392,8 +358,8 @@ extension StateChangeLog {
         switch payload {
         case .webhookError(let p): return p.errorDetails
         case .serverError(let p): return p.errorDetails
-        case .workflowExecution(let p): return p.errorDetails
-        case .workflowError(let p): return p.errorDetails
+        case .workflowExecution(let e): return e.errorMessage
+        case .workflowError(let e): return e.errorMessage
         case .sceneError(let p): return p.errorDetails
         case .backupRestore(let p): return p.summary
         default: return nil
@@ -406,8 +372,8 @@ extension StateChangeLog {
         case .webhookError(let p): return p.summary
         case .mcpCall(let p): return p.summary
         case .restCall(let p): return p.summary
-        case .workflowExecution(let p): return p.triggerDescription
-        case .workflowError(let p): return p.triggerDescription
+        case .workflowExecution(let e): return e.triggerEvent?.triggerDescription
+        case .workflowError(let e): return e.triggerEvent?.triggerDescription
         case .sceneExecution(let p): return p.summary
         case .sceneError(let p): return p.summary
         default: return nil
@@ -420,8 +386,6 @@ extension StateChangeLog {
         case .webhookError(let p): return p.result
         case .mcpCall(let p): return p.result
         case .restCall(let p): return p.result
-        case .workflowExecution(let p): return p.blockSummary
-        case .workflowError(let p): return p.blockSummary
         case .sceneError(let p): return p.errorDetails
         default: return nil
         }
@@ -433,16 +397,17 @@ extension StateChangeLog {
         case .webhookError(let p): return p.detailedRequest
         case .mcpCall(let p): return p.detailedRequest
         case .restCall(let p): return p.detailedRequest
-        case .workflowExecution(let p): return p.detailedRequest
-        case .workflowError(let p): return p.detailedRequest
         default: return nil
         }
     }
 
-    var returnOutcome: String? {
+    var returnOutcome: String? { nil }
+
+    /// The full workflow execution log; non-nil for `.workflowExecution` and `.workflowError` entries.
+    var workflowExecution: WorkflowExecutionLog? {
         switch payload {
-        case .workflowExecution(let p): return p.returnOutcome
-        case .workflowError(let p): return p.returnOutcome
+        case .workflowExecution(let e): return e
+        case .workflowError(let e): return e
         default: return nil
         }
     }
@@ -461,6 +426,7 @@ extension StateChangeLog {
         case .webhookCall(var p):
             p = WebhookLogPayload(
                 deviceId: p.deviceId, deviceName: p.deviceName,
+                roomName: p.roomName,
                 serviceId: p.serviceId, serviceName: p.serviceName,
                 characteristicType: p.characteristicType,
                 oldValue: p.oldValue, newValue: p.newValue,
@@ -472,6 +438,7 @@ extension StateChangeLog {
         case .webhookError(var p):
             p = WebhookLogPayload(
                 deviceId: p.deviceId, deviceName: p.deviceName,
+                roomName: p.roomName,
                 serviceId: p.serviceId, serviceName: p.serviceName,
                 characteristicType: p.characteristicType,
                 oldValue: p.oldValue, newValue: p.newValue,
@@ -494,24 +461,9 @@ extension StateChangeLog {
             truncatedPayload = .serverError(ServerErrorPayload(
                 errorDetails: Self.truncate(p.errorDetails)
             ))
-        case .workflowExecution(let p):
-            truncatedPayload = .workflowExecution(WorkflowPayload(
-                workflowId: p.workflowId, workflowName: p.workflowName,
-                status: p.status, triggerDescription: p.triggerDescription,
-                blockSummary: p.blockSummary,
-                errorDetails: p.errorDetails.map { Self.truncate($0) },
-                detailedRequest: p.detailedRequest.map { Self.truncate($0) },
-                returnOutcome: p.returnOutcome
-            ))
-        case .workflowError(let p):
-            truncatedPayload = .workflowError(WorkflowPayload(
-                workflowId: p.workflowId, workflowName: p.workflowName,
-                status: p.status, triggerDescription: p.triggerDescription,
-                blockSummary: p.blockSummary,
-                errorDetails: p.errorDetails.map { Self.truncate($0) },
-                detailedRequest: p.detailedRequest.map { Self.truncate($0) },
-                returnOutcome: p.returnOutcome
-            ))
+        case .workflowExecution, .workflowError:
+            // WorkflowExecutionLog has its own field-level truncation; pass through.
+            truncatedPayload = payload
         case .sceneExecution:
             truncatedPayload = payload
         case .sceneError(let p):
@@ -534,15 +486,16 @@ extension StateChangeLog {
     }
 }
 
-// MARK: - Codable (flat JSON for backward compat)
+// MARK: - Codable (flat JSON; workflow entries include full WorkflowExecutionLog)
 
 extension StateChangeLog: Codable {
     private enum CodingKeys: String, CodingKey {
         case id, timestamp, category
-        case deviceId, deviceName, serviceId, serviceName
+        case deviceId, deviceName, roomName, serviceId, serviceName
         case characteristicType, oldValue, newValue
         case errorDetails, requestBody, responseBody, detailedRequestBody
         case returnOutcome
+        case workflowExecution
     }
 
     func encode(to encoder: Encoder) throws {
@@ -552,6 +505,7 @@ extension StateChangeLog: Codable {
         try container.encode(category, forKey: .category)
         try container.encode(deviceId, forKey: .deviceId)
         try container.encode(deviceName, forKey: .deviceName)
+        try container.encodeIfPresent(roomName, forKey: .roomName)
         try container.encodeIfPresent(serviceId, forKey: .serviceId)
         try container.encodeIfPresent(serviceName, forKey: .serviceName)
         try container.encode(characteristicType, forKey: .characteristicType)
@@ -561,7 +515,10 @@ extension StateChangeLog: Codable {
         try container.encodeIfPresent(requestBody, forKey: .requestBody)
         try container.encodeIfPresent(responseBody, forKey: .responseBody)
         try container.encodeIfPresent(detailedRequestBody, forKey: .detailedRequestBody)
-        try container.encodeIfPresent(returnOutcome, forKey: .returnOutcome)
+        // Workflow entries: encode the full execution log for rich API consumers.
+        if let execLog = workflowExecution {
+            try container.encode(execLog, forKey: .workflowExecution)
+        }
     }
 
     init(from decoder: Decoder) throws {
@@ -572,13 +529,13 @@ extension StateChangeLog: Codable {
 
         let deviceId = try container.decodeIfPresent(String.self, forKey: .deviceId) ?? ""
         let deviceName = try container.decodeIfPresent(String.self, forKey: .deviceName) ?? ""
+        let roomName = try container.decodeIfPresent(String.self, forKey: .roomName)
         let serviceId = try container.decodeIfPresent(String.self, forKey: .serviceId)
         let serviceName = try container.decodeIfPresent(String.self, forKey: .serviceName)
         let characteristicType = try container.decodeIfPresent(String.self, forKey: .characteristicType) ?? ""
         let oldValue = try container.decodeIfPresent(AnyCodable.self, forKey: .oldValue)
         let newValue = try container.decodeIfPresent(AnyCodable.self, forKey: .newValue)
         let errorDetails = try container.decodeIfPresent(String.self, forKey: .errorDetails)
-        let returnOutcome = try container.decodeIfPresent(String.self, forKey: .returnOutcome)
         let requestBody = try container.decodeIfPresent(String.self, forKey: .requestBody)
         let responseBody = try container.decodeIfPresent(String.self, forKey: .responseBody)
         let detailedRequestBody = try container.decodeIfPresent(String.self, forKey: .detailedRequestBody)
@@ -587,6 +544,7 @@ extension StateChangeLog: Codable {
         case .stateChange:
             payload = .stateChange(DeviceStatePayload(
                 deviceId: deviceId, deviceName: deviceName,
+                roomName: roomName,
                 serviceId: serviceId, serviceName: serviceName,
                 characteristicType: characteristicType,
                 oldValue: oldValue, newValue: newValue
@@ -594,6 +552,7 @@ extension StateChangeLog: Codable {
         case .webhookCall:
             payload = .webhookCall(WebhookLogPayload(
                 deviceId: deviceId, deviceName: deviceName,
+                roomName: roomName,
                 serviceId: serviceId, serviceName: serviceName,
                 characteristicType: characteristicType,
                 oldValue: oldValue, newValue: newValue,
@@ -603,6 +562,7 @@ extension StateChangeLog: Codable {
         case .webhookError:
             payload = .webhookError(WebhookLogPayload(
                 deviceId: deviceId, deviceName: deviceName,
+                roomName: roomName,
                 serviceId: serviceId, serviceName: serviceName,
                 characteristicType: characteristicType,
                 oldValue: oldValue, newValue: newValue,
@@ -625,26 +585,14 @@ extension StateChangeLog: Codable {
             payload = .serverError(ServerErrorPayload(
                 errorDetails: errorDetails ?? ""
             ))
-        case .workflowExecution:
-            payload = .workflowExecution(WorkflowPayload(
-                workflowId: deviceId, workflowName: deviceName,
-                status: newValue?.value as? String,
-                triggerDescription: requestBody,
-                blockSummary: responseBody,
-                errorDetails: errorDetails,
-                detailedRequest: detailedRequestBody,
-                returnOutcome: returnOutcome
-            ))
-        case .workflowError:
-            payload = .workflowError(WorkflowPayload(
-                workflowId: deviceId, workflowName: deviceName,
-                status: newValue?.value as? String,
-                triggerDescription: requestBody,
-                blockSummary: responseBody,
-                errorDetails: errorDetails,
-                detailedRequest: detailedRequestBody,
-                returnOutcome: returnOutcome
-            ))
+        case .workflowExecution, .workflowError:
+            // Workflow entries are synthesised at query time and should not be persisted
+            // in logs.json. If we decode one (stale file), reconstruct from embedded data.
+            if let execLog = try? container.decode(WorkflowExecutionLog.self, forKey: .workflowExecution) {
+                payload = category == .workflowError ? .workflowError(execLog) : .workflowExecution(execLog)
+            } else {
+                payload = .serverError(ServerErrorPayload(errorDetails: errorDetails ?? "legacy workflow log"))
+            }
         case .sceneExecution:
             let succeeded = (newValue?.value as? Bool) ?? true
             payload = .sceneExecution(ScenePayload(
@@ -673,6 +621,7 @@ extension StateChangeLog: Codable {
 struct StateChange {
     let deviceId: String
     let deviceName: String
+    let roomName: String?
     let serviceId: String?
     let serviceName: String?
     let characteristicType: String
@@ -680,9 +629,10 @@ struct StateChange {
     let newValue: Any?
     let timestamp: Date
 
-    init(deviceId: String, deviceName: String, serviceId: String? = nil, serviceName: String? = nil, characteristicType: String, oldValue: Any? = nil, newValue: Any? = nil) {
+    init(deviceId: String, deviceName: String, roomName: String? = nil, serviceId: String? = nil, serviceName: String? = nil, characteristicType: String, oldValue: Any? = nil, newValue: Any? = nil) {
         self.deviceId = deviceId
         self.deviceName = deviceName
+        self.roomName = roomName
         self.serviceId = serviceId
         self.serviceName = serviceName
         self.characteristicType = characteristicType
