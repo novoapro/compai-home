@@ -209,3 +209,9 @@ struct CloudBackupListView: View {
         .padding(.vertical, 4)
     }
 }
+
+#Preview {
+    NavigationStack {
+        CloudBackupListView(cloudBackupService: PreviewData.previewCloudBackupService)
+    }
+}

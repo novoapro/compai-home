@@ -144,3 +144,9 @@ private struct SceneDetailSheet: View {
         return "\(value.value)"
     }
 }
+
+#Preview {
+    NavigationStack {
+        SceneListView(viewModel: PreviewData.homeKitViewModel)
+    }
+}

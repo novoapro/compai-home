@@ -157,3 +157,22 @@ struct WorkflowRow: View {
         }
     }
 }
+
+#Preview {
+    List {
+        WorkflowRow(
+            workflow: PreviewData.sampleWorkflows[0],
+            recentLogs: Array(PreviewData.sampleWorkflowLogs.prefix(1)),
+            onToggle: { }
+        )
+        .listRowBackground(Theme.contentBackground)
+
+        WorkflowRow(
+            workflow: PreviewData.sampleWorkflows[1],
+            recentLogs: [],
+            onToggle: { }
+        )
+        .listRowBackground(Theme.contentBackground)
+    }
+    .listStyle(.plain)
+}

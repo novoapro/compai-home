@@ -471,3 +471,21 @@ private struct LiveElapsedText: View {
         }
     }
 }
+
+#Preview("Success") {
+    NavigationStack {
+        WorkflowExecutionLogDetailView(log: PreviewData.sampleWorkflowLogs[1])
+    }
+}
+
+#Preview("Running") {
+    NavigationStack {
+        WorkflowExecutionLogDetailView(log: PreviewData.sampleWorkflowLogs[0])
+    }
+}
+
+#Preview("Failed") {
+    NavigationStack {
+        WorkflowExecutionLogDetailView(log: PreviewData.sampleWorkflowLogs[2])
+    }
+}

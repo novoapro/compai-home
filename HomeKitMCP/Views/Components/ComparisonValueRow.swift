@@ -246,3 +246,23 @@ struct ComparisonValueRow: View {
         }
     }
 }
+
+#Preview {
+    struct PreviewWrapper: View {
+        @State var comparisonType: ComparisonType = .equals
+        @State var value = "75"
+
+        var body: some View {
+            Form {
+                ComparisonValueRow(
+                    comparisonType: $comparisonType,
+                    value: $value,
+                    characteristicType: "00000008-0000-1000-8000-0026BB765291",
+                    devices: PreviewData.sampleDevices,
+                    deviceId: "device-1"
+                )
+            }
+        }
+    }
+    return PreviewWrapper()
+}

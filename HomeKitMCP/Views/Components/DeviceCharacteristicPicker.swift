@@ -273,3 +273,23 @@ private struct DevicePickerSheet: View {
         }
     }
 }
+
+#Preview {
+    struct PreviewWrapper: View {
+        @State var deviceId = "device-1"
+        @State var serviceId: String?
+        @State var characteristicType = "00000025-0000-1000-8000-0026BB765291"
+
+        var body: some View {
+            Form {
+                DeviceCharacteristicPicker(
+                    devices: PreviewData.sampleDevices,
+                    selectedDeviceId: $deviceId,
+                    selectedServiceId: $serviceId,
+                    selectedCharacteristicType: $characteristicType
+                )
+            }
+        }
+    }
+    return PreviewWrapper()
+}

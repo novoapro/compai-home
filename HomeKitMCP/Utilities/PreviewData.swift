@@ -176,6 +176,191 @@ enum PreviewData {
         )
     ]
 
+    // MARK: - Scenes
+
+    static let sampleScenes: [SceneModel] = [
+        SceneModel(
+            id: "scene-1",
+            name: "Good Morning",
+            type: "Wake Up",
+            isExecuting: false,
+            actions: [
+                SceneActionModel(id: "sa-1", deviceId: "device-1", deviceName: "Living Room Light", serviceName: "Lightbulb", characteristicType: "00000025-0000-1000-8000-0026BB765291", targetValue: AnyCodable(true)),
+                SceneActionModel(id: "sa-2", deviceId: "device-2", deviceName: "Bedroom Light", serviceName: "Lightbulb", characteristicType: "00000008-0000-1000-8000-0026BB765291", targetValue: AnyCodable(80))
+            ]
+        ),
+        SceneModel(
+            id: "scene-2",
+            name: "Good Night",
+            type: "Sleep",
+            isExecuting: false,
+            actions: [
+                SceneActionModel(id: "sa-3", deviceId: "device-1", deviceName: "Living Room Light", serviceName: "Lightbulb", characteristicType: "00000025-0000-1000-8000-0026BB765291", targetValue: AnyCodable(false)),
+                SceneActionModel(id: "sa-4", deviceId: "device-3", deviceName: "Front Door Lock", serviceName: "Lock", characteristicType: "lock_state", targetValue: AnyCodable(true))
+            ]
+        ),
+        SceneModel(
+            id: "scene-3",
+            name: "Movie Time",
+            type: "Custom",
+            isExecuting: true,
+            actions: [
+                SceneActionModel(id: "sa-5", deviceId: "device-1", deviceName: "Living Room Light", serviceName: "Lightbulb", characteristicType: "00000008-0000-1000-8000-0026BB765291", targetValue: AnyCodable(20))
+            ]
+        )
+    ]
+
+    // MARK: - Workflows
+
+    static let sampleWorkflows: [Workflow] = [
+        Workflow(
+            name: "Evening Mode",
+            description: "Dims lights and locks doors when sunset is detected",
+            isEnabled: true,
+            triggers: [
+                .deviceStateChange(DeviceStateTrigger(
+                    deviceId: "device-1",
+                    characteristicType: "00000025-0000-1000-8000-0026BB765291",
+                    condition: .equals(AnyCodable(true)),
+                    name: "Light turned on",
+                    deviceName: "Living Room Light",
+                    roomName: "Living Room"
+                ))
+            ],
+            blocks: [
+                .action(.controlDevice(ControlDeviceAction(
+                    deviceId: "device-2",
+                    characteristicType: "00000008-0000-1000-8000-0026BB765291",
+                    value: AnyCodable(50),
+                    name: "Dim bedroom to 50%",
+                    deviceName: "Bedroom Light",
+                    roomName: "Bedroom"
+                )), blockId: UUID()),
+                .flowControl(.delay(DelayBlock(seconds: 5, name: "Wait 5 seconds")), blockId: UUID())
+            ],
+            metadata: WorkflowMetadata(
+                createdBy: "user",
+                tags: ["evening", "automation"],
+                lastTriggeredAt: Date().addingTimeInterval(-3600),
+                totalExecutions: 42,
+                consecutiveFailures: 0
+            )
+        ),
+        Workflow(
+            name: "Security Check",
+            description: "Locks the front door if left unlocked for 5 minutes",
+            isEnabled: false,
+            triggers: [
+                .schedule(ScheduleTrigger(
+                    scheduleType: .daily(time: ScheduleTime(hour: 22, minute: 0)),
+                    name: "Every night at 10 PM"
+                ))
+            ],
+            blocks: [
+                .action(.controlDevice(ControlDeviceAction(
+                    deviceId: "device-3",
+                    characteristicType: "lock_state",
+                    value: AnyCodable(true),
+                    name: "Lock front door",
+                    deviceName: "Front Door Lock",
+                    roomName: "Hallway"
+                )), blockId: UUID())
+            ],
+            metadata: WorkflowMetadata(
+                createdBy: "user",
+                tags: ["security"],
+                lastTriggeredAt: Date().addingTimeInterval(-86400),
+                totalExecutions: 15,
+                consecutiveFailures: 2
+            )
+        )
+    ]
+
+    // MARK: - AI Interaction Logs
+
+    static let sampleAIInteractionLogs: [AIInteractionLog] = [
+        AIInteractionLog(
+            id: UUID(),
+            timestamp: Date().addingTimeInterval(-600),
+            provider: "anthropic",
+            model: "claude-sonnet-4-20250514",
+            operation: "generate",
+            systemPrompt: "You are a HomeKit workflow generator...",
+            userMessage: "Create a workflow that turns off all lights at midnight",
+            rawResponse: "{\"name\": \"Midnight Lights Off\", ...}",
+            parsedSuccessfully: true,
+            errorMessage: nil,
+            durationSeconds: 3.2
+        ),
+        AIInteractionLog(
+            id: UUID(),
+            timestamp: Date().addingTimeInterval(-1800),
+            provider: "anthropic",
+            model: "claude-sonnet-4-20250514",
+            operation: "refine",
+            systemPrompt: "You are a HomeKit workflow generator...",
+            userMessage: "Add a condition to only run on weekdays",
+            rawResponse: nil,
+            parsedSuccessfully: false,
+            errorMessage: "Rate limit exceeded",
+            durationSeconds: 0.5
+        )
+    ]
+
+    // MARK: - Draft Types (for editor previews)
+
+    static let sampleTriggerDrafts: [TriggerDraft] = [
+        {
+            var draft = TriggerDraft(id: UUID())
+            draft.deviceId = "device-1"
+            draft.characteristicType = "00000025-0000-1000-8000-0026BB765291"
+            draft.conditionType = .equals
+            draft.conditionValue = "true"
+            return draft
+        }(),
+        {
+            var draft = TriggerDraft(id: UUID(), triggerType: .schedule)
+            draft.scheduleType = .daily
+            draft.scheduleHour = 22
+            draft.scheduleMinute = 0
+            return draft
+        }()
+    ]
+
+    static let sampleBlockDrafts: [BlockDraft] = [
+        {
+            var d = ControlDeviceDraft()
+            d.name = "Turn on light"
+            d.deviceId = "device-1"
+            d.characteristicType = "00000025-0000-1000-8000-0026BB765291"
+            d.value = "true"
+            return BlockDraft(id: UUID(), blockType: .controlDevice(d))
+        }(),
+        BlockDraft(id: UUID(), blockType: .delay(DelayDraft(seconds: 5.0))),
+        BlockDraft(id: UUID(), blockType: .log(LogDraft(message: "Workflow step completed")))
+    ]
+
+    static let sampleConditionGroupDraft: ConditionGroupDraft = {
+        var group = ConditionGroupDraft.empty()
+        group.children = [
+            .leaf(ConditionDraft(
+                id: UUID(),
+                conditionDraftType: .deviceState,
+                deviceId: "device-1",
+                serviceId: nil,
+                characteristicType: "00000025-0000-1000-8000-0026BB765291",
+                comparisonType: .equals,
+                comparisonValue: "true"
+            )),
+            .leaf({
+                var d = ConditionDraft.emptyTimeCondition()
+                d.timeConditionMode = .afterSunset
+                return d
+            }())
+        ]
+        return group
+    }()
+
     // MARK: - Workflow Logs
 
     static let sampleWorkflowLogs: [WorkflowExecutionLog] = [
@@ -318,6 +503,8 @@ enum PreviewData {
         let manager = HomeKitManager(loggingService: loggingService, webhookService: webhookService, configService: configService, storage: storage)
         let vm = HomeKitViewModel(homeKitManager: manager, configService: configService)
         vm.devicesByRoom = devicesByRoom
+        vm.scenes = sampleScenes
+        vm.filteredScenes = sampleScenes
         vm.isLoading = false
         return vm
     }
@@ -412,6 +599,46 @@ enum PreviewData {
             executionLogService: workflowLogService,
             storage: storage
         )
-        return WorkflowViewModel(storageService: workflowStorage, executionLogService: workflowLogService, workflowEngine: engine, homeKitManager: manager)
+        let vm = WorkflowViewModel(storageService: workflowStorage, executionLogService: workflowLogService, workflowEngine: engine, homeKitManager: manager)
+        vm.workflows = sampleWorkflows
+        vm.executionLogs = sampleWorkflowLogs
+        return vm
+    }
+
+    // MARK: - Service Helpers (for views needing raw services)
+
+    static var previewStorage: StorageService { StorageService() }
+
+    static var previewHomeKitManager: HomeKitManager {
+        let storage = StorageService()
+        let loggingService = LoggingService(storage: storage)
+        let configService = DeviceConfigurationService()
+        let keychainService = KeychainService()
+        let webhookService = WebhookService(storage: storage, loggingService: loggingService, keychainService: keychainService)
+        return HomeKitManager(loggingService: loggingService, webhookService: webhookService, configService: configService, storage: storage)
+    }
+
+    static var previewAIWorkflowService: AIWorkflowService {
+        let storage = StorageService()
+        let keychainService = KeychainService()
+        let manager = previewHomeKitManager
+        let interactionLog = AIInteractionLogService()
+        return AIWorkflowService(storage: storage, homeKitManager: manager, keychainService: keychainService, interactionLog: interactionLog)
+    }
+
+    static var previewCloudBackupService: CloudBackupService {
+        let storage = StorageService()
+        let keychainService = KeychainService()
+        let configService = DeviceConfigurationService()
+        let loggingService = LoggingService(storage: storage)
+        let webhookService = WebhookService(storage: storage, loggingService: loggingService, keychainService: keychainService)
+        let manager = HomeKitManager(loggingService: loggingService, webhookService: webhookService, configService: configService, storage: storage)
+        let workflowStorage = WorkflowStorageService()
+        let backupService = BackupService(storage: storage, keychainService: keychainService, configService: configService, workflowStorageService: workflowStorage, homeKitManager: manager, loggingService: loggingService)
+        return CloudBackupService(backupService: backupService, storage: storage, workflowStorageService: workflowStorage)
+    }
+
+    static var previewWorkflowStorageService: WorkflowStorageService {
+        WorkflowStorageService()
     }
 }

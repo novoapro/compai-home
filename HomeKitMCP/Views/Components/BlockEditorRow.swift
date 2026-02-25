@@ -15,8 +15,6 @@ struct BlockEditorRow: View {
     var onMoveToContainer: ((UUID, String) -> Void)?
     var isReorderMode: Bool = false
     var workflows: [Workflow] = []
-    /// Whether this is the first block in the list (suppresses the top gap separator).
-    var isFirstBlock: Bool = true
     /// 1-based execution order index for this block. Shown as a badge.
     var ordinal: Int?
     /// Full ordinals map for passing to condition editors.
@@ -30,7 +28,16 @@ struct BlockEditorRow: View {
             blockLabel
         } else {
             DisclosureGroup(isExpanded: $isExpanded) {
-                blockContent
+                Group {
+                    blockContent
+                }
+                .listRowBackground(
+                    HStack(spacing: 0) {
+                        (block.blockType.isFlowControl ? Theme.Tint.secondary : Theme.Tint.main)
+                            .frame(width: Theme.Block.accentBarWidth)
+                        Theme.contentBackground
+                    }
+                )
             } label: {
                 blockLabel
             }
@@ -60,13 +67,6 @@ struct BlockEditorRow: View {
 
     private var blockLabel: some View {
         VStack(spacing: 0) {
-            if !isFirstBlock && !isReorderMode {
-                Rectangle()
-                    .fill(Color(UIColor.separator))
-                    .frame(height: 3)
-                    .padding(.horizontal, -16)
-                    .padding(.bottom, 10)
-            }
             HStack(spacing: 8) {
                 if isReorderMode {
                     Image(systemName: "line.3.horizontal")
@@ -851,4 +851,27 @@ private struct ExecuteWorkflowEditor: View {
         .font(.footnote)
         .foregroundColor(Theme.Text.secondary)
     }
+}
+
+#Preview {
+    struct PreviewWrapper: View {
+        @State var block = PreviewData.sampleBlockDrafts[0]
+
+        var body: some View {
+            NavigationStack {
+                Form {
+                    BlockEditorRow(
+                        block: $block,
+                        devices: PreviewData.sampleDevices,
+                        scenes: PreviewData.sampleScenes,
+                        allowNesting: true,
+                        onEditNestedBlocks: nil,
+                        onDelete: { }
+                    )
+                }
+                .navigationTitle("Block")
+            }
+        }
+    }
+    return PreviewWrapper()
 }

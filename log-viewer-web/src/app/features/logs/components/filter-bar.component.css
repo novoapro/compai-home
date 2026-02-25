@@ -10,7 +10,6 @@
   align-items: center;
   gap: var(--spacing-sm);
   padding: var(--spacing-sm) var(--spacing-md);
-  overflow-x: auto;
   flex-wrap: wrap;
   position: relative;
   z-index: 100;

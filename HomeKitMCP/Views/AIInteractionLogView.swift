@@ -219,3 +219,7 @@ private struct CopyButton: View {
         }
     }
 }
+
+#Preview {
+    AIInteractionLogView(interactionLog: AIInteractionLogService())
+}

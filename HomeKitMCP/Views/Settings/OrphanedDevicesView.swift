@@ -404,6 +404,16 @@ extension SceneRegistryEntry: Identifiable {
     var id: String { stableId }
 }
 
+#Preview {
+    NavigationStack {
+        OrphanedDevicesView(
+            registryService: DeviceRegistryService(),
+            homeKitManager: PreviewData.previewHomeKitManager,
+            workflowStorageService: PreviewData.previewWorkflowStorageService
+        )
+    }
+}
+
 // MARK: - Replacement Device Picker Sheet
 
 private struct ReplacementDevicePickerSheet: View {

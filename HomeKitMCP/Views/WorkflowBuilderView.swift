@@ -744,3 +744,12 @@ private struct BuilderFlowControlBlockRow: View {
         }
     }
 }
+
+#Preview {
+    WorkflowBuilderView(
+        aiWorkflowService: PreviewData.previewAIWorkflowService,
+        devices: PreviewData.sampleDevices,
+        scenes: PreviewData.sampleScenes,
+        onSave: { _ in }
+    )
+}

@@ -379,3 +379,22 @@ private struct TriggerRow: View {
             .foregroundColor(Theme.Text.secondary)
     }
 }
+
+#Preview {
+    struct PreviewWrapper: View {
+        @State var triggers = PreviewData.sampleTriggerDrafts
+
+        var body: some View {
+            NavigationStack {
+                Form {
+                    TriggerEditorSection(
+                        triggers: $triggers,
+                        devices: PreviewData.sampleDevices
+                    )
+                }
+                .navigationTitle("Triggers")
+            }
+        }
+    }
+    return PreviewWrapper()
+}

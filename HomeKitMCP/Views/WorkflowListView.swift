@@ -133,3 +133,9 @@ struct WorkflowListView: View {
         }
     }
 }
+
+#Preview {
+    NavigationStack {
+        WorkflowListView(viewModel: PreviewData.workflowViewModel)
+    }
+}

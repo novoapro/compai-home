@@ -82,3 +82,13 @@ struct SceneRow: View {
         }
     }
 }
+
+#Preview {
+    List {
+        SceneRow(scene: PreviewData.sampleScenes[0]) { }
+            .listRowBackground(Theme.contentBackground)
+        SceneRow(scene: PreviewData.sampleScenes[2]) { }
+            .listRowBackground(Theme.contentBackground)
+    }
+    .listStyle(.plain)
+}

@@ -698,3 +698,18 @@ private struct FlowControlBlockRow: View {
         }
     }
 }
+
+#Preview {
+    NavigationStack {
+        WorkflowDetailView(
+            workflow: PreviewData.sampleWorkflows[0],
+            executionLogs: PreviewData.sampleWorkflowLogs,
+            devices: PreviewData.sampleDevices,
+            scenes: PreviewData.sampleScenes,
+            onToggle: { },
+            onDelete: { },
+            onTrigger: { },
+            onUpdate: { _ in }
+        )
+    }
+}

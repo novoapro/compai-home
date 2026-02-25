@@ -101,6 +101,7 @@ struct BlockEditorSection: View {
                     .foregroundColor(Theme.Tint.main)
                 }
                 .listRowBackground(Theme.contentBackground)
+                .listRowSeparator(.hidden)
             }
         } header: {
             HStack {
@@ -181,17 +182,22 @@ struct BlockEditorSection: View {
             },
             isReorderMode: isReorderMode,
             workflows: workflows,
-            isFirstBlock: isFirst,
             ordinal: blockOrdinals[blockId],
             blockOrdinals: blockOrdinals
         )
         .listRowBackground(
-            HStack(spacing: 0) {
-                accentColor.frame(width: Theme.Block.accentBarWidth)
-                Theme.contentBackground
+            VStack(spacing: 0) {
+                if !isFirst && !isReorderMode {
+                    Rectangle()
+                        .fill(Color(UIColor.separator))
+                        .frame(height: 3)
+                }
+                HStack(spacing: 0) {
+                    accentColor.frame(width: Theme.Block.accentBarWidth)
+                    Theme.contentBackground
+                }
             }
         )
-        .listRowSeparator(.automatic)
     }
 }
 
@@ -338,4 +344,24 @@ struct NestedBlockEditorSheet: View {
             }
         }
     }
+}
+
+#Preview {
+    struct PreviewWrapper: View {
+        @State var blocks = PreviewData.sampleBlockDrafts
+
+        var body: some View {
+            NavigationStack {
+                Form {
+                    BlockEditorSection(
+                        blocks: $blocks,
+                        devices: PreviewData.sampleDevices,
+                        scenes: PreviewData.sampleScenes
+                    )
+                }
+                .navigationTitle("Blocks")
+            }
+        }
+    }
+    return PreviewWrapper()
 }

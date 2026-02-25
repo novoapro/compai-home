@@ -200,3 +200,32 @@ struct ValueEditor: View {
         }
     }
 }
+
+#Preview {
+    struct PreviewWrapper: View {
+        @State var boolValue = "true"
+        @State var sliderValue = "75"
+
+        var body: some View {
+            Form {
+                Section("Bool (Power)") {
+                    ValueEditor(
+                        value: $boolValue,
+                        characteristicType: "00000025-0000-1000-8000-0026BB765291",
+                        devices: PreviewData.sampleDevices,
+                        deviceId: "device-1"
+                    )
+                }
+                Section("Slider (Brightness)") {
+                    ValueEditor(
+                        value: $sliderValue,
+                        characteristicType: "00000008-0000-1000-8000-0026BB765291",
+                        devices: PreviewData.sampleDevices,
+                        deviceId: "device-1"
+                    )
+                }
+            }
+        }
+    }
+    return PreviewWrapper()
+}

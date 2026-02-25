@@ -202,3 +202,21 @@ struct WorkflowEditorView: View {
         dismiss()
     }
 }
+
+#Preview("Create") {
+    WorkflowEditorView(
+        mode: .create,
+        devices: PreviewData.sampleDevices,
+        scenes: PreviewData.sampleScenes,
+        onSave: { _ in }
+    )
+}
+
+#Preview("Edit") {
+    WorkflowEditorView(
+        mode: .edit(PreviewData.sampleWorkflows[0]),
+        devices: PreviewData.sampleDevices,
+        scenes: PreviewData.sampleScenes,
+        onSave: { _ in }
+    )
+}

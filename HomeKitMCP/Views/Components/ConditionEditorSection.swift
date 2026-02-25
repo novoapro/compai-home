@@ -631,3 +631,23 @@ private struct ConditionLeafEditSheet: View {
         }
     }
 }
+
+#Preview {
+    struct PreviewWrapper: View {
+        @State var conditionRoot = PreviewData.sampleConditionGroupDraft
+
+        var body: some View {
+            NavigationStack {
+                Form {
+                    ConditionEditorSection(
+                        conditionRoot: $conditionRoot,
+                        devices: PreviewData.sampleDevices,
+                        scenes: PreviewData.sampleScenes
+                    )
+                }
+                .navigationTitle("Conditions")
+            }
+        }
+    }
+    return PreviewWrapper()
+}
