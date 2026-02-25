@@ -1,7 +1,6 @@
 import { Component, inject, signal } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 import { IconComponent } from './shared/components/icon.component';
-import { BottomTabBarComponent } from './shared/components/bottom-tab-bar.component';
 import { SidebarComponent } from './shared/components/sidebar.component';
 import { ThemeService } from './core/services/theme.service';
 import { ConfigService } from './core/services/config.service';
@@ -27,7 +26,7 @@ const routeAnimation = trigger('routeAnimation', [
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [RouterOutlet, IconComponent, BottomTabBarComponent, SidebarComponent],
+  imports: [RouterOutlet, IconComponent, SidebarComponent],
   templateUrl: './app.html',
   styleUrl: './app.css',
   animations: [routeAnimation]

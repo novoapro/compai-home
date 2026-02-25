@@ -225,9 +225,8 @@
     padding: 5px 7px;
   }
 
-  /* Space for the bottom tab bar */
   .app-content {
-    padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: env(safe-area-inset-bottom, 0px);
   }
 }
 
