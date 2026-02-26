@@ -1,13 +1,12 @@
 import { Component, inject, signal, effect, OnInit, OnDestroy } from '@angular/core';
 import { Router } from '@angular/router';
-import { FormsModule } from '@angular/forms';
 import { Subscription } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { ConfigService } from '../../core/services/config.service';
 import { WebSocketService } from '../../core/services/websocket.service';
 import { MobileTopBarService } from '../../core/services/mobile-topbar.service';
-import { Workflow, WorkflowExecutionLog } from '../../core/models/workflow-log.model';
-import { WorkflowLogRowComponent } from './components/workflow-log-row.component';
+import { Workflow } from '../../core/models/workflow-log.model';
+import { WorkflowCardComponent } from './components/workflow-card.component';
 import { EmptyStateComponent } from '../../shared/components/empty-state.component';
 import { IconComponent } from '../../shared/components/icon.component';
 import { PullToRefreshDirective } from '../../shared/directives/pull-to-refresh.directive';
@@ -15,7 +14,7 @@ import { PullToRefreshDirective } from '../../shared/directives/pull-to-refresh.
 @Component({
   selector: 'app-workflow-logs',
   standalone: true,
-  imports: [FormsModule, WorkflowLogRowComponent, EmptyStateComponent, IconComponent, PullToRefreshDirective],
+  imports: [WorkflowCardComponent, EmptyStateComponent, IconComponent, PullToRefreshDirective],
   templateUrl: './workflow-logs.component.html',
   styleUrl: './workflow-logs.component.css',
 })
@@ -26,11 +25,8 @@ export class WorkflowLogsComponent implements OnInit, OnDestroy {
   private wsService = inject(WebSocketService);
   private topBar = inject(MobileTopBarService);
   private wsSub?: Subscription;
-  private wsClearedSub?: Subscription;
 
   workflows = signal<Workflow[]>([]);
-  selectedWorkflowId = signal<string>('');
-  executionLogs = signal<WorkflowExecutionLog[]>([]);
   isLoading = signal(false);
   error = signal<string | null>(null);
 
@@ -41,89 +37,63 @@ export class WorkflowLogsComponent implements OnInit, OnDestroy {
   ngOnInit(): void {
     this.loadWorkflows();
 
-    // Connect WebSocket for real-time workflow log updates
+    // Connect WebSocket for real-time workflow updates
     if (this.config.websocketEnabled() && !this.wsService.isConnected()) {
       this.wsService.connect();
     }
-    this.wsClearedSub = this.wsService.logsCleared$.subscribe(() => {
-      this.executionLogs.set([]);
-    });
-    this.wsSub = this.wsService.workflowLogMessage$.subscribe(msg => {
-      const selectedId = this.selectedWorkflowId();
-      if (!selectedId || msg.data.workflowId !== selectedId) return;
-
-      const current = this.executionLogs();
-      if (msg.type === 'new') {
-        if (!current.some(l => l.id === msg.data.id)) {
-          this.executionLogs.set([msg.data, ...current]);
-        }
-      } else if (msg.type === 'updated') {
-        const idx = current.findIndex(l => l.id === msg.data.id);
-        if (idx >= 0) {
-          // Don't let a stale "running" update overwrite a terminal status (out-of-order WS messages)
-          const existing = current[idx].status;
-          if (existing !== 'running' && msg.data.status === 'running') return;
-          const updated = [...current];
-          updated[idx] = msg.data;
-          this.executionLogs.set(updated);
-        }
-      }
+    this.wsSub = this.wsService.workflowsUpdated$.subscribe(workflows => {
+      this.workflows.set(workflows);
     });
   }
 
   ngOnDestroy(): void {
     this.wsSub?.unsubscribe();
-    this.wsClearedSub?.unsubscribe();
   }
 
   loadWorkflows(): void {
-    this.api.getWorkflows().subscribe({
-      next: (wfs) => {
-        this.workflows.set(wfs);
-        if (wfs.length > 0 && !this.selectedWorkflowId()) {
-          this.selectedWorkflowId.set(wfs[0].id);
-          this.loadLogs();
-        }
-      },
-      error: (err) => {
-        this.error.set(err?.message || 'Failed to load workflows');
-      }
-    });
-  }
-
-  onWorkflowChange(workflowId: string): void {
-    this.selectedWorkflowId.set(workflowId);
-    this.loadLogs();
-  }
-
-  loadLogs(): void {
-    const wfId = this.selectedWorkflowId();
-    if (!wfId) return;
-
     this.isLoading.set(true);
     this.error.set(null);
 
-    this.api.getWorkflowLogs(wfId, 100).subscribe({
-      next: (logs) => {
-        this.executionLogs.set(logs);
+    this.api.getWorkflows().subscribe({
+      next: (wfs) => {
+        this.workflows.set(wfs);
         this.isLoading.set(false);
       },
       error: (err) => {
-        this.error.set(err?.message || 'Failed to load execution logs');
+        this.error.set(err?.message || 'Failed to load workflows');
         this.isLoading.set(false);
       }
     });
   }
 
-  openDetail(log: WorkflowExecutionLog): void {
-    this.router.navigate(['/workflows', log.workflowId, log.id]);
+  openWorkflow(workflow: Workflow): void {
+    this.router.navigate(['/workflows', workflow.id]);
+  }
+
+  toggleWorkflow(workflow: Workflow, enabled: boolean): void {
+    // Optimistic update
+    const current = this.workflows();
+    this.workflows.set(
+      current.map(w => w.id === workflow.id ? { ...w, isEnabled: enabled } : w)
+    );
+
+    this.api.updateWorkflow(workflow.id, { isEnabled: enabled }).subscribe({
+      next: (updated) => {
+        this.workflows.set(
+          this.workflows().map(w => w.id === updated.id ? updated : w)
+        );
+      },
+      error: () => {
+        // Revert
+        this.workflows.set(
+          this.workflows().map(w => w.id === workflow.id ? { ...w, isEnabled: !enabled } : w)
+        );
+        this.error.set('Failed to update workflow');
+      }
+    });
   }
 
   onPullRefresh = (): void => {
-    this.loadLogs();
+    this.loadWorkflows();
   };
-
-  refresh(): void {
-    this.loadLogs();
-  }
 }

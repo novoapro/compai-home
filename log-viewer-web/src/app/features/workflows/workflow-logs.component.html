@@ -1,4 +1,4 @@
-<div class="workflow-logs-page">
+<div class="workflow-list-page">
   <!-- Page header -->
   <div class="page-header">
     <h1 class="page-title">Workflows</h1>
@@ -6,21 +6,6 @@
       <span class="loading-dot"></span>
     }
   </div>
-
-  <!-- Workflow selector -->
-  @if (workflows().length > 0) {
-    <div class="toolbar">
-      <select
-        class="workflow-select"
-        [ngModel]="selectedWorkflowId()"
-        (ngModelChange)="onWorkflowChange($event)"
-      >
-        @for (wf of workflows(); track wf.id) {
-          <option [value]="wf.id">{{ wf.name }}</option>
-        }
-      </select>
-    </div>
-  }
 
   <!-- Error -->
   @if (error()) {
@@ -31,7 +16,7 @@
   }
 
   <!-- Skeleton Loading -->
-  @if (isLoading() && executionLogs().length === 0) {
+  @if (isLoading() && workflows().length === 0) {
     <div class="skeleton-list">
       @for (i of [1,2,3,4]; track i) {
         <div class="skeleton-card skeleton" [style.animation-delay.ms]="i * 100"></div>
@@ -40,27 +25,24 @@
   }
 
   <!-- Empty -->
-  @if (!isLoading() && executionLogs().length === 0 && !error()) {
-    @if (workflows().length === 0) {
-      <app-empty-state
-        icon="bolt-circle-fill"
-        title="No workflows"
-        message="No workflows found on the server. Create workflows in the HomeKit MCP app first."
-      />
-    } @else {
-      <app-empty-state
-        icon="bolt-circle-fill"
-        title="No executions"
-        message="This workflow hasn't been executed yet. Trigger it and execution logs will appear here."
-      />
-    }
+  @if (!isLoading() && workflows().length === 0 && !error()) {
+    <app-empty-state
+      icon="bolt-circle-fill"
+      title="No workflows"
+      message="No workflows found on the server. Create workflows in the HomeKit MCP app first."
+    />
   }
 
-  <!-- Execution list -->
-  @if (executionLogs().length > 0) {
-    <div class="log-list" [appPullToRefresh]="onPullRefresh">
-      @for (log of executionLogs(); track log.id; let i = $index) {
-        <app-workflow-log-row [log]="log" [index]="i" (click)="openDetail(log)" />
+  <!-- Workflow card list -->
+  @if (workflows().length > 0) {
+    <div class="card-list" [appPullToRefresh]="onPullRefresh">
+      @for (wf of workflows(); track wf.id; let i = $index) {
+        <app-workflow-card
+          [workflow]="wf"
+          [index]="i"
+          (toggleEnabled)="toggleWorkflow(wf, $event)"
+          (click)="openWorkflow(wf)"
+        />
       }
     </div>
   }

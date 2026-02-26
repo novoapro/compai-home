@@ -67,4 +67,8 @@ export class ApiService {
       { params: httpParams }
     );
   }
+
+  updateWorkflow(workflowId: string, updates: Partial<Workflow>): Observable<Workflow> {
+    return this.http.put<Workflow>(`${this.base}/workflows/${workflowId}`, updates);
+  }
 }

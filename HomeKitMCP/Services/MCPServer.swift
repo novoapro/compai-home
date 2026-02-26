@@ -205,6 +205,29 @@ class MCPServer: ObservableObject, MCPServerProtocol, @unchecked Sendable {
                 }
             }
             .store(in: &wsCancellables)
+
+        // Broadcast workflow definition changes (create/update/delete/enable/disable)
+        workflowStorageService.workflowsSubject
+            .receive(on: DispatchQueue.global(qos: .utility))
+            .sink { [weak self] workflows in
+                guard self != nil else { return }
+                Task {
+                    guard await tracker.wsConnectionCount > 0 else { return }
+                    do {
+                        let data = try JSONEncoder.iso8601.encode(workflows)
+                        if let json = try JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
+                            let msg: [String: Any] = ["type": "workflows_updated", "data": json]
+                            let msgData = try JSONSerialization.data(withJSONObject: msg)
+                            if let text = String(data: msgData, encoding: .utf8) {
+                                await tracker.broadcastToWS(text)
+                            }
+                        }
+                    } catch {
+                        AppLogger.server.error("Failed to encode workflows for WS broadcast: \(error)")
+                    }
+                }
+            }
+            .store(in: &wsCancellables)
     }
 
     private func broadcastWorkflowLog(_ entry: WorkflowExecutionLog, type: String, tracker: ConnectionTracker) {

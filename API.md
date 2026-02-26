@@ -106,10 +106,11 @@ All messages are JSON objects with a `type` field.
 | `log` | New state-change log entry | `{"type":"log","data":{...StateChangeLog...}}` |
 | `workflow_log` | New workflow execution started | `{"type":"workflow_log","data":{...WorkflowExecutionLog...}}` |
 | `workflow_log_updated` | Existing workflow execution updated (completed/failed) | `{"type":"workflow_log_updated","data":{...WorkflowExecutionLog...}}` |
+| `workflows_updated` | Workflow definitions changed (created/updated/deleted/enabled/disabled) | `{"type":"workflows_updated","data":[{...Workflow...}]}` |
 | `logs_cleared` | All logs have been cleared on the server | `{"type":"logs_cleared"}` |
 | `pong` | Response to client ping | `{"type":"pong"}` |
 
-The `data` field in `log` messages has the same shape as items in the `GET /logs` response. The `data` field in `workflow_log` / `workflow_log_updated` messages has the same shape as items in the `GET /workflows/:id/logs` response.
+The `data` field in `log` messages has the same shape as items in the `GET /logs` response. The `data` field in `workflow_log` / `workflow_log_updated` messages has the same shape as items in the `GET /workflows/:id/logs` response. The `data` field in `workflows_updated` messages is an array with the same shape as the `GET /workflows` response.
 
 #### Client → Server
 
@@ -136,6 +137,9 @@ ws.onmessage = (event) => {
       break;
     case 'workflow_log_updated':
       console.log('Workflow updated:', msg.data);
+      break;
+    case 'workflows_updated':
+      console.log('Workflows changed:', msg.data);
       break;
   }
 };

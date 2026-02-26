@@ -2,7 +2,7 @@ import { Injectable, inject, signal, computed, DestroyRef, NgZone } from '@angul
 import { Subject } from 'rxjs';
 import { ConfigService } from './config.service';
 import { StateChangeLog } from '../models/state-change-log.model';
-import { WorkflowExecutionLog } from '../models/workflow-log.model';
+import { WorkflowExecutionLog, Workflow } from '../models/workflow-log.model';
 
 export type WSConnectionState = 'disconnected' | 'connecting' | 'connected';
 
@@ -25,6 +25,7 @@ export class WebSocketService {
 
   readonly logMessage$ = new Subject<StateChangeLog>();
   readonly workflowLogMessage$ = new Subject<{ type: 'new' | 'updated'; data: WorkflowExecutionLog }>();
+  readonly workflowsUpdated$ = new Subject<Workflow[]>();
   readonly logsCleared$ = new Subject<void>();
   readonly reconnected$ = new Subject<void>();
 
@@ -74,6 +75,9 @@ export class WebSocketService {
               break;
             case 'workflow_log_updated':
               this.workflowLogMessage$.next({ type: 'updated', data: msg.data as WorkflowExecutionLog });
+              break;
+            case 'workflows_updated':
+              this.workflowsUpdated$.next(msg.data as Workflow[]);
               break;
             case 'logs_cleared':
               this.logsCleared$.next();

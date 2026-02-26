@@ -45,9 +45,47 @@ export interface WorkflowExecutionLog {
   errorMessage?: string;
 }
 
+export interface WorkflowMetadata {
+  createdBy?: string;
+  tags?: string[];
+  lastTriggeredAt?: string;
+  totalExecutions: number;
+  consecutiveFailures: number;
+}
+
+export interface WorkflowTrigger {
+  type: 'deviceStateChange' | 'schedule' | 'webhook' | 'compound' | 'workflow' | 'sunEvent';
+  [key: string]: any;
+}
+
 export interface Workflow {
   id: string;
   name: string;
+  description?: string;
   isEnabled: boolean;
-  [key: string]: any;
+  triggers: WorkflowTrigger[];
+  blocks: any[];
+  metadata: WorkflowMetadata;
+  createdAt: string;
+  updatedAt: string;
 }
+
+export type TriggerTypeKey = WorkflowTrigger['type'];
+
+export const TRIGGER_TYPE_LABELS: Record<TriggerTypeKey, string> = {
+  deviceStateChange: 'Device',
+  schedule: 'Schedule',
+  webhook: 'Webhook',
+  compound: 'Compound',
+  workflow: 'Workflow',
+  sunEvent: 'Sun Event',
+};
+
+export const TRIGGER_TYPE_ICONS: Record<TriggerTypeKey, string> = {
+  deviceStateChange: 'bolt-circle-fill',
+  schedule: 'clock',
+  webhook: 'link-circle-fill',
+  compound: 'arrows-circle-fill',
+  workflow: 'play-circle-fill',
+  sunEvent: 'sun',
+};
