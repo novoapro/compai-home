@@ -40,12 +40,18 @@
 .log-card.expandable:hover,
 .log-card.clickable:hover {
   background: var(--bg-hover);
-  box-shadow: var(--shadow-card-hover);
+  box-shadow: var(--shadow-card-hover), 0 8px 16px -4px color-mix(in srgb, var(--accent-color, var(--tint-main)) 12%, transparent);
+  transform: translateY(-2px);
+}
+
+.log-card.expandable:hover::before {
+  width: 6px;
+  box-shadow: 2px 0 8px color-mix(in srgb, var(--accent-color, var(--tint-main)) 40%, transparent);
 }
 
 .log-card.expandable:active,
 .log-card.clickable:active {
-  transform: scale(0.985);
+  transform: translateY(0) scale(0.99);
 }
 
 /* Error cards */
@@ -108,7 +114,29 @@
   border-radius: var(--radius-sm);
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-semibold);
+}
+
+.service-badge-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3px;
+  border-radius: var(--radius-sm);
+}
+
+.service-badge,
+.service-badge-icon {
+  /* No margin left logic directly, relies on flex structure. Actually, we want them pushed to the right. */
   margin-left: auto;
+}
+
+.status-row {
+  margin-top: -8px; /* Pull it up closer to the date */
+  margin-bottom: 4px;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  line-height: 1; /* Keep it thin */
 }
 
 .status-badge {
@@ -116,7 +144,7 @@
   border-radius: var(--radius-xs);
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-semibold);
-  margin-left: auto;
+  margin-left: auto; /* Fallback for safe measure */
 }
 
 .header-right {
@@ -129,7 +157,37 @@
 .header-end {
   display: flex;
   align-items: center;
-  gap: 0;
+  gap: 8px; /* Give some space for the hint */
+}
+
+.interact-hint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  margin-top: 6px;
+  height: 12px;
+  opacity: 0.5;
+  transition: all 300ms cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: none;
+}
+
+.log-card.expandable:hover .interact-hint {
+  height: 16px;
+  opacity: 0.6;
+}
+
+.hint-text {
+  font-size: 8px; /* Even smaller and thinner */
+  font-weight: var(--font-weight-black);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-tertiary);
+}
+
+.interact-hint app-icon {
+  color: var(--text-tertiary);
+  opacity: 0.8;
 }
 
 .status-badge.success {
@@ -384,13 +442,24 @@
 }
 
 /* Chevron */
-.chevron {
-  transition: transform 250ms cubic-bezier(0.34, 1.56, 0.64, 1);
-  color: var(--text-tertiary);
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  margin-left: 0;
+/* Interactive indicator for expandable rows */
+.log-card.expandable:not(:hover)::after {
+  content: '';
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent-color, var(--tint-main));
+  opacity: 0.4;
+  animation: hintPulse 2s infinite;
+}
+
+@keyframes hintPulse {
+  0% { transform: scale(1); opacity: 0.4; }
+  50% { transform: scale(1.5); opacity: 0.1; }
+  100% { transform: scale(1); opacity: 0.4; }
 }
 
 .chevron.expanded {
@@ -456,8 +525,16 @@
   }
   .device-name {
     font-size: var(--font-size-sm);
-    max-width: 210px;
+    max-width: 240px;
     display: inline-block;
     vertical-align: middle;
+  }
+}
+
+/* Dark mode overrides */
+@media (prefers-color-scheme: dark) {
+  .service-badge-icon {
+    /* Override inline hash color in dark mode to match the decoration bar (category accent color) */
+    color: var(--accent-color, var(--tint-main)) !important;
   }
 }

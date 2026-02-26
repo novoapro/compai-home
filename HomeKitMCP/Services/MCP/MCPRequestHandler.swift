@@ -916,7 +916,7 @@ class MCPRequestHandler {
             lines.append("[\(formatter.string(from: log.triggeredAt))] \(log.workflowName) — \(log.status.rawValue) (\(duration))")
 
             if let trigger = log.triggerEvent {
-                let triggerLabel = trigger.triggerDescription ?? "\(trigger.deviceName ?? trigger.deviceId ?? "unknown") \(trigger.characteristicType ?? "")"
+                let triggerLabel = trigger.triggerDescription ?? "\(trigger.deviceName ?? trigger.deviceId ?? "unknown") \(trigger.characteristicName ?? "")"
                 lines.append("  Trigger: \(triggerLabel)")
             }
 
@@ -973,8 +973,9 @@ class MCPRequestHandler {
             let triggerEvent = TriggerEvent(
                 deviceId: nil,
                 deviceName: nil,
-                serviceId: nil,
-                characteristicType: nil,
+                serviceName: nil,
+                characteristicName: nil,
+                roomName: nil,
                 oldValue: nil,
                 newValue: nil,
                 triggerDescription: "Webhook received (token \(String(token.prefix(8)))…)"

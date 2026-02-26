@@ -1547,8 +1547,9 @@ struct WorkflowExecutionLog: Identifiable, Codable {
 struct TriggerEvent: Codable {
     let deviceId: String?
     let deviceName: String?
-    let serviceId: String?
-    let characteristicType: String?
+    let serviceName: String?
+    let characteristicName: String?
+    let roomName: String?
     let oldValue: AnyCodable?
     let newValue: AnyCodable?
     let triggerDescription: String?

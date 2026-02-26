@@ -139,8 +139,9 @@ actor ScheduleTriggerManager {
         let event = TriggerEvent(
             deviceId: nil,
             deviceName: nil,
-            serviceId: nil,
-            characteristicType: nil,
+            serviceName: nil,
+            characteristicName: nil,
+            roomName: nil,
             oldValue: nil,
             newValue: nil,
             triggerDescription: description
@@ -287,8 +288,9 @@ actor ScheduleTriggerManager {
         let event = TriggerEvent(
             deviceId: nil,
             deviceName: nil,
-            serviceId: nil,
-            characteristicType: nil,
+            serviceName: nil,
+            characteristicName: nil,
+            roomName: nil,
             oldValue: nil,
             newValue: nil,
             triggerDescription: description

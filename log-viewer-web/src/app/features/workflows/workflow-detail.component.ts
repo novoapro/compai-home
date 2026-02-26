@@ -62,6 +62,8 @@ export class WorkflowDetailComponent implements OnInit {
     if (!te) return null;
     if (te.oldValue === undefined && te.newValue === undefined) return null;
     return {
+      serviceName: te.serviceName,
+      charName: te.characteristicName || 'Value',
       old: this.formatValue(te.oldValue),
       new: this.formatValue(te.newValue),
     };

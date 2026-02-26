@@ -159,6 +159,35 @@ export class LogRowComponent {
       l.category !== LogCategory.RestCall;
   });
 
+  readonly serviceIconMatch = computed<string | null>(() => {
+    const name = this.log().serviceName?.toLowerCase();
+    if (!name) return null;
+
+    // Core HomeKit Types
+    if (name.includes('lightbulb') || name.includes('light')) return 'hk-lightbulb';
+    if (name.includes('switch') || name.includes('button')) return 'hk-switch';
+    if (name.includes('outlet') || name.includes('plug')) return 'hk-outlet';
+    if (name.includes('fan')) return 'hk-fan';
+    if (name.includes('thermostat') || name.includes('heater') || name.includes('cooler') || name.includes('ac')) return 'hk-thermostat';
+    if (name.includes('garage')) return 'hk-garage';
+    if (name.includes('lock')) return 'hk-lock';
+    if (name.includes('window') || name.includes('blind') || name.includes('shade')) return 'hk-window-covering';
+    if (name.includes('motion')) return 'hk-motion';
+    if (name.includes('occupancy') || name.includes('presence')) return 'hk-occupancy';
+    if (name.includes('temperature') || name.includes('temp')) return 'hk-temperature';
+    if (name.includes('humidity')) return 'hk-humidity';
+    if (name.includes('contact') || name.includes('door')) return 'hk-contact';
+    if (name.includes('leak') || name.includes('water')) return 'hk-leak';
+    if (name.includes('smoke') || name.includes('monoxide') || name.includes('dioxide')) return 'hk-smoke';
+    if (name.includes('security') || name.includes('alarm')) return 'hk-security';
+    if (name.includes('camera') || name.includes('video')) return 'hk-camera';
+    if (name.includes('tv') || name.includes('television')) return 'hk-tv';
+    if (name.includes('speaker') || name.includes('audio')) return 'hk-speaker';
+    if (name.includes('valve') || name.includes('faucet') || name.includes('irrigation')) return 'hk-valve';
+
+    return null;
+  });
+
   readonly isWorkflowLog = computed(() => {
     const cat = this.log().category;
     return cat === LogCategory.WorkflowExecution || cat === LogCategory.WorkflowError;
@@ -182,6 +211,21 @@ export class LogRowComponent {
       cancelled: 'var(--status-warning)',
     };
     return map[s] || 'var(--text-secondary)';
+  });
+
+  /** Human-readable status label. */
+  readonly workflowStatusLabel = computed(() => {
+    const s = this.workflowStatus();
+    if (!s) return '';
+    const map: Record<ExecutionStatus, string> = {
+      running: 'Running',
+      success: 'Success',
+      failure: 'Failed',
+      skipped: 'Skipped',
+      conditionNotMet: 'Condition Not Met',
+      cancelled: 'Cancelled',
+    };
+    return map[s] || s;
   });
 
   /** Trigger description from the embedded execution log. */

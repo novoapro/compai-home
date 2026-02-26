@@ -153,7 +153,11 @@ struct ConditionEvaluator {
         let currentValue = findCharacteristicValue(in: device, characteristicType: resolvedType, serviceId: condition.serviceId)
         let passed = Self.compare(currentValue as Any, using: condition.comparison)
         let compDesc = Self.comparisonDescription(condition.comparison)
-        return (passed, "\(device.name).\(displayName) \(compDesc) = \(passed)")
+
+        let roomPart = device.roomName.map { " (\($0))" } ?? ""
+        let svcName = resolveServiceDisplayName(in: device, serviceId: condition.serviceId)
+        let svcPart = svcName.map { "\($0)." } ?? ""
+        return (passed, "\(device.name)\(roomPart) \(svcPart)\(displayName) \(compDesc) = \(passed)")
     }
 
     private func evaluateTimeCondition(_ condition: TimeCondition) -> (Bool, String) {
@@ -290,6 +294,12 @@ struct ConditionEvaluator {
             }
         }
         return nil
+    }
+
+    private func resolveServiceDisplayName(in device: DeviceModel, serviceId: String?) -> String? {
+        guard let serviceId else { return nil }
+        let resolvedId = registry?.readHomeKitServiceId(serviceId) ?? serviceId
+        return device.services.first(where: { $0.id == resolvedId })?.displayName
     }
 
     // MARK: - Orphan Logging

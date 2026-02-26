@@ -182,6 +182,16 @@
   padding-left: 20px;
 }
 
+.characteristic {
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+  margin-right: 4px;
+}
+
+.service-name {
+  color: var(--text-secondary);
+}
+
 .old-val {
   color: var(--text-tertiary);
 }

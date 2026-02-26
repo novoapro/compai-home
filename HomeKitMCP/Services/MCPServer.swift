@@ -895,8 +895,9 @@ class MCPServer: ObservableObject, MCPServerProtocol, @unchecked Sendable {
             let triggerEvent = TriggerEvent(
                 deviceId: nil,
                 deviceName: nil,
-                serviceId: nil,
-                characteristicType: nil,
+                serviceName: nil,
+                characteristicName: nil,
+                roomName: nil,
                 oldValue: nil,
                 newValue: nil,
                 triggerDescription: "Webhook received (token \(String(token.prefix(8)))…)"

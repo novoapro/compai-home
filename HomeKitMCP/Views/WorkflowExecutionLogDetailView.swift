@@ -330,10 +330,32 @@ struct WorkflowExecutionLogDetailView: View {
                 }
             }
 
-            // Characteristic + value change
-            if let charType = trigger.characteristicType {
-                let charName = CharacteristicTypes.displayName(for: charType)
+            // Room
+            if let roomName = trigger.roomName {
+                HStack(spacing: 6) {
+                    Image(systemName: "mappin.and.ellipse")
+                        .font(.footnote)
+                        .foregroundColor(Theme.Text.tertiary)
+                    Text(roomName)
+                        .font(.subheadline)
+                        .foregroundColor(Theme.Text.secondary)
+                }
+            }
 
+            // Service
+            if let serviceName = trigger.serviceName {
+                HStack(spacing: 6) {
+                    Image(systemName: "cpu")
+                        .font(.footnote)
+                        .foregroundColor(Theme.Text.tertiary)
+                    Text(serviceName)
+                        .font(.subheadline)
+                        .foregroundColor(Theme.Text.secondary)
+                }
+            }
+
+            // Characteristic + value change
+            if let charName = trigger.characteristicName {
                 HStack(spacing: 6) {
                     Image(systemName: "slider.horizontal.3")
                         .font(.footnote)
@@ -351,7 +373,7 @@ struct WorkflowExecutionLogDetailView: View {
                             .foregroundColor(Theme.Text.tertiary)
 
                         if let oldVal = trigger.oldValue {
-                            Text(CharacteristicTypes.formatValue(oldVal.value, characteristicType: charType))
+                            Text("\(oldVal.value)")
                                 .font(.subheadline)
                                 .foregroundColor(Theme.Text.secondary)
 
@@ -361,7 +383,7 @@ struct WorkflowExecutionLogDetailView: View {
                         }
 
                         if let newVal = trigger.newValue {
-                            Text(CharacteristicTypes.formatValue(newVal.value, characteristicType: charType))
+                            Text("\(newVal.value)")
                                 .font(.subheadline)
                                 .fontWeight(.semibold)
                                 .foregroundColor(Theme.Text.primary)

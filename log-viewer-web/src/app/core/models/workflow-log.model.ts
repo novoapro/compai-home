@@ -3,8 +3,9 @@ export type ExecutionStatus = 'running' | 'success' | 'failure' | 'skipped' | 'c
 export interface TriggerEvent {
   deviceId?: string;
   deviceName?: string;
-  serviceId?: string;
-  characteristicType?: string;
+  serviceName?: string;
+  characteristicName?: string;
+  roomName?: string;
   oldValue?: any;
   newValue?: any;
   triggerDescription?: string;

@@ -117,6 +117,8 @@ export class PollingService {
     this.updateLatestTimestamp([log]);
   }
 
+  private static readonly TERMINAL_STATUSES = new Set(['success', 'failure', 'skipped', 'conditionNotMet', 'cancelled']);
+
   /** Update an existing log entry in-place (e.g. a running workflow whose blocks are progressing). */
   updateLog(log: StateChangeLog): void {
     const current = this.logs();
@@ -124,6 +126,13 @@ export class PollingService {
     if (idx === -1) {
       // Not yet in the list — inject it as new
       this.injectLog(log);
+      return;
+    }
+    // Don't let a stale "running" update overwrite a terminal status.
+    // WebSocket messages can arrive out of order due to concurrent Task dispatch on the server.
+    const existingStatus = current[idx].workflowExecution?.status;
+    const incomingStatus = log.workflowExecution?.status;
+    if (existingStatus && PollingService.TERMINAL_STATUSES.has(existingStatus) && incomingStatus === 'running') {
       return;
     }
     const updated = [...current];

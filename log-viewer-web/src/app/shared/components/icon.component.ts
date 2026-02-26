@@ -84,6 +84,15 @@ import { Component, input } from '@angular/core';
           <rect x="3" y="13" width="8" height="8" rx="1.5" stroke="currentColor" stroke-width="2" fill="none"/>
           <rect x="13" y="13" width="8" height="8" rx="1.5" stroke="currentColor" stroke-width="2" fill="none"/>
         }
+        @case ('map-pin') {
+          <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" stroke="currentColor" stroke-width="2" fill="none"/>
+          <circle cx="12" cy="9" r="2.5" stroke="currentColor" stroke-width="2" fill="none"/>
+        }
+        @case ('cpu') {
+          <rect x="5" y="5" width="14" height="14" rx="2" stroke="currentColor" stroke-width="2" fill="none"/>
+          <rect x="9" y="9" width="6" height="6" rx="1" stroke="currentColor" stroke-width="2" fill="none"/>
+          <path d="M9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/>
+        }
         @case ('house') {
           <path d="M3 10.5L12 3l9 7.5V20a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V10.5z" stroke="currentColor" stroke-width="2" stroke-linejoin="round" fill="none"/>
           <path d="M9 21V13h6v8" stroke="currentColor" stroke-width="2" stroke-linejoin="round" fill="none"/>
@@ -159,6 +168,83 @@ import { Component, input } from '@angular/core';
         }
         @case ('eye-slash') {
           <path d="M9.88 9.88a3 3 0 1 0 4.24 4.24M10.73 5.08A10.43 10.43 0 0 1 12 5c4.477 0 8.268 2.943 9.542 7a10.26 10.26 0 0 1-2.04 3.3M8.47 18.15C7.4 17.7 6.39 17.07 5.5 16.3M2 2l20 20" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/>
+        }
+        @case ('hk-lightbulb') {
+          <path d="M9 18h6m-1 3h-4m1.5-6.816A5.5 5.5 0 1 0 6.5 8c0 1.6.65 3.06 1.7 4.1L9 13v2a1 1 0 0 0 1 1h4a1 1 0 0 0 1-1v-2l.8-1.1A5.5 5.5 0 0 0 17.5 8 5.5 5.5 0 0 0 12 2.5z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+        }
+        @case ('hk-switch') {
+          <rect x="6" y="4" width="12" height="16" rx="2" stroke="currentColor" stroke-width="2" fill="none"/>
+          <circle cx="12" cy="15" r="2" stroke="currentColor" stroke-width="2" fill="none"/>
+        }
+        @case ('hk-outlet') {
+          <rect x="5" y="5" width="14" height="14" rx="2" stroke="currentColor" stroke-width="2" fill="none"/>
+          <circle cx="9" cy="11" r="1.5" fill="currentColor"/>
+          <circle cx="15" cy="11" r="1.5" fill="currentColor"/>
+          <path d="M12 14v4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        }
+        @case ('hk-fan') {
+          <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2" fill="none"/>
+          <path d="M12 9A5 5 0 0 0 7 4a5 5 0 0 1 5 5M12 15a5 5 0 0 0 5 5 5 5 0 0 1-5-5M15 12a5 5 0 0 0 5-5 5 5 0 0 1-5 5M9 12a5 5 0 0 0-5 5 5 5 0 0 1 5-5" stroke="currentColor" stroke-width="2" fill="none"/>
+        }
+        @case ('hk-thermostat') {
+          <circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="2" fill="none"/>
+          <path d="M10 14A2.5 2.5 0 1 0 14 14V8a2 2 0 1 0-4 0v6z" stroke="currentColor" stroke-width="2" fill="none" />
+        }
+        @case ('hk-garage') {
+          <rect x="4" y="4" width="16" height="16" rx="1" stroke="currentColor" stroke-width="2" fill="none"/>
+          <path d="M4 9h16M4 14h16M12 14v6" stroke="currentColor" stroke-width="2" fill="none"/>
+        }
+        @case ('hk-lock') {
+          <rect x="5" y="11" width="14" height="10" rx="2" stroke="currentColor" stroke-width="2" fill="none"/>
+          <path d="M8 11V7a4 4 0 1 1 8 0v4" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/>
+        }
+        @case ('hk-window-covering') {
+          <rect x="4" y="4" width="16" height="16" rx="1" stroke="currentColor" stroke-width="2" fill="none"/>
+          <path d="M4 8h16M4 12h16M4 16h16" stroke="currentColor" stroke-width="2" fill="none"/>
+        }
+        @case ('hk-motion') {
+          <circle cx="12" cy="12" r="3" fill="currentColor"/>
+          <path d="M16 16c1.5-1 2.5-2.5 2.5-4.5S17.5 8 16 7M20 20c2.5-2 4-5 4-8.5S22.5 5 20 3M8 16c-1.5-1-2.5-2.5-2.5-4.5S6.5 8 8 7M4 20C1.5 18 0 15 0 11.5S1.5 5 4 3" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/>
+        }
+        @case ('hk-occupancy') {
+          <circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="2" fill="none"/>
+          <path d="M5 21v-2a5 5 0 0 1 5-5h4a5 5 0 0 1 5 5v2" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/>
+        }
+        @case ('hk-temperature') {
+          <path d="M14 14.76V5a2 2 0 1 0-4 0v9.76a4 4 0 1 0 4 0z" stroke="currentColor" stroke-width="2" fill="none"/>
+        }
+        @case ('hk-humidity') {
+          <path d="M12 22a6 6 0 0 0 6-6c0-4-6-11-6-11S6 12 6 16a6 6 0 0 0 6 6z" stroke="currentColor" stroke-width="2" fill="none"/>
+        }
+        @case ('hk-contact') {
+          <path d="M6 3v18M18 3v18M10 12h4" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/>
+        }
+        @case ('hk-leak') {
+          <path d="M12 18s4-3 4-6c0-2-4-8-4-8s-4 6-4 8c0 3 4 6 4 6z" stroke="currentColor" stroke-width="2" fill="none"/>
+          <path d="M12 2v2M8 4l2 2M16 4l-2 2" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/>
+        }
+        @case ('hk-smoke') {
+          <circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="2" fill="none"/>
+          <path d="M10 16s-2-2-2-4 2-4 2-4M14 16s2-2 2-4-2-4-2-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"/>
+        }
+        @case ('hk-security') {
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" stroke="currentColor" stroke-width="2" stroke-linejoin="round" fill="none"/>
+          <path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+        }
+        @case ('hk-camera') {
+          <path d="M22 6l-6 4v-2c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2v-2l6 4V6z" stroke="currentColor" stroke-width="2" stroke-linejoin="round" fill="none"/>
+        }
+        @case ('hk-tv') {
+          <rect x="2" y="6" width="20" height="12" rx="2" stroke="currentColor" stroke-width="2" fill="none"/>
+          <path d="M7 22l5-4 5 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+        }
+        @case ('hk-speaker') {
+          <path d="M11 5L6 9H2v6h4l5 4V5z" stroke="currentColor" stroke-width="2" stroke-linejoin="round" fill="none"/>
+          <path d="M15.5 8c1 1.5 1 4.5 0 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/>
+          <path d="M19 5c2.5 3.5 2.5 8.5 0 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/>
+        }
+        @case ('hk-valve') {
+          <path d="M3 10h18M3 14h18M12 10V6M8 6h8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
         }
         @default {
           <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" fill="none"/>

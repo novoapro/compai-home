@@ -17,15 +17,18 @@
         <div class="header-right">
           <span class="time">{{ timeStr() }}</span>
         </div>
-        <!-- Chevron -->
-        @if (isExpandable()) {
-          <div class="chevron" [class.expanded]="expanded()">
-            <app-icon name="chevron-right" [size]="14" />
-          </div>
-        }
       </div>
     </div>
-    @if (showServiceBadge() || log().roomName || workflowStatus()) {
+    @if (workflowStatus()) {
+      <div class="status-row">
+        <span
+          class="status-badge"
+          [style.color]="workflowStatusColor()"
+          [style.background-color]="workflowStatusColor() + '22'"
+          >{{ workflowStatusLabel() }}</span
+        >
+      </div>
+    } @else if (showServiceBadge() || log().roomName) {
       <div class="room-row">
         @if (log().roomName) {
           <span
@@ -35,21 +38,23 @@
             >{{ log().roomName }}</span
           >
         }
-        @if (workflowStatus(); as status) {
-          <span
-            class="status-badge"
-            [style.color]="workflowStatusColor()"
-            [style.background-color]="workflowStatusColor() + '22'"
-            >{{ status }}</span
-          >
-        }
         @if (showServiceBadge()) {
-          <span
-            class="service-badge"
-            [style.background]="serviceBadgeColors()[0]"
-            [style.color]="serviceBadgeColors()[1]"
-            >{{ log().serviceName }}</span
-          >
+          @if (serviceIconMatch(); as sIcon) {
+            <span
+              class="service-badge-icon"
+              [style.color]="serviceBadgeColors()[1]"
+              [title]="log().serviceName"
+            >
+              <app-icon [name]="sIcon" [size]="14" />
+            </span>
+          } @else {
+            <span
+              class="service-badge"
+              [style.background]="serviceBadgeColors()[0]"
+              [style.color]="serviceBadgeColors()[1]"
+              >{{ log().serviceName }}</span
+            >
+          }
         }
       </div>
     }
@@ -69,7 +74,6 @@
         } @else if (showValueChange()) {
           <div class="value-indicator">
             <span class="characteristic">{{ displayCharacteristicType() }}</span>
-            <span class="old">{{ formattedOldValue() }}</span>
             <app-icon name="arrow-right" [size]="10" />
             <span class="new">{{ formattedNewValue() }}</span>
           </div>
@@ -92,9 +96,6 @@
       @case ('rest_call') {
         <div class="api-content">
           <span class="method-badge rest">{{ log().characteristicType || 'REST' }}</span>
-          @if (log().requestBody) {
-            <span class="api-text">{{ log().requestBody }}</span>
-          }
         </div>
         @if (log().responseBody) {
           <div class="api-result">
@@ -191,6 +192,12 @@
           <div class="sub-content">{{ log().responseBody }}</div>
         }
       }
+    }
+    @if (isExpandable()) {
+      <div class="interact-hint">
+        <span class="hint-text">{{ expanded() ? 'Collapse details' : 'View full details' }}</span>
+        <app-icon [name]="expanded() ? 'chevron-up' : 'chevron-down'" [size]="12" />
+      </div>
     }
   </div>
 

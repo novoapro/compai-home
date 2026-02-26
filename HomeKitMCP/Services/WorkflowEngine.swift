@@ -471,8 +471,9 @@ actor WorkflowEngine: WorkflowEngineProtocol {
             return TriggerEvent(
                 deviceId: c.deviceId,
                 deviceName: c.deviceName,
-                serviceId: c.serviceId,
-                characteristicType: c.characteristicType,
+                serviceName: c.serviceName,
+                characteristicName: charName,
+                roomName: c.roomName,
                 oldValue: c.oldValue.map { AnyCodable($0) },
                 newValue: c.newValue.map { AnyCodable($0) },
                 triggerDescription: desc
@@ -656,7 +657,9 @@ actor WorkflowEngine: WorkflowEngineProtocol {
                     try await self.executeControlDevice(a, workflowId: context.workflow.id, workflowName: context.workflow.name)
                     let deviceName = await self.resolveDeviceName(a.deviceId)
                     let charName = CharacteristicTypes.displayName(for: a.characteristicType)
-                    result.detail = "Set \(charName) to \(a.value.value) on \(deviceName)"
+                    let svcName = await self.resolveServiceDisplayName(deviceId: a.deviceId, serviceId: a.serviceId)
+                    let svcSuffix = svcName.map { " (\($0))" } ?? ""
+                    result.detail = "Set \(charName) to \(a.value.value) on \(deviceName)\(svcSuffix)"
                 case let .webhook(a):
                     try await self.executeWebhook(a)
                     result.detail = "\(a.method) \(a.url)"
@@ -838,17 +841,19 @@ actor WorkflowEngine: WorkflowEngineProtocol {
             case let .waitForState(block):
                 let waitDeviceName = await resolveDeviceName(block.deviceId)
                 let waitCharName = CharacteristicTypes.displayName(for: block.characteristicType)
-                result.detail = "Waiting for \(waitDeviceName) \(waitCharName)..."
+                let waitSvcName = await resolveServiceDisplayName(deviceId: block.deviceId, serviceId: block.serviceId)
+                let waitSvcSuffix = waitSvcName.map { " (\($0))" } ?? ""
+                result.detail = "Waiting for \(waitDeviceName) \(waitCharName)\(waitSvcSuffix)..."
                 await onUpdate(result)
 
                 let matched = try await waitForState(block, workflowId: context.workflow.id, workflowName: context.workflow.name) { elapsedSeconds in
                     // Update parent with elapsed time while waiting
-                    result.detail = "Waiting for \(waitDeviceName) \(waitCharName)... (\(String(format: "%.1f", elapsedSeconds))s)"
+                    result.detail = "Waiting for \(waitDeviceName) \(waitCharName)\(waitSvcSuffix)... (\(String(format: "%.1f", elapsedSeconds))s)"
                     await onUpdate(result)
                 }
                 result.detail = matched
-                    ? "Waited for \(waitDeviceName) \(waitCharName) — condition met"
-                    : "Waited for \(waitDeviceName) \(waitCharName) — timed out after \(block.timeoutSeconds)s"
+                    ? "Waited for \(waitDeviceName) \(waitCharName)\(waitSvcSuffix) — condition met"
+                    : "Waited for \(waitDeviceName) \(waitCharName)\(waitSvcSuffix) — timed out after \(block.timeoutSeconds)s"
                 result.status = matched ? .success : .failure
                 if !matched {
                     result.errorMessage = "Timed out after \(block.timeoutSeconds)s"
@@ -1102,8 +1107,8 @@ actor WorkflowEngine: WorkflowEngineProtocol {
                 }
 
                 let triggerEvent = TriggerEvent(
-                    deviceId: nil, deviceName: nil, serviceId: nil,
-                    characteristicType: nil, oldValue: nil, newValue: nil,
+                    deviceId: nil, deviceName: nil, serviceName: nil,
+                    characteristicName: nil, roomName: nil, oldValue: nil, newValue: nil,
                     triggerDescription: "Called from workflow '\(context.workflow.name)'"
                 )
 
@@ -1198,6 +1203,14 @@ actor WorkflowEngine: WorkflowEngineProtocol {
             return device.name
         }
         return deviceId
+    }
+
+    private func resolveServiceDisplayName(deviceId: String, serviceId: String?) async -> String? {
+        guard let serviceId else { return nil }
+        let device = await MainActor.run { homeKitManager.getDeviceState(id: deviceId) }
+        guard let device else { return nil }
+        let resolvedId = registry?.readHomeKitServiceId(serviceId) ?? serviceId
+        return device.services.first(where: { $0.id == resolvedId })?.displayName
     }
 
     private func resolveWorkflowName(_ workflowId: UUID) async -> String {

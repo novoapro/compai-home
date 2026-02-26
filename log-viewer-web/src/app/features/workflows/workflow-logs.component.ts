@@ -60,6 +60,9 @@ export class WorkflowLogsComponent implements OnInit, OnDestroy {
       } else if (msg.type === 'updated') {
         const idx = current.findIndex(l => l.id === msg.data.id);
         if (idx >= 0) {
+          // Don't let a stale "running" update overwrite a terminal status (out-of-order WS messages)
+          const existing = current[idx].status;
+          if (existing !== 'running' && msg.data.status === 'running') return;
           const updated = [...current];
           updated[idx] = msg.data;
           this.executionLogs.set(updated);

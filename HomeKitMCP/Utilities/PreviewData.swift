@@ -342,8 +342,9 @@ enum PreviewData {
             triggerEvent: TriggerEvent(
                 deviceId: "device-1",
                 deviceName: "Living Room Light",
-                serviceId: "service-1",
-                characteristicType: "power",
+                serviceName: "Lightbulb",
+                characteristicName: "Power",
+                roomName: "Living Room",
                 oldValue: AnyCodable(false),
                 newValue: AnyCodable(true),
                 triggerDescription: "Power turned on"
@@ -388,8 +389,9 @@ enum PreviewData {
             triggerEvent: TriggerEvent(
                 deviceId: "device-2",
                 deviceName: "Bedroom Light",
-                serviceId: "service-1",
-                characteristicType: "power",
+                serviceName: "Lightbulb",
+                characteristicName: "Power",
+                roomName: "Bedroom",
                 oldValue: AnyCodable(true),
                 newValue: AnyCodable(false),
                 triggerDescription: "Power turned off"
@@ -434,8 +436,9 @@ enum PreviewData {
             triggerEvent: TriggerEvent(
                 deviceId: "device-3",
                 deviceName: "Front Door Lock",
-                serviceId: "service-2",
-                characteristicType: "lock_state",
+                serviceName: "Lock Mechanism",
+                characteristicName: "Lock State",
+                roomName: "Hallway",
                 oldValue: AnyCodable(false),
                 newValue: AnyCodable(true),
                 triggerDescription: "Door locked"

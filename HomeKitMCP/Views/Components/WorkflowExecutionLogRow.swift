@@ -170,8 +170,9 @@ struct WorkflowExecutionLogRow: View {
                 triggerEvent: TriggerEvent(
                     deviceId: "device-1",
                     deviceName: "Living Room",
-                    serviceId: "service-1",
-                    characteristicType: "power",
+                    serviceName: "Lightbulb",
+                    characteristicName: "Power",
+                    roomName: "Living Room",
                     oldValue: nil,
                     newValue: nil,
                     triggerDescription: "Device state changed"
@@ -206,8 +207,9 @@ struct WorkflowExecutionLogRow: View {
                 triggerEvent: TriggerEvent(
                     deviceId: "device-1",
                     deviceName: "Living Room",
-                    serviceId: "service-1",
-                    characteristicType: "power",
+                    serviceName: "Lightbulb",
+                    characteristicName: "Power",
+                    roomName: "Living Room",
                     oldValue: nil,
                     newValue: nil,
                     triggerDescription: "Device state changed"

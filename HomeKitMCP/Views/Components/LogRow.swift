@@ -298,8 +298,8 @@ struct LogRow: View {
         return VStack(alignment: .leading, spacing: 4) {
             if let trigger = e.triggerEvent {
                 let desc = trigger.triggerDescription ?? {
-                    guard let deviceName = trigger.deviceName else { return nil }
-                    let charName = trigger.characteristicType.map { CharacteristicTypes.displayName(for: $0) } ?? ""
+                    guard let deviceName = trigger.deviceName else { return nil as String? }
+                    let charName = trigger.characteristicName ?? ""
                     let oldStr = trigger.oldValue.map { "\($0.value)" } ?? "?"
                     let newStr = trigger.newValue.map { "\($0.value)" } ?? "?"
                     return "\(deviceName) \(charName): \(oldStr) → \(newStr)"
