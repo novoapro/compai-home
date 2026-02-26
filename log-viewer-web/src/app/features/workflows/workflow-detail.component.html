@@ -98,19 +98,9 @@
               <span>{{ l.triggerEvent.serviceName }}</span>
             </div>
           }
-          @if (l.triggerEvent.characteristicName) {
-            <div class="trigger-row">
-              <app-icon name="slider-horizontal" [size]="14" />
-              <span>{{ l.triggerEvent.characteristicName }}</span>
-            </div>
-          }
 
           @if (triggerValueChange(); as vc) {
             <div class="trigger-row value-change">
-              @if (vc.serviceName) {
-                <span class="service-name">{{ vc.serviceName }}</span>
-                <span class="sep">&middot;</span>
-              }
               <span class="characteristic">{{ vc.charName }}</span>
               <app-icon name="arrow-right" [size]="12" />
               <span class="new-val">{{ vc.new }}</span>
