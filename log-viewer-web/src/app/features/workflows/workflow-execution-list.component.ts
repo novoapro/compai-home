@@ -43,7 +43,7 @@ import { PullToRefreshDirective } from '../../shared/directives/pull-to-refresh.
       <!-- Skeleton Loading -->
       @if (isLoading() && executionLogs().length === 0) {
         <div class="skeleton-list">
-          @for (i of [1,2,3,4]; track i) {
+          @for (i of [1,2,3,4,5,6,7,8,9,10]; track i) {
             <div class="skeleton-card skeleton" [style.animation-delay.ms]="i * 100"></div>
           }
         </div>

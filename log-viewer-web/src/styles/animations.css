@@ -120,10 +120,11 @@
 }
 
 .skeleton {
-  background: linear-gradient(90deg, var(--bg-detail) 25%, var(--bg-hover) 50%, var(--bg-detail) 75%);
+  background: linear-gradient(90deg, var(--bg-card) 25%, var(--bg-pill) 50%, var(--bg-card) 75%);
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
   border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-card);
 }
 
 /* Page content fade-in */

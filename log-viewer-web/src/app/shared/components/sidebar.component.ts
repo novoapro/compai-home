@@ -28,13 +28,13 @@ import { ThemeService } from '../../core/services/theme.service';
 
       <!-- Navigation -->
       <div class="sidebar-nav">
-        <a routerLink="/logs" routerLinkActive="active" class="nav-item" (click)="onNavClick()">
-          <app-icon name="bolt-circle-fill" [size]="20" />
-          <span class="nav-label">Logs</span>
-        </a>
         <a routerLink="/workflows" routerLinkActive="active" class="nav-item" (click)="onNavClick()">
           <app-icon name="play-circle-fill" [size]="20" />
           <span class="nav-label">Workflows</span>
+        </a>
+        <a routerLink="/logs" routerLinkActive="active" class="nav-item" (click)="onNavClick()">
+          <app-icon name="bolt-circle-fill" [size]="20" />
+          <span class="nav-label">Logs</span>
         </a>
       </div>
 

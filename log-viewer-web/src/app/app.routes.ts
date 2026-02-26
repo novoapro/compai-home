@@ -13,7 +13,7 @@ export const configGuard = () => {
 };
 
 export const routes: Routes = [
-  { path: '', redirectTo: 'logs', pathMatch: 'full' },
+  { path: '', redirectTo: 'workflows', pathMatch: 'full' },
   {
     path: 'logs',
     canActivate: [configGuard],
