@@ -245,7 +245,7 @@
     padding: var(--spacing-sm);
   }
   .section {
-    padding: var(--spacing-xs) var(--spacing-sm);
+    padding: var(--spacing-md) var(--spacing-md);
     margin-bottom: var(--spacing-sm);
     border-radius: var(--radius-sm);
   }
