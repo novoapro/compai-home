@@ -1,7 +1,9 @@
-import { Component, inject, signal, OnInit } from '@angular/core';
+import { Component, inject, signal, OnInit, OnDestroy } from '@angular/core';
 import { Location } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
+import { Subscription } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
+import { WebSocketService } from '../../core/services/websocket.service';
 import { MobileTopBarService } from '../../core/services/mobile-topbar.service';
 import { WorkflowDefinition } from '../../core/models/workflow-definition.model';
 import { IconComponent } from '../../shared/components/icon.component';
@@ -20,15 +22,18 @@ import { PullToRefreshDirective } from '../../shared/directives/pull-to-refresh.
   templateUrl: './workflow-definition.component.html',
   styleUrl: './workflow-definition.component.css',
 })
-export class WorkflowDefinitionComponent implements OnInit {
+export class WorkflowDefinitionComponent implements OnInit, OnDestroy {
   private route = inject(ActivatedRoute);
   private router = inject(Router);
   private location = inject(Location);
   private api = inject(ApiService);
+  private wsService = inject(WebSocketService);
   private topBar = inject(MobileTopBarService);
+  private wsSub?: Subscription;
 
   workflow = signal<WorkflowDefinition | null>(null);
   isLoading = signal(true);
+  isDuplicating = signal(false);
   error = signal<string | null>(null);
 
   private workflowId = '';
@@ -40,6 +45,16 @@ export class WorkflowDefinitionComponent implements OnInit {
   ngOnInit(): void {
     this.workflowId = this.route.snapshot.paramMap.get('workflowId') || '';
     this.loadWorkflow();
+
+    this.wsSub = this.wsService.workflowsUpdated$.subscribe(workflows => {
+      if (workflows.some(w => w.id === this.workflowId)) {
+        this.loadWorkflow();
+      }
+    });
+  }
+
+  ngOnDestroy(): void {
+    this.wsSub?.unsubscribe();
   }
 
   private loadWorkflow(): void {
@@ -69,8 +84,55 @@ export class WorkflowDefinitionComponent implements OnInit {
     }
   }
 
+  editWorkflow(): void {
+    this.router.navigate(['/workflows', this.workflowId, 'edit']);
+  }
+
+  deleteWorkflow(): void {
+    const wf = this.workflow();
+    if (!wf) return;
+    if (!confirm(`Delete "${wf.name}"? This cannot be undone.`)) return;
+    this.api.deleteWorkflow(this.workflowId).subscribe({
+      next: () => {
+        this.router.navigate(['/workflows']);
+      },
+      error: (err) => {
+        this.error.set(err?.message || 'Failed to delete workflow');
+      }
+    });
+  }
+
   viewExecutionLogs(): void {
     this.router.navigate(['/workflows', this.workflowId]);
+  }
+
+  duplicateWorkflow(): void {
+    const wf = this.workflow();
+    if (!wf) return;
+
+    this.isDuplicating.set(true);
+    const copy: Partial<WorkflowDefinition> = {
+      name: `${wf.name} (Copy)`,
+      description: wf.description,
+      isEnabled: false,
+      continueOnError: wf.continueOnError,
+      retriggerPolicy: wf.retriggerPolicy,
+      metadata: wf.metadata,
+      triggers: wf.triggers,
+      conditions: wf.conditions,
+      blocks: wf.blocks,
+    };
+
+    this.api.createWorkflow(copy).subscribe({
+      next: (created) => {
+        this.isDuplicating.set(false);
+        this.router.navigate(['/workflows', created.id, 'edit']);
+      },
+      error: (err) => {
+        this.isDuplicating.set(false);
+        this.error.set(err?.message || 'Failed to duplicate workflow');
+      }
+    });
   }
 
   formatDate(iso: string): string {

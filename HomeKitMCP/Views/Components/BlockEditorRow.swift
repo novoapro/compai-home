@@ -330,7 +330,7 @@ private struct ControlDeviceEditor: View {
             devices: devices,
             selectedDeviceId: draft.deviceId,
             selectedServiceId: draft.serviceId,
-            selectedCharacteristicType: draft.characteristicType,
+            selectedCharacteristicType: draft.characteristicId,
             onCharacteristicSelected: { char in
                 draft.wrappedValue.characteristicFormat = char?.format
                 draft.wrappedValue.characteristicMinValue = char?.minValue
@@ -341,7 +341,7 @@ private struct ControlDeviceEditor: View {
         )
         ValueEditor(
             value: draft.value,
-            characteristicType: draft.wrappedValue.characteristicType,
+            characteristicType: draft.wrappedValue.characteristicId,
             devices: devices,
             deviceId: draft.wrappedValue.deviceId,
             fallbackFormat: draft.wrappedValue.characteristicFormat,
@@ -493,7 +493,7 @@ private struct WaitForStateEditor: View {
             devices: devices,
             selectedDeviceId: draft.deviceId,
             selectedServiceId: draft.serviceId,
-            selectedCharacteristicType: draft.characteristicType,
+            selectedCharacteristicType: draft.characteristicId,
             onCharacteristicSelected: { char in
                 draft.wrappedValue.characteristicFormat = char?.format
                 draft.wrappedValue.characteristicMinValue = char?.minValue
@@ -506,7 +506,7 @@ private struct WaitForStateEditor: View {
         ComparisonValueRow(
             comparisonType: draft.comparisonType,
             value: draft.comparisonValue,
-            characteristicType: draft.wrappedValue.characteristicType,
+            characteristicType: draft.wrappedValue.characteristicId,
             devices: devices,
             deviceId: draft.wrappedValue.deviceId,
             fallbackFormat: draft.wrappedValue.characteristicFormat,

@@ -70,6 +70,22 @@ export class WorkflowLogsComponent implements OnInit, OnDestroy {
     this.router.navigate(['/workflows', workflow.id, 'definition']);
   }
 
+  newWorkflow(): void {
+    this.router.navigate(['/workflows/new']);
+  }
+
+  deleteWorkflow(workflow: Workflow): void {
+    if (!confirm(`Delete "${workflow.name}"? This cannot be undone.`)) return;
+    this.api.deleteWorkflow(workflow.id).subscribe({
+      next: () => {
+        this.workflows.update(list => list.filter(w => w.id !== workflow.id));
+      },
+      error: (err) => {
+        this.error.set(err?.message || 'Failed to delete workflow');
+      }
+    });
+  }
+
   toggleWorkflow(workflow: Workflow, enabled: boolean): void {
     // Optimistic update
     const current = this.workflows();

@@ -3,6 +3,12 @@ import Foundation
 /// Evaluates `.deviceStateChange` and `.compound` triggers against state change events.
 struct DeviceStateChangeTriggerEvaluator: TriggerEvaluator {
 
+    let registry: DeviceRegistryService?
+
+    init(registry: DeviceRegistryService? = nil) {
+        self.registry = registry
+    }
+
     func canEvaluate(_ trigger: WorkflowTrigger) -> Bool {
         switch trigger {
         case .deviceStateChange, .compound:
@@ -41,8 +47,10 @@ struct DeviceStateChangeTriggerEvaluator: TriggerEvaluator {
             guard change.serviceId == triggerServiceId else { return false }
         }
 
-        // Match characteristic type — support both UUID and human-readable name
-        let resolvedType = CharacteristicTypes.characteristicType(forName: trigger.characteristicType) ?? trigger.characteristicType
+        // Resolve stable characteristic ID → HomeKit characteristic type for matching
+        let resolvedType = registry?.readCharacteristicType(forStableId: trigger.characteristicId)
+            ?? CharacteristicTypes.characteristicType(forName: trigger.characteristicId)
+            ?? trigger.characteristicId
         guard change.characteristicType == resolvedType else { return false }
 
         // Evaluate condition

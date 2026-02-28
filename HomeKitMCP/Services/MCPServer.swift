@@ -228,6 +228,20 @@ class MCPServer: ObservableObject, MCPServerProtocol, @unchecked Sendable {
                 }
             }
             .store(in: &wsCancellables)
+
+        // Broadcast device registry changes (device added/removed/renamed)
+        if let registry {
+            registry.registrySyncSubject
+                .receive(on: DispatchQueue.global(qos: .utility))
+                .debounce(for: .seconds(0.5), scheduler: DispatchQueue.global(qos: .utility))
+                .sink { _ in
+                    Task {
+                        guard await tracker.wsConnectionCount > 0 else { return }
+                        await tracker.broadcastToWS("{\"type\":\"devices_updated\"}")
+                    }
+                }
+                .store(in: &wsCancellables)
+        }
     }
 
     private func broadcastWorkflowLog(_ entry: WorkflowExecutionLog, type: String, tracker: ConnectionTracker) {

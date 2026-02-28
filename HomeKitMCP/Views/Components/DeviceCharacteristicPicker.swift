@@ -58,21 +58,21 @@ struct DeviceCharacteristicPicker: View {
                     }
                     ForEach(characteristics) { item in
                         Button {
-                            selectedCharacteristicType = item.characteristic.type
+                            selectedCharacteristicType = item.characteristic.id
                             selectedServiceId = item.serviceId
                             onCharacteristicSelected?(item.characteristic)
                         } label: {
                             if showServicePrefix {
-                                Text("\(item.serviceName) › \(CharacteristicTypes.displayName(for: item.characteristic.type))")
+                                Text("\(item.serviceName) › \(item.characteristic.displayName)")
                             } else {
-                                Text(CharacteristicTypes.displayName(for: item.characteristic.type))
+                                Text(item.characteristic.displayName)
                             }
                         }
                     }
                 } label: {
                     HStack(spacing: 4) {
                         if !selectedCharacteristicType.isEmpty {
-                            Text(CharacteristicTypes.displayName(for: selectedCharacteristicType))
+                            Text(selectedCharacteristicDisplayName)
                                 .lineLimit(1)
                         } else {
                             Text("Characteristic…")
@@ -96,6 +96,18 @@ struct DeviceCharacteristicPicker: View {
 
     private var selectedDevice: DeviceModel? {
         devices.first(where: { $0.id == selectedDeviceId })
+    }
+
+    /// Resolves the display name for the currently selected characteristic (stored as a stable ID).
+    private var selectedCharacteristicDisplayName: String {
+        guard let device = selectedDevice else { return selectedCharacteristicType }
+        for service in device.services {
+            if let char = service.characteristics.first(where: { $0.id == selectedCharacteristicType }) {
+                return char.displayName
+            }
+        }
+        // Fallback: try matching by type (for backward compat with old drafts)
+        return CharacteristicTypes.displayName(for: selectedCharacteristicType)
     }
 
     // MARK: - Device Grouping
@@ -160,9 +172,8 @@ struct DeviceCharacteristicPicker: View {
         let serviceName: String
         let characteristic: CharacteristicModel
 
-        /// Composite identity: service + characteristic type, so the same characteristic type
-        /// on different services (e.g. Power on Switch 1 vs Power on Switch 2) stays unique.
-        var id: String { "\(serviceId):\(characteristic.type)" }
+        /// Composite identity: service + characteristic stable ID.
+        var id: String { "\(serviceId):\(characteristic.id)" }
     }
 
     private func flattenedCharacteristics(for device: DeviceModel) -> [CharacteristicItem] {

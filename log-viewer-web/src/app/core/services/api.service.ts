@@ -5,6 +5,7 @@ import { ConfigService } from './config.service';
 import { PaginatedLogsResponse, LogQueryParams } from '../models/api-response.model';
 import { WorkflowExecutionLog, Workflow } from '../models/workflow-log.model';
 import { WorkflowDefinition } from '../models/workflow-definition.model';
+import { RESTDevice, RESTScene } from '../models/homekit-device.model';
 
 @Injectable({ providedIn: 'root' })
 export class ApiService {
@@ -75,5 +76,25 @@ export class ApiService {
 
   updateWorkflow(workflowId: string, updates: Partial<Workflow>): Observable<Workflow> {
     return this.http.put<Workflow>(`${this.base}/workflows/${workflowId}`, updates);
+  }
+
+  updateWorkflowDefinition(workflowId: string, updates: Partial<WorkflowDefinition>): Observable<WorkflowDefinition> {
+    return this.http.put<WorkflowDefinition>(`${this.base}/workflows/${workflowId}`, updates);
+  }
+
+  createWorkflow(workflow: Partial<WorkflowDefinition>): Observable<WorkflowDefinition> {
+    return this.http.post<WorkflowDefinition>(`${this.base}/workflows`, workflow);
+  }
+
+  deleteWorkflow(workflowId: string): Observable<{ deleted: boolean }> {
+    return this.http.delete<{ deleted: boolean }>(`${this.base}/workflows/${workflowId}`);
+  }
+
+  getDevices(): Observable<RESTDevice[]> {
+    return this.http.get<RESTDevice[]>(`${this.base}/devices`);
+  }
+
+  getScenes(): Observable<RESTScene[]> {
+    return this.http.get<RESTScene[]>(`${this.base}/scenes`);
   }
 }

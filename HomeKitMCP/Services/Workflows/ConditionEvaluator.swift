@@ -137,14 +137,14 @@ struct ConditionEvaluator {
     }
 
     private func evaluateDeviceState(_ condition: DeviceStateCondition) async -> (Bool, String) {
-        let resolvedType = CharacteristicTypes.characteristicType(forName: condition.characteristicType) ?? condition.characteristicType
+        let resolvedType = registry?.readCharacteristicType(forStableId: condition.characteristicId)
+            ?? CharacteristicTypes.characteristicType(forName: condition.characteristicId)
+            ?? condition.characteristicId
         let displayName = CharacteristicTypes.displayName(for: resolvedType)
 
         guard let device = await MainActor.run(body: { homeKitManager.getDeviceState(id: condition.deviceId) }) else {
             await logOrphan(
                 location: "condition",
-                deviceName: condition.deviceName,
-                roomName: condition.roomName,
                 detail: "\(displayName): device not found"
             )
             return (false, "\(displayName): device not found — orphaned reference")
@@ -254,8 +254,6 @@ struct ConditionEvaluator {
             guard let device = await MainActor.run(body: { homeKitManager.getDeviceState(id: action.deviceId) }) else {
                 await logOrphan(
                     location: "scene condition '\(scene.name)'",
-                    deviceName: nil,
-                    roomName: nil,
                     detail: "device in scene not found"
                 )
                 allMatch = false
@@ -304,15 +302,11 @@ struct ConditionEvaluator {
 
     // MARK: - Orphan Logging
 
-    private func logOrphan(location: String, deviceName: String?, roomName: String?, detail: String) async {
+    private func logOrphan(location: String, detail: String) async {
         guard let workflowName else { return }
 
-        let deviceDesc = deviceName.map { name in
-            roomName.map { "\(name) (\($0))" } ?? name
-        } ?? "unknown device"
-
         // Orphan details are captured in the WorkflowExecutionLog's condition/block results.
-        AppLogger.workflow.warning("[\(workflowName)] Orphaned reference in \(location): \(deviceDesc)")
+        AppLogger.workflow.warning("[\(workflowName)] Orphaned reference in \(location): unknown device")
     }
 
     // MARK: - Comparison Logic

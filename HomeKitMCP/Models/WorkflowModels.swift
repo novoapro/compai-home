@@ -193,11 +193,10 @@ enum WorkflowAction: Codable {
 
     private enum CodingKeys: String, CodingKey {
         case type, name
-        case deviceId, serviceId, characteristicType, value
-        case deviceName, roomName, serviceType
+        case deviceId, serviceId, characteristicId, characteristicType, value
         case url, method, headers, body
         case message
-        case sceneId, sceneName
+        case sceneId
     }
 
     init(from decoder: Decoder) throws {
@@ -206,15 +205,14 @@ enum WorkflowAction: Codable {
         let name = try container.decodeIfPresent(String.self, forKey: .name)
         switch type {
         case .controlDevice:
+            let charId = try container.decodeIfPresent(String.self, forKey: .characteristicId)
+                ?? container.decode(String.self, forKey: .characteristicType)
             self = try .controlDevice(ControlDeviceAction(
                 deviceId: container.decode(String.self, forKey: .deviceId),
                 serviceId: container.decodeIfPresent(String.self, forKey: .serviceId),
-                characteristicType: container.decode(String.self, forKey: .characteristicType),
+                characteristicId: charId,
                 value: container.decode(AnyCodable.self, forKey: .value),
-                name: name,
-                deviceName: container.decodeIfPresent(String.self, forKey: .deviceName),
-                roomName: container.decodeIfPresent(String.self, forKey: .roomName),
-                serviceType: container.decodeIfPresent(String.self, forKey: .serviceType)
+                name: name
             ))
         case .webhook:
             self = try .webhook(WebhookActionConfig(
@@ -232,8 +230,7 @@ enum WorkflowAction: Codable {
         case .runScene, .activateScene:
             self = try .runScene(RunSceneAction(
                 sceneId: container.decode(String.self, forKey: .sceneId),
-                name: name,
-                sceneName: container.decodeIfPresent(String.self, forKey: .sceneName)
+                name: name
             ))
         }
     }
@@ -246,11 +243,8 @@ enum WorkflowAction: Codable {
             try container.encodeIfPresent(action.name, forKey: .name)
             try container.encode(action.deviceId, forKey: .deviceId)
             try container.encodeIfPresent(action.serviceId, forKey: .serviceId)
-            try container.encode(action.characteristicType, forKey: .characteristicType)
+            try container.encode(action.characteristicId, forKey: .characteristicId)
             try container.encode(action.value, forKey: .value)
-            try container.encodeIfPresent(action.deviceName, forKey: .deviceName)
-            try container.encodeIfPresent(action.roomName, forKey: .roomName)
-            try container.encodeIfPresent(action.serviceType, forKey: .serviceType)
         case let .webhook(action):
             try container.encode(ActionType.webhook, forKey: .type)
             try container.encodeIfPresent(action.name, forKey: .name)
@@ -266,7 +260,6 @@ enum WorkflowAction: Codable {
             try container.encode(ActionType.runScene, forKey: .type)
             try container.encodeIfPresent(action.name, forKey: .name)
             try container.encode(action.sceneId, forKey: .sceneId)
-            try container.encodeIfPresent(action.sceneName, forKey: .sceneName)
         }
     }
 
@@ -283,22 +276,16 @@ enum WorkflowAction: Codable {
 struct ControlDeviceAction {
     let deviceId: String
     let serviceId: String?
-    let characteristicType: String
+    let characteristicId: String
     let value: AnyCodable
     let name: String?
-    let deviceName: String?
-    let roomName: String?
-    let serviceType: String?
 
-    init(deviceId: String, serviceId: String? = nil, characteristicType: String, value: AnyCodable, name: String? = nil, deviceName: String? = nil, roomName: String? = nil, serviceType: String? = nil) {
+    init(deviceId: String, serviceId: String? = nil, characteristicId: String, value: AnyCodable, name: String? = nil) {
         self.deviceId = deviceId
         self.serviceId = serviceId
-        self.characteristicType = characteristicType
+        self.characteristicId = characteristicId
         self.value = value
         self.name = name
-        self.deviceName = deviceName
-        self.roomName = roomName
-        self.serviceType = serviceType
     }
 }
 
@@ -331,12 +318,10 @@ struct LogAction {
 struct RunSceneAction {
     let sceneId: String
     let name: String?
-    let sceneName: String?
 
-    init(sceneId: String, name: String? = nil, sceneName: String? = nil) {
+    init(sceneId: String, name: String? = nil) {
         self.sceneId = sceneId
         self.name = name
-        self.sceneName = sceneName
     }
 }
 
@@ -382,8 +367,7 @@ enum FlowControlBlock: Codable {
     private enum CodingKeys: String, CodingKey {
         case type, name
         case seconds
-        case deviceId, serviceId, characteristicType, condition, timeoutSeconds
-        case deviceName, roomName, serviceType
+        case deviceId, serviceId, characteristicId, characteristicType, condition, timeoutSeconds
         case thenBlocks, elseBlocks
         case count, blocks, delayBetweenSeconds
         case maxIterations
@@ -403,16 +387,15 @@ enum FlowControlBlock: Codable {
                 name: name
             ))
         case .waitForState:
+            let charId = try container.decodeIfPresent(String.self, forKey: .characteristicId)
+                ?? container.decode(String.self, forKey: .characteristicType)
             self = try .waitForState(WaitForStateBlock(
                 deviceId: container.decode(String.self, forKey: .deviceId),
                 serviceId: container.decodeIfPresent(String.self, forKey: .serviceId),
-                characteristicType: container.decode(String.self, forKey: .characteristicType),
+                characteristicId: charId,
                 condition: container.decode(ComparisonOperator.self, forKey: .condition),
                 timeoutSeconds: container.decode(Double.self, forKey: .timeoutSeconds),
-                name: name,
-                deviceName: container.decodeIfPresent(String.self, forKey: .deviceName),
-                roomName: container.decodeIfPresent(String.self, forKey: .roomName),
-                serviceType: container.decodeIfPresent(String.self, forKey: .serviceType)
+                name: name
             ))
         case .conditional:
             self = try .conditional(ConditionalBlock(
@@ -469,12 +452,9 @@ enum FlowControlBlock: Codable {
             try container.encodeIfPresent(block.name, forKey: .name)
             try container.encode(block.deviceId, forKey: .deviceId)
             try container.encodeIfPresent(block.serviceId, forKey: .serviceId)
-            try container.encode(block.characteristicType, forKey: .characteristicType)
+            try container.encode(block.characteristicId, forKey: .characteristicId)
             try container.encode(block.condition, forKey: .condition)
             try container.encode(block.timeoutSeconds, forKey: .timeoutSeconds)
-            try container.encodeIfPresent(block.deviceName, forKey: .deviceName)
-            try container.encodeIfPresent(block.roomName, forKey: .roomName)
-            try container.encodeIfPresent(block.serviceType, forKey: .serviceType)
         case let .conditional(block):
             try container.encode(FlowControlType.conditional, forKey: .type)
             try container.encodeIfPresent(block.name, forKey: .name)
@@ -539,24 +519,18 @@ struct DelayBlock {
 struct WaitForStateBlock {
     let deviceId: String
     let serviceId: String?
-    let characteristicType: String
+    let characteristicId: String
     let condition: ComparisonOperator
     let timeoutSeconds: Double
     let name: String?
-    let deviceName: String?
-    let roomName: String?
-    let serviceType: String?
 
-    init(deviceId: String, serviceId: String? = nil, characteristicType: String, condition: ComparisonOperator, timeoutSeconds: Double, name: String? = nil, deviceName: String? = nil, roomName: String? = nil, serviceType: String? = nil) {
+    init(deviceId: String, serviceId: String? = nil, characteristicId: String, condition: ComparisonOperator, timeoutSeconds: Double, name: String? = nil) {
         self.deviceId = deviceId
         self.serviceId = serviceId
-        self.characteristicType = characteristicType
+        self.characteristicId = characteristicId
         self.condition = condition
         self.timeoutSeconds = timeoutSeconds
         self.name = name
-        self.deviceName = deviceName
-        self.roomName = roomName
-        self.serviceType = serviceType
     }
 }
 
@@ -701,8 +675,7 @@ indirect enum WorkflowTrigger: Codable {
 
     private enum CodingKeys: String, CodingKey {
         case type, name
-        case deviceId, serviceId, characteristicType, condition
-        case deviceName, roomName, serviceType
+        case deviceId, serviceId, characteristicId, characteristicType, condition
         case logicOperator = "operator"
         case triggers
         case scheduleType, token
@@ -717,16 +690,15 @@ indirect enum WorkflowTrigger: Codable {
         let policy = try container.decodeIfPresent(ConcurrentExecutionPolicy.self, forKey: .retriggerPolicy)
         switch type {
         case .deviceStateChange:
+            let charId = try container.decodeIfPresent(String.self, forKey: .characteristicId)
+                ?? container.decode(String.self, forKey: .characteristicType)
             self = try .deviceStateChange(DeviceStateTrigger(
                 deviceId: container.decode(String.self, forKey: .deviceId),
                 serviceId: container.decodeIfPresent(String.self, forKey: .serviceId),
-                characteristicType: container.decode(String.self, forKey: .characteristicType),
+                characteristicId: charId,
                 condition: container.decode(TriggerCondition.self, forKey: .condition),
                 name: name,
-                deviceName: container.decodeIfPresent(String.self, forKey: .deviceName),
-                roomName: container.decodeIfPresent(String.self, forKey: .roomName),
-                retriggerPolicy: policy,
-                serviceType: container.decodeIfPresent(String.self, forKey: .serviceType)
+                retriggerPolicy: policy
             ))
         case .compound:
             self = try .compound(CompoundTrigger(
@@ -767,12 +739,9 @@ indirect enum WorkflowTrigger: Codable {
             try container.encodeIfPresent(trigger.name, forKey: .name)
             try container.encode(trigger.deviceId, forKey: .deviceId)
             try container.encodeIfPresent(trigger.serviceId, forKey: .serviceId)
-            try container.encode(trigger.characteristicType, forKey: .characteristicType)
+            try container.encode(trigger.characteristicId, forKey: .characteristicId)
             try container.encode(trigger.condition, forKey: .condition)
-            try container.encodeIfPresent(trigger.deviceName, forKey: .deviceName)
-            try container.encodeIfPresent(trigger.roomName, forKey: .roomName)
             try container.encodeIfPresent(trigger.retriggerPolicy, forKey: .retriggerPolicy)
-            try container.encodeIfPresent(trigger.serviceType, forKey: .serviceType)
         case let .compound(trigger):
             try container.encode(TriggerType.compound, forKey: .type)
             try container.encodeIfPresent(trigger.name, forKey: .name)
@@ -824,9 +793,8 @@ indirect enum WorkflowTrigger: Codable {
         case .deviceStateChange(let t):
             return .deviceStateChange(DeviceStateTrigger(
                 deviceId: t.deviceId, serviceId: t.serviceId,
-                characteristicType: t.characteristicType, condition: t.condition,
-                name: t.name, deviceName: t.deviceName, roomName: t.roomName,
-                retriggerPolicy: policy, serviceType: t.serviceType
+                characteristicId: t.characteristicId, condition: t.condition,
+                name: t.name, retriggerPolicy: policy
             ))
         case .compound(let t):
             return .compound(CompoundTrigger(
@@ -857,24 +825,18 @@ indirect enum WorkflowTrigger: Codable {
 struct DeviceStateTrigger {
     let deviceId: String
     let serviceId: String?
-    let characteristicType: String
+    let characteristicId: String
     let condition: TriggerCondition
     let name: String?
-    let deviceName: String?
-    let roomName: String?
     let retriggerPolicy: ConcurrentExecutionPolicy?
-    let serviceType: String?
 
-    init(deviceId: String, serviceId: String? = nil, characteristicType: String, condition: TriggerCondition, name: String? = nil, deviceName: String? = nil, roomName: String? = nil, retriggerPolicy: ConcurrentExecutionPolicy? = nil, serviceType: String? = nil) {
+    init(deviceId: String, serviceId: String? = nil, characteristicId: String, condition: TriggerCondition, name: String? = nil, retriggerPolicy: ConcurrentExecutionPolicy? = nil) {
         self.deviceId = deviceId
         self.serviceId = serviceId
-        self.characteristicType = characteristicType
+        self.characteristicId = characteristicId
         self.condition = condition
         self.name = name
-        self.deviceName = deviceName
-        self.roomName = roomName
         self.retriggerPolicy = retriggerPolicy
-        self.serviceType = serviceType
     }
 }
 
@@ -1208,13 +1170,12 @@ indirect enum WorkflowCondition: Codable {
 
     private enum CodingKeys: String, CodingKey {
         case type, conditions, condition
-        case deviceId, serviceId, characteristicType, comparison
-        case deviceName, roomName, serviceType
+        case deviceId, serviceId, characteristicId, characteristicType, comparison
         // timeCondition fields
         case mode, startTime, endTime
         // legacy sunEvent fields (decode only)
         case event, sunComparison
-        case sceneId, sceneName, isActive
+        case sceneId, isActive
         // blockResult fields
         case blockResultScope, expectedStatus
     }
@@ -1224,14 +1185,13 @@ indirect enum WorkflowCondition: Codable {
         let type = try container.decode(ConditionType.self, forKey: .type)
         switch type {
         case .deviceState:
+            let charId = try container.decodeIfPresent(String.self, forKey: .characteristicId)
+                ?? container.decode(String.self, forKey: .characteristicType)
             self = try .deviceState(DeviceStateCondition(
                 deviceId: container.decode(String.self, forKey: .deviceId),
                 serviceId: container.decodeIfPresent(String.self, forKey: .serviceId),
-                characteristicType: container.decode(String.self, forKey: .characteristicType),
-                comparison: container.decode(ComparisonOperator.self, forKey: .comparison),
-                deviceName: container.decodeIfPresent(String.self, forKey: .deviceName),
-                roomName: container.decodeIfPresent(String.self, forKey: .roomName),
-                serviceType: container.decodeIfPresent(String.self, forKey: .serviceType)
+                characteristicId: charId,
+                comparison: container.decode(ComparisonOperator.self, forKey: .comparison)
             ))
         case .timeCondition:
             self = try .timeCondition(TimeCondition(
@@ -1254,8 +1214,7 @@ indirect enum WorkflowCondition: Codable {
         case .sceneActive:
             self = try .sceneActive(SceneActiveCondition(
                 sceneId: container.decode(String.self, forKey: .sceneId),
-                isActive: container.decodeIfPresent(Bool.self, forKey: .isActive) ?? true,
-                sceneName: container.decodeIfPresent(String.self, forKey: .sceneName)
+                isActive: container.decodeIfPresent(Bool.self, forKey: .isActive) ?? true
             ))
         case .blockResult:
             self = try .blockResult(BlockResultCondition(
@@ -1278,11 +1237,8 @@ indirect enum WorkflowCondition: Codable {
             try container.encode(ConditionType.deviceState, forKey: .type)
             try container.encode(cond.deviceId, forKey: .deviceId)
             try container.encodeIfPresent(cond.serviceId, forKey: .serviceId)
-            try container.encode(cond.characteristicType, forKey: .characteristicType)
+            try container.encode(cond.characteristicId, forKey: .characteristicId)
             try container.encode(cond.comparison, forKey: .comparison)
-            try container.encodeIfPresent(cond.deviceName, forKey: .deviceName)
-            try container.encodeIfPresent(cond.roomName, forKey: .roomName)
-            try container.encodeIfPresent(cond.serviceType, forKey: .serviceType)
         case let .timeCondition(cond):
             try container.encode(ConditionType.timeCondition, forKey: .type)
             try container.encode(cond.mode, forKey: .mode)
@@ -1292,7 +1248,6 @@ indirect enum WorkflowCondition: Codable {
             try container.encode(ConditionType.sceneActive, forKey: .type)
             try container.encode(cond.sceneId, forKey: .sceneId)
             try container.encode(cond.isActive, forKey: .isActive)
-            try container.encodeIfPresent(cond.sceneName, forKey: .sceneName)
         case let .blockResult(cond):
             try container.encode(ConditionType.blockResult, forKey: .type)
             try container.encode(cond.scope, forKey: .blockResultScope)
@@ -1313,20 +1268,14 @@ indirect enum WorkflowCondition: Codable {
 struct DeviceStateCondition {
     let deviceId: String
     let serviceId: String?
-    let characteristicType: String
+    let characteristicId: String
     let comparison: ComparisonOperator
-    let deviceName: String?
-    let roomName: String?
-    let serviceType: String?
 
-    init(deviceId: String, serviceId: String? = nil, characteristicType: String, comparison: ComparisonOperator, deviceName: String? = nil, roomName: String? = nil, serviceType: String? = nil) {
+    init(deviceId: String, serviceId: String? = nil, characteristicId: String, comparison: ComparisonOperator) {
         self.deviceId = deviceId
         self.serviceId = serviceId
-        self.characteristicType = characteristicType
+        self.characteristicId = characteristicId
         self.comparison = comparison
-        self.deviceName = deviceName
-        self.roomName = roomName
-        self.serviceType = serviceType
     }
 }
 
@@ -1405,12 +1354,10 @@ struct TimeCondition: Codable {
 struct SceneActiveCondition: Codable {
     let sceneId: String
     let isActive: Bool
-    let sceneName: String?
 
-    init(sceneId: String, isActive: Bool = true, sceneName: String? = nil) {
+    init(sceneId: String, isActive: Bool = true) {
         self.sceneId = sceneId
         self.isActive = isActive
-        self.sceneName = sceneName
     }
 }
 

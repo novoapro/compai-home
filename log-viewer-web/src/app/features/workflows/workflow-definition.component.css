@@ -86,13 +86,43 @@
 
 .header-row {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: var(--spacing-md);
 }
 
 .header-info {
   flex: 1;
 }
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  flex-shrink: 0;
+}
+.header-icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-sm);
+  border: none;
+  background: none;
+  color: var(--tint-main);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+  font-family: inherit;
+}
+.header-icon-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--tint-main) 10%, transparent);
+}
+.header-icon-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.header-icon-btn.danger { color: var(--status-error); }
+.header-icon-btn.danger:hover { background: color-mix(in srgb, var(--status-error) 10%, transparent); }
 
 .name-row {
   display: flex;

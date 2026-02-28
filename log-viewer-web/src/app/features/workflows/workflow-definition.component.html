@@ -36,6 +36,17 @@
             <p class="workflow-description">{{ wf.description }}</p>
           }
         </div>
+        <div class="header-actions">
+          <button class="header-icon-btn" (click)="editWorkflow()" title="Edit">
+            <app-icon name="pencil" [size]="16" />
+          </button>
+          <button class="header-icon-btn" (click)="duplicateWorkflow()" [disabled]="isDuplicating()" title="Duplicate">
+            <app-icon name="copy" [size]="16" />
+          </button>
+          <button class="header-icon-btn danger" (click)="deleteWorkflow()" title="Delete">
+            <app-icon name="trash" [size]="16" />
+          </button>
+        </div>
       </div>
     </div>
 
@@ -69,7 +80,7 @@
         <span class="chip-value">{{ wf.continueOnError ? 'Yes' : 'No' }}</span>
       </span>
       @if (wf.metadata.tags && wf.metadata.tags.length > 0) {
-        @for (tag of wf.metadata.tags; track tag) {
+        @for (tag of wf.metadata.tags; track $index) {
           <span class="meta-chip chip-tag">
             <app-icon name="funnel" [size]="13" />
             <span class="chip-value">{{ tag }}</span>
@@ -108,7 +119,7 @@
         Blocks <span class="count">({{ wf.blocks.length }})</span>
       </h3>
       <div class="tree-content">
-        @for (block of wf.blocks; track block.blockId) {
+        @for (block of wf.blocks; track $index) {
           <app-definition-block-tree [block]="block" [depth]="0" />
         }
       </div>
@@ -119,5 +130,6 @@
       <span>View Execution Logs</span>
       <app-icon name="chevron-right" [size]="16" />
     </button>
+
   }
 </div>

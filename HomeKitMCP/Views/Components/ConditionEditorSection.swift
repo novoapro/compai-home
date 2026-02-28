@@ -436,7 +436,7 @@ private struct ConditionLeafEditSheet: View {
                 devices: devices,
                 selectedDeviceId: $condition.deviceId,
                 selectedServiceId: $condition.serviceId,
-                selectedCharacteristicType: $condition.characteristicType,
+                selectedCharacteristicType: $condition.characteristicId,
                 onCharacteristicSelected: { char in
                     condition.characteristicFormat = char?.format
                     condition.characteristicMinValue = char?.minValue
@@ -449,7 +449,7 @@ private struct ConditionLeafEditSheet: View {
             ComparisonValueRow(
                 comparisonType: $condition.comparisonType,
                 value: $condition.comparisonValue,
-                characteristicType: condition.characteristicType,
+                characteristicType: condition.characteristicId,
                 devices: devices,
                 deviceId: condition.deviceId,
                 fallbackFormat: condition.characteristicFormat,

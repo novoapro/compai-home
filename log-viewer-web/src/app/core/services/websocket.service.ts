@@ -26,6 +26,7 @@ export class WebSocketService {
   readonly logMessage$ = new Subject<StateChangeLog>();
   readonly workflowLogMessage$ = new Subject<{ type: 'new' | 'updated'; data: WorkflowExecutionLog }>();
   readonly workflowsUpdated$ = new Subject<Workflow[]>();
+  readonly devicesUpdated$ = new Subject<void>();
   readonly logsCleared$ = new Subject<void>();
   readonly reconnected$ = new Subject<void>();
 
@@ -78,6 +79,9 @@ export class WebSocketService {
               break;
             case 'workflows_updated':
               this.workflowsUpdated$.next(msg.data as Workflow[]);
+              break;
+            case 'devices_updated':
+              this.devicesUpdated$.next();
               break;
             case 'logs_cleared':
               this.logsCleared$.next();

@@ -60,15 +60,20 @@ import { RelativeTimePipe } from '../../../shared/pipes/relative-time.pipe';
         }
       </div>
 
-      <!-- Toggle -->
-      <label class="toggle-wrapper" (click)="$event.stopPropagation()">
-        <input
-          type="checkbox"
-          [checked]="workflow().isEnabled"
-          (change)="onToggleChange($event)"
-        />
-        <span class="toggle-track"></span>
-      </label>
+      <!-- Actions: delete + toggle -->
+      <div class="right-actions" (click)="$event.stopPropagation()">
+        <button class="delete-btn" (click)="deleteRequested.emit()" title="Delete workflow">
+          <app-icon name="trash" [size]="15" />
+        </button>
+        <label class="toggle-wrapper">
+          <input
+            type="checkbox"
+            [checked]="workflow().isEnabled"
+            (change)="onToggleChange($event)"
+          />
+          <span class="toggle-track"></span>
+        </label>
+      </div>
     </div>
   `,
   styles: [`
@@ -172,6 +177,32 @@ import { RelativeTimePipe } from '../../../shared/pipes/relative-time.pipe';
       margin-top: 4px;
     }
 
+    /* Right actions */
+    .right-actions {
+      flex-shrink: 0;
+      display: flex;
+      align-items: flex-start;
+      gap: var(--spacing-xs);
+      padding-top: 4px;
+    }
+    .delete-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 30px;
+      height: 30px;
+      border-radius: var(--radius-xs);
+      border: none;
+      background: none;
+      cursor: pointer;
+      color: var(--status-error);
+      opacity: 0;
+      transition: opacity var(--transition-fast), background var(--transition-fast);
+      font-family: inherit;
+    }
+    .workflow-card:hover .delete-btn { opacity: 0.6; }
+    .delete-btn:hover { opacity: 1 !important; background: color-mix(in srgb, var(--status-error) 10%, transparent); }
+
     /* Toggle switch */
     .toggle-wrapper {
       flex-shrink: 0;
@@ -179,7 +210,7 @@ import { RelativeTimePipe } from '../../../shared/pipes/relative-time.pipe';
       display: inline-flex;
       align-items: center;
       cursor: pointer;
-      padding-top: 6px;
+      padding-top: 3px;
     }
     .toggle-wrapper input {
       position: absolute;
@@ -236,6 +267,7 @@ export class WorkflowCardComponent {
   workflow = input.required<Workflow>();
   index = input(0);
   toggleEnabled = output<boolean>();
+  deleteRequested = output<void>();
 
   readonly triggerType = computed((): TriggerTypeKey => {
     const triggers = this.workflow().triggers;

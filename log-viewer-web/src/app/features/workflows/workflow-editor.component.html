@@ -1,0 +1,319 @@
+<div class="editor-page" [class.panel-open]="isPanelOpen()">
+  <!-- Back -->
+  <button class="back-btn" (click)="cancel()">
+    <app-icon name="chevron-down" [size]="14" />
+    <span>{{ isEditMode() ? 'Cancel Edit' : 'Cancel' }}</span>
+  </button>
+
+  <!-- Loading state -->
+  @if (isLoading()) {
+    <div class="loading-state">
+      <app-icon name="spinner" [size]="24" />
+      <span>Loading workflow...</span>
+    </div>
+  }
+
+  @if (loadError()) {
+    <div class="error-banner">
+      <app-icon name="exclamation-triangle" [size]="16" />
+      <span>{{ loadError() }}</span>
+    </div>
+  }
+
+  @if (!isLoading()) {
+    <!-- Page title -->
+    <div class="page-title">
+      <h1>{{ isEditMode() ? 'Edit Workflow' : 'New Workflow' }}</h1>
+    </div>
+
+    <!-- === SECTION: Basic Info (compact) === -->
+    <div class="section compact">
+      <mat-form-field appearance="fill" class="name-field" subscriptSizing="dynamic">
+        <mat-label>Workflow Name</mat-label>
+        <input matInput [value]="draft().name"
+               (input)="patchName($event)"
+               placeholder="Workflow name" autofocus />
+      </mat-form-field>
+
+      <mat-form-field appearance="fill" subscriptSizing="dynamic">
+        <mat-label>Description</mat-label>
+        <textarea matInput [value]="draft().description"
+                  (input)="patchDescription($event)"
+                  placeholder="Description (optional)" rows="1"
+                  cdkTextareaAutosize cdkAutosizeMinRows="1" cdkAutosizeMaxRows="4"></textarea>
+      </mat-form-field>
+
+      <div class="inline-row">
+        <mat-form-field appearance="fill" class="tags-field" subscriptSizing="dynamic">
+          <mat-label>Tags</mat-label>
+          <mat-chip-grid #chipGrid>
+            @for (tag of draft().tags; track $index) {
+              <mat-chip-row (removed)="removeTag(tag)">
+                {{ tag }}
+                <button matChipRemove>
+                  <mat-icon>cancel</mat-icon>
+                </button>
+              </mat-chip-row>
+            }
+          </mat-chip-grid>
+          <input matInput
+                 [matChipInputFor]="chipGrid"
+                 [matChipInputSeparatorKeyCodes]="separatorKeyCodes"
+                 (matChipInputTokenEnd)="addTagFromChipInput($event)"
+                 placeholder="+ tag" />
+        </mat-form-field>
+
+        <mat-slide-toggle
+          [checked]="draft().isEnabled"
+          (change)="patchDraft({ isEnabled: $event.checked })"
+          class="enabled-toggle">
+        </mat-slide-toggle>
+      </div>
+    </div>
+
+    <!-- === SECTION: Settings (collapsible) === -->
+    <mat-expansion-panel class="settings-panel" [expanded]="showSettings()"
+                         (opened)="showSettings.set(true)" (closed)="showSettings.set(false)"
+                         togglePosition="before">
+      <mat-expansion-panel-header>
+        <mat-panel-title>Settings</mat-panel-title>
+      </mat-expansion-panel-header>
+
+      <div class="toggle-row-compact">
+        <div>
+          <span class="toggle-label-sm">Continue on Error</span>
+          <span class="toggle-hint-sm">Required for Block Result conditions</span>
+        </div>
+        <mat-slide-toggle
+          [checked]="draft().continueOnError"
+          (change)="patchDraft({ continueOnError: $event.checked })">
+        </mat-slide-toggle>
+      </div>
+    </mat-expansion-panel>
+
+    <!-- === SECTION: Triggers === -->
+    <div class="section">
+      <div class="section-header">
+        <h3 class="section-title">Triggers</h3>
+        <span class="count-badge">{{ draft().triggers.length }}</span>
+      </div>
+
+      <div class="node-list">
+        @for (trigger of draft().triggers; track trigger._draftId; let i = $index) {
+          <div class="summary-node" (click)="openPanel('trigger', 'triggers', i, triggerName(trigger))">
+            <app-icon [name]="triggerIcon(trigger)" [size]="15" class="node-icon" />
+            <span class="node-name">{{ triggerName(trigger) }}</span>
+            <span class="node-badge">{{ triggerBadge(trigger) }}</span>
+            <div class="node-actions" (click)="$event.stopPropagation()">
+              <button mat-icon-button class="node-remove-btn" (click)="removeTrigger(i)" title="Remove">
+                <mat-icon>cancel</mat-icon>
+              </button>
+            </div>
+            <app-icon name="chevron-down" [size]="12" class="node-chevron" />
+          </div>
+        }
+      </div>
+
+      <button mat-stroked-button class="add-btn" (click)="addTrigger()" type="button">
+        <mat-icon>add_circle_outline</mat-icon>
+        Add Trigger
+      </button>
+    </div>
+
+    <!-- === SECTION: Guard Conditions === -->
+    <div class="section">
+      <div class="section-header">
+        <h3 class="section-title">Guard Conditions</h3>
+        @if (rootConditionGroup(); as root) {
+          <span class="count-badge">{{ conditionChildCount(root) }}</span>
+        }
+      </div>
+
+      @if (rootConditionGroup(); as root) {
+        <div class="node-list">
+          <div class="summary-node" (click)="openConditionGroup()">
+            <app-icon name="arrow-triangle-branch" [size]="15" class="node-icon" />
+            <div class="node-info">
+              <span class="node-name">{{ conditionGroupSummary(root) }}</span>
+            </div>
+            <span class="node-badge condition">{{ rootOperatorLabel(root) }}</span>
+            <app-icon name="chevron-down" [size]="12" class="node-chevron" />
+          </div>
+        </div>
+      } @else {
+        <p class="empty-hint">No conditions -- workflow will always run.</p>
+      }
+
+      <button mat-stroked-button class="add-btn" (click)="openConditionGroup()" type="button">
+        <mat-icon>{{ rootConditionGroup() ? 'edit' : 'add_circle_outline' }}</mat-icon>
+        {{ rootConditionGroup() ? 'Edit Conditions' : 'Add Conditions' }}
+      </button>
+    </div>
+
+    <!-- === SECTION: Blocks === -->
+    <div class="section">
+      <div class="section-header">
+        <h3 class="section-title">Blocks</h3>
+        <span class="count-badge">{{ draft().blocks.length }}</span>
+      </div>
+
+      <div class="node-list">
+        @for (block of draft().blocks; track block._draftId; let i = $index) {
+          <div class="summary-node" (click)="openPanel('block', 'blocks', i, blockName(block))">
+            <app-icon [name]="blockIcon(block)" [size]="15" class="node-icon" />
+            <div class="node-info">
+              <span class="node-name">{{ blockName(block) }}</span>
+              @if (blockChildCount(block)) {
+                <span class="node-children">{{ blockChildCount(block) }}</span>
+              }
+            </div>
+            <span class="node-badge" [class]="'badge-' + block.block">
+              {{ block.block === 'action' ? 'Action' : 'Flow' }}
+            </span>
+            <div class="node-actions" (click)="$event.stopPropagation()">
+              <button mat-icon-button class="node-move-btn" [disabled]="i === 0" (click)="moveBlock(i, -1)" title="Move up">
+                <mat-icon>expand_less</mat-icon>
+              </button>
+              <button mat-icon-button class="node-move-btn" [disabled]="i === draft().blocks.length - 1" (click)="moveBlock(i, 1)" title="Move down">
+                <mat-icon>expand_more</mat-icon>
+              </button>
+              <button mat-icon-button class="node-remove-btn" (click)="removeBlock(i)" title="Remove">
+                <mat-icon>cancel</mat-icon>
+              </button>
+            </div>
+            <app-icon name="chevron-down" [size]="12" class="node-chevron" />
+          </div>
+        }
+      </div>
+
+      <!-- Add block buttons -->
+      <div class="add-block-grid">
+        <div class="add-block-group">
+          <span class="add-group-label">Actions</span>
+          @for (t of actionTypes; track t.value) {
+            <button mat-stroked-button class="add-type-btn" (click)="addBlock(t.value)" type="button">{{ t.label }}</button>
+          }
+        </div>
+        <div class="add-block-group">
+          <span class="add-group-label">Flow</span>
+          @for (t of flowTypes; track t.value) {
+            <button mat-stroked-button class="add-type-btn flow" (click)="addBlock(t.value)" type="button">{{ t.label }}</button>
+          }
+        </div>
+      </div>
+    </div>
+
+    <!-- === Sticky Footer === -->
+    <div class="sticky-footer">
+      @if (validationErrors().length > 0) {
+        <div class="validation-errors">
+          @for (err of validationErrors(); track $index) {
+            <span class="validation-error">
+              <app-icon name="exclamation-circle-fill" [size]="12" />
+              {{ err }}
+            </span>
+          }
+        </div>
+      }
+
+      @if (saveError()) {
+        <div class="save-error">
+          <app-icon name="exclamation-triangle" [size]="14" />
+          {{ saveError() }}
+        </div>
+      }
+
+      <div class="footer-actions">
+        <button mat-stroked-button (click)="cancel()" type="button">Cancel</button>
+        <button mat-flat-button color="primary" (click)="save()" [disabled]="!isValid() || isSaving()" type="button">
+          @if (isSaving()) {
+            <app-icon name="spinner" [size]="15" />
+            Saving...
+          } @else {
+            <ng-container>
+              <mat-icon>check_circle</mat-icon>
+              {{ isEditMode() ? 'Save Changes' : 'Create Workflow' }}
+            </ng-container>
+          }
+        </button>
+      </div>
+    </div>
+  }
+</div>
+
+<!-- === Slide-Over Panel === -->
+@if (isPanelOpen()) {
+  <div class="panel-overlay" (click)="closePanel()"></div>
+  <div class="slide-panel">
+    <!-- Panel header -->
+    <div class="panel-header">
+      <button class="panel-back-btn" (click)="popPanel()">
+        <app-icon name="chevron-down" [size]="14" />
+        <span>{{ panelStack().length > 1 ? 'Back' : 'Done' }}</span>
+      </button>
+      <div class="panel-breadcrumbs">
+        @for (crumb of breadcrumbs(); track $index; let i = $index; let last = $last) {
+          @if (!last) {
+            <button class="crumb-btn" (click)="popToLevel(i)">{{ crumb }}</button>
+            <app-icon name="chevron-down" [size]="9" class="crumb-sep" />
+          } @else {
+            <span class="crumb-current">{{ crumb }}</span>
+          }
+        }
+      </div>
+    </div>
+
+    <!-- Panel content -->
+    <div class="panel-content">
+      @if (currentFrame(); as frame) {
+        @switch (frame.kind) {
+          @case ('trigger') {
+            @if (currentEditItem(); as item) {
+              <app-trigger-editor
+                [index]="frame.path.index"
+                [draft]="item"
+                (changed)="onPanelItemChanged($event)"
+                (removed)="onPanelItemRemoved()"
+              />
+            }
+          }
+          @case ('conditionGroup') {
+            @if (currentEditItem(); as item) {
+              <app-condition-group-editor
+                [draft]="item"
+                [allowBlockResult]="!isGuardConditionContext()"
+                (changed)="onPanelItemChanged($event)"
+                (removed)="onPanelItemRemoved()"
+                (editNestedCondition)="onEditNestedCondition($event)"
+              />
+            }
+          }
+          @case ('condition') {
+            @if (currentEditItem(); as item) {
+              <app-condition-editor
+                [draft]="item"
+                [allowBlockResult]="!isGuardConditionContext()"
+                (changed)="onPanelItemChanged($event)"
+                (removed)="onPanelItemRemoved()"
+              />
+            }
+          }
+          @case ('block') {
+            @if (currentEditItem(); as item) {
+              <app-block-editor
+                [draft]="item"
+                [isFirst]="true"
+                [isLast]="true"
+                [panelMode]="true"
+                (changed)="onPanelItemChanged($event)"
+                (removed)="onPanelItemRemoved()"
+                (editNestedBlock)="onEditNestedBlock($event)"
+                (editNestedCondition)="onEditNestedCondition($event)"
+              />
+            }
+          }
+        }
+      }
+    </div>
+  </div>
+}

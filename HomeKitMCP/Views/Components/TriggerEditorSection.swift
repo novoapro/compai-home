@@ -153,7 +153,7 @@ private struct TriggerRow: View {
             devices: devices,
             selectedDeviceId: $trigger.deviceId,
             selectedServiceId: $trigger.serviceId,
-            selectedCharacteristicType: $trigger.characteristicType,
+            selectedCharacteristicType: $trigger.characteristicId,
             onCharacteristicSelected: { char in
                 trigger.characteristicFormat = char?.format
                 trigger.characteristicMinValue = char?.minValue
@@ -190,7 +190,7 @@ private struct TriggerRow: View {
             } else {
                 ValueEditor(
                     value: $trigger.conditionValue,
-                    characteristicType: trigger.characteristicType,
+                    characteristicType: trigger.characteristicId,
                     devices: devices,
                     deviceId: trigger.deviceId,
                     fallbackFormat: trigger.characteristicFormat,

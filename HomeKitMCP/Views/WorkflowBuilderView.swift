@@ -368,7 +368,7 @@ private struct WorkflowBuilderTriggerRow: View {
                 Text("Device: \(devices.resolvedName(deviceId: t.deviceId, serviceId: t.serviceId))")
                     .font(.footnote)
                     .foregroundColor(.secondary)
-                Text("Characteristic: \(CharacteristicTypes.displayName(for: t.characteristicType))")
+                Text("Characteristic: \(devices.resolvedCharacteristicName(deviceId: t.deviceId, characteristicId: t.characteristicId))")
                     .font(.footnote)
                     .foregroundColor(.secondary)
                 Text("Condition: \(triggerConditionDescription(t.condition))")
@@ -509,7 +509,7 @@ private struct WorkflowBuilderConditionRow: View {
                 Text("Device: \(devices.resolvedName(deviceId: c.deviceId, serviceId: c.serviceId))")
                     .font(.footnote)
                     .foregroundColor(.secondary)
-                Text("\(CharacteristicTypes.displayName(for: c.characteristicType)) \(ConditionEvaluator.comparisonDescription(c.comparison))")
+                Text("\(devices.resolvedCharacteristicName(deviceId: c.deviceId, characteristicId: c.characteristicId)) \(ConditionEvaluator.comparisonDescription(c.comparison))")
                     .font(.subheadline)
                     .fontWeight(.medium)
             }
@@ -662,7 +662,7 @@ private struct BuilderActionBlockRow: View {
     private var actionDetail: String {
         switch action {
         case .controlDevice(let a):
-            return "Set \(CharacteristicTypes.displayName(for: a.characteristicType)) = \(a.value.value) on \(devices.resolvedName(deviceId: a.deviceId, serviceId: a.serviceId))"
+            return "Set \(devices.resolvedCharacteristicName(deviceId: a.deviceId, characteristicId: a.characteristicId)) = \(a.value.value) on \(devices.resolvedName(deviceId: a.deviceId, serviceId: a.serviceId))"
         case .webhook(let a):
             return "\(a.method) \(a.url)"
         case .log(let a):
@@ -724,7 +724,7 @@ private struct BuilderFlowControlBlockRow: View {
         switch flowControl {
         case .delay(let b): return b.name ?? "Delay \(b.seconds)s"
         case .waitForState(let b):
-            return b.name ?? "Wait \(devices.resolvedName(deviceId: b.deviceId, serviceId: b.serviceId)) \(CharacteristicTypes.displayName(for: b.characteristicType)) \(ConditionEvaluator.comparisonDescription(b.condition))"
+            return b.name ?? "Wait \(devices.resolvedName(deviceId: b.deviceId, serviceId: b.serviceId)) \(devices.resolvedCharacteristicName(deviceId: b.deviceId, characteristicId: b.characteristicId)) \(ConditionEvaluator.comparisonDescription(b.condition))"
         case .conditional(let b): return b.name ?? "If/Else"
         case .repeat(let b): return b.name ?? "Repeat \(b.count) times"
         case .repeatWhile(let b): return b.name ?? "Repeat while (max \(b.maxIterations))"

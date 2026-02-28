@@ -188,21 +188,17 @@ enum PreviewData {
             triggers: [
                 .deviceStateChange(DeviceStateTrigger(
                     deviceId: "device-1",
-                    characteristicType: "00000025-0000-1000-8000-0026BB765291",
+                    characteristicId: "stable-char-power-1",
                     condition: .equals(AnyCodable(true)),
-                    name: "Light turned on",
-                    deviceName: "Living Room Light",
-                    roomName: "Living Room"
+                    name: "Light turned on"
                 ))
             ],
             blocks: [
                 .action(.controlDevice(ControlDeviceAction(
                     deviceId: "device-2",
-                    characteristicType: "00000008-0000-1000-8000-0026BB765291",
+                    characteristicId: "stable-char-brightness-2",
                     value: AnyCodable(50),
-                    name: "Dim bedroom to 50%",
-                    deviceName: "Bedroom Light",
-                    roomName: "Bedroom"
+                    name: "Dim bedroom to 50%"
                 )), blockId: UUID()),
                 .flowControl(.delay(DelayBlock(seconds: 5, name: "Wait 5 seconds")), blockId: UUID())
             ],
@@ -227,11 +223,9 @@ enum PreviewData {
             blocks: [
                 .action(.controlDevice(ControlDeviceAction(
                     deviceId: "device-3",
-                    characteristicType: "lock_state",
+                    characteristicId: "stable-char-lock-3",
                     value: AnyCodable(true),
-                    name: "Lock front door",
-                    deviceName: "Front Door Lock",
-                    roomName: "Hallway"
+                    name: "Lock front door"
                 )), blockId: UUID())
             ],
             metadata: WorkflowMetadata(
@@ -281,7 +275,7 @@ enum PreviewData {
         {
             var draft = TriggerDraft(id: UUID())
             draft.deviceId = "device-1"
-            draft.characteristicType = "00000025-0000-1000-8000-0026BB765291"
+            draft.characteristicId = "00000025-0000-1000-8000-0026BB765291"
             draft.conditionType = .equals
             draft.conditionValue = "true"
             return draft
@@ -300,7 +294,7 @@ enum PreviewData {
             var d = ControlDeviceDraft()
             d.name = "Turn on light"
             d.deviceId = "device-1"
-            d.characteristicType = "00000025-0000-1000-8000-0026BB765291"
+            d.characteristicId = "00000025-0000-1000-8000-0026BB765291"
             d.value = "true"
             return BlockDraft(id: UUID(), blockType: .controlDevice(d))
         }(),
@@ -316,7 +310,7 @@ enum PreviewData {
                 conditionDraftType: .deviceState,
                 deviceId: "device-1",
                 serviceId: nil,
-                characteristicType: "00000025-0000-1000-8000-0026BB765291",
+                characteristicId: "stable-char-power-1",
                 comparisonType: .equals,
                 comparisonValue: "true"
             )),

@@ -1,4 +1,5 @@
 import Foundation
+import Combine
 
 // MARK: - Registry Models
 
@@ -91,11 +92,18 @@ actor DeviceRegistryService {
     private nonisolated(unsafe) var _hkToStableChar: [String: String] = [:]
     private nonisolated(unsafe) var _stableToHkScene: [String: String] = [:]
     private nonisolated(unsafe) var _hkToStableScene: [String: String] = [:]
+    // stable char ID → characteristic type string
+    private nonisolated(unsafe) var _stableCharToType: [String: String] = [:]
+    // "deviceStableId:charType" → stable char ID
+    private nonisolated(unsafe) var _deviceCharTypeToStableId: [String: String] = [:]
 
     // MARK: - Persistence
 
     private let fileURL: URL
     private var saveTask: Task<Void, Never>?
+
+    // Subject broadcast when device or scene registry is synchronized
+    nonisolated let registrySyncSubject = PassthroughSubject<Void, Never>()
 
     // MARK: - Init
 
@@ -172,6 +180,7 @@ actor DeviceRegistryService {
 
         rebuildReverseLookups()
         debouncedSave()
+        registrySyncSubject.send()
     }
 
     // MARK: - Sync Scenes with HomeKit
@@ -216,6 +225,7 @@ actor DeviceRegistryService {
 
         rebuildReverseLookups()
         debouncedSave()
+        registrySyncSubject.send()
     }
 
     // MARK: - Orphan Deduplication
@@ -377,6 +387,20 @@ actor DeviceRegistryService {
         syncLock.lock()
         defer { syncLock.unlock() }
         return _hkToStableChar[homeKitCharId]
+    }
+
+    /// Resolves a stable characteristic ID → its HomeKit characteristic type string. Call from any thread.
+    nonisolated func readCharacteristicType(forStableId stableCharId: String) -> String? {
+        syncLock.lock()
+        defer { syncLock.unlock() }
+        return _stableCharToType[stableCharId]
+    }
+
+    /// Finds the stable characteristic ID for a given device (by stable ID) and characteristic type. Call from any thread.
+    nonisolated func readStableCharacteristicId(forDeviceStableId deviceStableId: String, characteristicType: String) -> String? {
+        syncLock.lock()
+        defer { syncLock.unlock() }
+        return _deviceCharTypeToStableId["\(deviceStableId):\(characteristicType)"]
     }
 
     /// Resolves a stable scene ID → HomeKit scene UUID. Call from any thread.
@@ -1036,6 +1060,8 @@ actor DeviceRegistryService {
         _stableToHkService.removeAll()
         _hkToStableService = hkServiceIdToStableId.reduce(into: [:]) { $0[$1.value] = $1.key }
         _stableToHkChar.removeAll()
+        _stableCharToType.removeAll()
+        _deviceCharTypeToStableId.removeAll()
         _hkToStableChar = hkCharIdToStableId.reduce(into: [:]) { $0[$1.value] = $1.key }
         _stableToHkScene.removeAll()
         _hkToStableScene = hkSceneIdToStableId.reduce(into: [:]) { $0[$1.value] = $1.key }
@@ -1053,6 +1079,8 @@ actor DeviceRegistryService {
                     if let hkId = char.homeKitCharacteristicId {
                         _stableToHkChar[char.stableCharacteristicId] = hkId
                     }
+                    _stableCharToType[char.stableCharacteristicId] = char.characteristicType
+                    _deviceCharTypeToStableId["\(entry.stableId):\(char.characteristicType)"] = char.stableCharacteristicId
                 }
             }
         }

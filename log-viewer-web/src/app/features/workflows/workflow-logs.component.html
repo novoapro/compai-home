@@ -5,6 +5,10 @@
     @if (isLoading()) {
       <span class="loading-dot"></span>
     }
+    <button class="new-workflow-btn" (click)="newWorkflow()">
+      <app-icon name="plus" [size]="15" />
+      New Workflow
+    </button>
   </div>
 
   <!-- Error -->
@@ -29,7 +33,7 @@
     <app-empty-state
       icon="bolt-circle-fill"
       title="No workflows"
-      message="No workflows found on the server. Create workflows in the HomeKit MCP app first."
+      message="No workflows yet. Tap New Workflow to create your first automation."
     />
   }
 
@@ -41,9 +45,15 @@
           [workflow]="wf"
           [index]="i"
           (toggleEnabled)="toggleWorkflow(wf, $event)"
+          (deleteRequested)="deleteWorkflow(wf)"
           (click)="openWorkflow(wf)"
         />
       }
     </div>
   }
+
+  <!-- Mobile FAB -->
+  <button class="fab-new-workflow" (click)="newWorkflow()">
+    <app-icon name="plus" [size]="18" />
+  </button>
 </div>

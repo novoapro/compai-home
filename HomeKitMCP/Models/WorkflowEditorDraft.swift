@@ -213,7 +213,7 @@ struct TriggerDraft: Identifiable {
     // Device state change fields
     var deviceId: String = ""
     var serviceId: String?
-    var characteristicType: String = ""
+    var characteristicId: String = ""
     var conditionType: TriggerConditionType = .changed
     var conditionValue: String = ""
     var conditionFromValue: String = ""
@@ -308,10 +308,11 @@ extension TriggerDraft {
             let device = devices.first(where: { $0.id == deviceId })
             let room = device?.roomName ?? ""
             let devName = device?.nameIncludingService(serviceId: serviceId) ?? "Unknown"
-            let charName = characteristicType.isEmpty ? "" : CharacteristicTypes.displayName(for: characteristicType)
+            let charName = characteristicId.isEmpty ? "" : devices.resolvedCharacteristicName(deviceId: deviceId, characteristicId: characteristicId)
+            let resolvedCharType = devices.resolvedCharacteristicType(deviceId: deviceId, characteristicId: characteristicId)
             let condDesc: String = {
                 if conditionType == .changed { return "Changed" }
-                let displayVal = CharacteristicInputConfig.displayValueForName(characteristicType: characteristicType, rawValue: conditionValue)
+                let displayVal = CharacteristicInputConfig.displayValueForName(characteristicType: resolvedCharType, rawValue: conditionValue)
                 return "\(conditionType.symbol) \(displayVal)"
             }()
             let parts = [room, devName, charName, condDesc].filter { !$0.isEmpty }
@@ -370,8 +371,9 @@ extension ConditionDraft {
             let device = devices.first(where: { $0.id == deviceId })
             let room = device?.roomName ?? ""
             let devName = device?.nameIncludingService(serviceId: serviceId) ?? "Unknown"
-            let charName = characteristicType.isEmpty ? "" : CharacteristicTypes.displayName(for: characteristicType)
-            let displayVal = CharacteristicInputConfig.displayValueForName(characteristicType: characteristicType, rawValue: comparisonValue)
+            let charName = characteristicId.isEmpty ? "" : devices.resolvedCharacteristicName(deviceId: deviceId, characteristicId: characteristicId)
+            let resolvedCharType = devices.resolvedCharacteristicType(deviceId: deviceId, characteristicId: characteristicId)
+            let displayVal = CharacteristicInputConfig.displayValueForName(characteristicType: resolvedCharType, rawValue: comparisonValue)
             let comp = "\(comparisonType.symbol) \(displayVal)"
             let parts = [room, devName, charName, comp].filter { !$0.isEmpty }
             return parts.joined(separator: " ")
@@ -478,9 +480,10 @@ private extension ControlDeviceDraft {
     func autoName(devices: [DeviceModel]) -> String {
         guard !deviceId.isEmpty else { return "Control Device" }
         let devName = devices.resolvedName(deviceId: deviceId, serviceId: serviceId)
-        let charName = characteristicType.isEmpty ? "" : CharacteristicTypes.displayName(for: characteristicType)
+        let charName = characteristicId.isEmpty ? "" : devices.resolvedCharacteristicName(deviceId: deviceId, characteristicId: characteristicId)
         if charName.isEmpty { return "Set \(devName)" }
-        let displayVal = CharacteristicInputConfig.displayValueForName(characteristicType: characteristicType, rawValue: value)
+        let resolvedCharType = devices.resolvedCharacteristicType(deviceId: deviceId, characteristicId: characteristicId)
+        let displayVal = CharacteristicInputConfig.displayValueForName(characteristicType: resolvedCharType, rawValue: value)
         let valStr = displayVal.isEmpty ? "" : "= \(displayVal)"
         return "Set \(devName) \(charName) \(valStr)".trimmingCharacters(in: .whitespaces)
     }
@@ -521,8 +524,9 @@ private extension WaitForStateDraft {
     func autoName(devices: [DeviceModel]) -> String {
         guard !deviceId.isEmpty else { return "Wait for State" }
         let devName = devices.resolvedName(deviceId: deviceId, serviceId: serviceId)
-        let charName = characteristicType.isEmpty ? "" : CharacteristicTypes.displayName(for: characteristicType)
-        let displayVal = CharacteristicInputConfig.displayValueForName(characteristicType: characteristicType, rawValue: comparisonValue)
+        let charName = characteristicId.isEmpty ? "" : devices.resolvedCharacteristicName(deviceId: deviceId, characteristicId: characteristicId)
+        let resolvedCharType = devices.resolvedCharacteristicType(deviceId: deviceId, characteristicId: characteristicId)
+        let displayVal = CharacteristicInputConfig.displayValueForName(characteristicType: resolvedCharType, rawValue: comparisonValue)
         return "Wait \(devName) \(charName) \(comparisonType.symbol) \(displayVal)".trimmingCharacters(in: .whitespaces)
     }
 }
@@ -628,7 +632,7 @@ struct ConditionDraft: Identifiable {
     // Device State fields
     var deviceId: String
     var serviceId: String?
-    var characteristicType: String
+    var characteristicId: String
     var comparisonType: ComparisonType
     var comparisonValue: String
 
@@ -660,7 +664,7 @@ struct ConditionDraft: Identifiable {
             conditionDraftType: .deviceState,
             deviceId: "",
             serviceId: nil,
-            characteristicType: "",
+            characteristicId: "",
             comparisonType: .equals,
             comparisonValue: ""
         )
@@ -673,7 +677,7 @@ struct ConditionDraft: Identifiable {
             conditionDraftType: .timeCondition,
             deviceId: "",
             serviceId: nil,
-            characteristicType: "",
+            characteristicId: "",
             comparisonType: .equals,
             comparisonValue: ""
         )
@@ -686,7 +690,7 @@ struct ConditionDraft: Identifiable {
             conditionDraftType: .sceneActive,
             deviceId: "",
             serviceId: nil,
-            characteristicType: "",
+            characteristicId: "",
             comparisonType: .equals,
             comparisonValue: ""
         )
@@ -699,7 +703,7 @@ struct ConditionDraft: Identifiable {
             conditionDraftType: .blockResult,
             deviceId: "",
             serviceId: nil,
-            characteristicType: "",
+            characteristicId: "",
             comparisonType: .equals,
             comparisonValue: ""
         )
@@ -830,7 +834,7 @@ struct ControlDeviceDraft {
     var name: String = ""
     var deviceId: String = ""
     var serviceId: String?
-    var characteristicType: String = ""
+    var characteristicId: String = ""
     var value: String = ""
 
     // Cached characteristic metadata for UI rendering when device isn't available
@@ -867,7 +871,7 @@ struct WaitForStateDraft {
     var name: String = ""
     var deviceId: String = ""
     var serviceId: String?
-    var characteristicType: String = ""
+    var characteristicId: String = ""
     var comparisonType: ComparisonType = .equals
     var comparisonValue: String = ""
     var timeoutSeconds: Double = 30.0
@@ -974,7 +978,7 @@ extension WorkflowDraft {
                 if trigger.deviceId.isEmpty {
                     errors.append("Trigger \(i + 1): select a device")
                 }
-                if trigger.characteristicType.isEmpty {
+                if trigger.characteristicId.isEmpty {
                     errors.append("Trigger \(i + 1): select a characteristic")
                 }
             case .schedule:
@@ -1214,13 +1218,14 @@ extension WorkflowDraft {
 
 /// Look up characteristic metadata from a devices list for UI rendering fallback.
 private func lookupCharacteristicMeta(
-    deviceId: String, characteristicType: String, in devices: [DeviceModel]
+    deviceId: String, characteristicId: String, in devices: [DeviceModel]
 ) -> (format: String?, minValue: Double?, maxValue: Double?, stepValue: Double?, validValues: [Int]?) {
     guard let device = devices.first(where: { $0.id == deviceId }) else {
         return (nil, nil, nil, nil, nil)
     }
+    // Match by characteristic ID (stable or HomeKit UUID depending on whether devices have been transformed)
     guard let char = device.services.flatMap(\.characteristics)
-        .first(where: { $0.type == characteristicType }) else {
+        .first(where: { $0.id == characteristicId }) else {
         return (nil, nil, nil, nil, nil)
     }
     return (char.format, char.minValue, char.maxValue, char.stepValue, char.validValues)
@@ -1244,7 +1249,7 @@ extension WorkflowDraft {
         switch trigger {
         case let .deviceStateChange(t):
             let (condType, condValue, condFrom) = convertTriggerCondition(t.condition)
-            let meta = lookupCharacteristicMeta(deviceId: t.deviceId, characteristicType: t.characteristicType, in: devices)
+            let meta = lookupCharacteristicMeta(deviceId: t.deviceId, characteristicId: t.characteristicId, in: devices)
             return TriggerDraft(
                 id: UUID(),
                 name: t.name ?? "",
@@ -1252,7 +1257,7 @@ extension WorkflowDraft {
                 retriggerPolicy: policy,
                 deviceId: t.deviceId,
                 serviceId: t.serviceId,
-                characteristicType: t.characteristicType,
+                characteristicId: t.characteristicId,
                 conditionType: condType,
                 conditionValue: condValue,
                 conditionFromValue: condFrom,
@@ -1378,13 +1383,13 @@ extension WorkflowDraft {
         switch condition {
         case let .deviceState(c):
             let (compType, compValue) = convertComparison(c.comparison)
-            let meta = lookupCharacteristicMeta(deviceId: c.deviceId, characteristicType: c.characteristicType, in: devices)
+            let meta = lookupCharacteristicMeta(deviceId: c.deviceId, characteristicId: c.characteristicId, in: devices)
             return .leaf(ConditionDraft(
                 id: UUID(),
                 conditionDraftType: .deviceState,
                 deviceId: c.deviceId,
                 serviceId: c.serviceId,
-                characteristicType: c.characteristicType,
+                characteristicId: c.characteristicId,
                 comparisonType: compType,
                 comparisonValue: compValue,
                 characteristicFormat: meta.format,
@@ -1399,7 +1404,7 @@ extension WorkflowDraft {
                 conditionDraftType: .timeCondition,
                 deviceId: "",
                 serviceId: nil,
-                characteristicType: "",
+                characteristicId: "",
                 comparisonType: .equals,
                 comparisonValue: "",
                 timeConditionMode: c.mode,
@@ -1412,7 +1417,7 @@ extension WorkflowDraft {
                 conditionDraftType: .sceneActive,
                 deviceId: "",
                 serviceId: nil,
-                characteristicType: "",
+                characteristicId: "",
                 comparisonType: .equals,
                 comparisonValue: "",
                 sceneId: c.sceneId,
@@ -1424,7 +1429,7 @@ extension WorkflowDraft {
                 conditionDraftType: .blockResult,
                 deviceId: "",
                 serviceId: nil,
-                characteristicType: "",
+                characteristicId: "",
                 comparisonType: .equals,
                 comparisonValue: ""
             )
@@ -1478,12 +1483,12 @@ extension WorkflowDraft {
     private static func convertAction(_ action: WorkflowAction, blockId: UUID, devices: [DeviceModel] = []) -> BlockDraft {
         switch action {
         case let .controlDevice(a):
-            let meta = lookupCharacteristicMeta(deviceId: a.deviceId, characteristicType: a.characteristicType, in: devices)
+            let meta = lookupCharacteristicMeta(deviceId: a.deviceId, characteristicId: a.characteristicId, in: devices)
             return BlockDraft(id: blockId, blockType: .controlDevice(ControlDeviceDraft(
                 name: a.name ?? "",
                 deviceId: a.deviceId,
                 serviceId: a.serviceId,
-                characteristicType: a.characteristicType,
+                characteristicId: a.characteristicId,
                 value: stringFromAny(a.value.value),
                 characteristicFormat: meta.format,
                 characteristicMinValue: meta.minValue,
@@ -1514,12 +1519,12 @@ extension WorkflowDraft {
             return BlockDraft(id: blockId, blockType: .delay(DelayDraft(name: b.name ?? "", seconds: b.seconds)))
         case let .waitForState(b):
             let (compType, compValue) = convertComparison(b.condition)
-            let meta = lookupCharacteristicMeta(deviceId: b.deviceId, characteristicType: b.characteristicType, in: devices)
+            let meta = lookupCharacteristicMeta(deviceId: b.deviceId, characteristicId: b.characteristicId, in: devices)
             return BlockDraft(id: blockId, blockType: .waitForState(WaitForStateDraft(
                 name: b.name ?? "",
                 deviceId: b.deviceId,
                 serviceId: b.serviceId,
-                characteristicType: b.characteristicType,
+                characteristicId: b.characteristicId,
                 comparisonType: compType,
                 comparisonValue: compValue,
                 timeoutSeconds: b.timeoutSeconds,
@@ -1606,15 +1611,12 @@ extension TriggerDraft {
     func toTrigger(devices: [DeviceModel]) -> WorkflowTrigger {
         switch triggerType {
         case .deviceStateChange:
-            let (devName, devRoom) = lookupDevice(deviceId, in: devices)
             return .deviceStateChange(DeviceStateTrigger(
                 deviceId: deviceId,
                 serviceId: serviceId,
-                characteristicType: characteristicType,
+                characteristicId: characteristicId,
                 condition: toTriggerCondition(),
                 name: name.isEmpty ? nil : name,
-                deviceName: devName,
-                roomName: devRoom,
                 retriggerPolicy: retriggerPolicy
             ))
         case .schedule:
@@ -1685,14 +1687,11 @@ extension ConditionDraft {
         let base: WorkflowCondition
         switch conditionDraftType {
         case .deviceState:
-            let (devName, devRoom) = lookupDevice(deviceId, in: devices)
             base = .deviceState(DeviceStateCondition(
                 deviceId: deviceId,
                 serviceId: serviceId,
-                characteristicType: characteristicType,
-                comparison: toComparison(),
-                deviceName: devName,
-                roomName: devRoom
+                characteristicId: characteristicId,
+                comparison: toComparison()
             ))
         case .timeCondition:
             base = .timeCondition(TimeCondition(
@@ -1776,15 +1775,12 @@ extension BlockDraft {
     func toBlock(devices: [DeviceModel]) -> WorkflowBlock {
         switch blockType {
         case let .controlDevice(d):
-            let (devName, devRoom) = lookupDevice(d.deviceId, in: devices)
             return .action(.controlDevice(ControlDeviceAction(
                 deviceId: d.deviceId,
                 serviceId: d.serviceId,
-                characteristicType: d.characteristicType,
+                characteristicId: d.characteristicId,
                 value: parseValue(d.value),
-                name: d.name.isEmpty ? nil : d.name,
-                deviceName: devName,
-                roomName: devRoom
+                name: d.name.isEmpty ? nil : d.name
             )), blockId: id)
         case let .webhook(d):
             return .action(.webhook(WebhookActionConfig(
@@ -1804,20 +1800,17 @@ extension BlockDraft {
         case let .delay(d):
             return .flowControl(.delay(DelayBlock(seconds: d.seconds, name: d.name.isEmpty ? nil : d.name)), blockId: id)
         case let .waitForState(d):
-            let (devName, devRoom) = lookupDevice(d.deviceId, in: devices)
             return .flowControl(.waitForState(WaitForStateBlock(
                 deviceId: d.deviceId,
                 serviceId: d.serviceId,
-                characteristicType: d.characteristicType,
+                characteristicId: d.characteristicId,
                 condition: d.comparisonType.toOperator(value: d.comparisonValue),
                 timeoutSeconds: d.timeoutSeconds,
-                name: d.name.isEmpty ? nil : d.name,
-                deviceName: devName,
-                roomName: devRoom
+                name: d.name.isEmpty ? nil : d.name
             )), blockId: id)
         case let .conditional(d):
             let condition = d.conditionRoot.toCondition(devices: devices) ?? .deviceState(DeviceStateCondition(
-                deviceId: "", characteristicType: "", comparison: .equals(AnyCodable(true))
+                deviceId: "", characteristicId: "", comparison: .equals(AnyCodable(true))
             ))
             return .flowControl(.conditional(ConditionalBlock(
                 condition: condition,
@@ -1834,7 +1827,7 @@ extension BlockDraft {
             )), blockId: id)
         case let .repeatWhile(d):
             let condition = d.conditionRoot.toCondition(devices: devices) ?? .deviceState(DeviceStateCondition(
-                deviceId: "", characteristicType: "", comparison: .equals(AnyCodable(true))
+                deviceId: "", characteristicId: "", comparison: .equals(AnyCodable(true))
             ))
             return .flowControl(.repeatWhile(RepeatWhileBlock(
                 condition: condition,

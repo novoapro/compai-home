@@ -43,11 +43,8 @@ export interface DeviceStateTriggerDef {
   name?: string;
   deviceId: string;
   serviceId?: string;
-  characteristicType: string;
+  characteristicId: string;
   condition: TriggerCondition;
-  deviceName?: string;
-  roomName?: string;
-  serviceType?: string;
   retriggerPolicy?: string;
 }
 
@@ -96,11 +93,8 @@ export interface DeviceStateConditionDef {
   type: 'deviceState';
   deviceId: string;
   serviceId?: string;
-  characteristicType: string;
+  characteristicId: string;
   comparison: ComparisonOperator;
-  deviceName?: string;
-  roomName?: string;
-  serviceType?: string;
 }
 
 export interface TimeConditionDef {
@@ -114,7 +108,6 @@ export interface SceneActiveConditionDef {
   type: 'sceneActive';
   sceneId: string;
   isActive: boolean;
-  sceneName?: string;
 }
 
 export interface BlockResultConditionDef {
@@ -151,11 +144,8 @@ export interface WorkflowBlockDef {
   // controlDevice
   deviceId?: string;
   serviceId?: string;
-  characteristicType?: string;
+  characteristicId?: string;
   value?: any;
-  deviceName?: string;
-  roomName?: string;
-  serviceType?: string;
   // webhook
   url?: string;
   method?: string;
@@ -165,7 +155,6 @@ export interface WorkflowBlockDef {
   message?: string;
   // runScene
   sceneId?: string;
-  sceneName?: string;
   // delay
   seconds?: number;
   // waitForState

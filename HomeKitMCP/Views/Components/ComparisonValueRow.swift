@@ -19,7 +19,7 @@ struct ComparisonValueRow: View {
     private var characteristic: CharacteristicModel? {
         devices.first(where: { $0.id == deviceId })?
             .services.flatMap(\.characteristics)
-            .first(where: { $0.type == characteristicType })
+            .first(where: { $0.id == characteristicType || $0.type == characteristicType })
     }
 
     private var inputControlType: InputControlType {
@@ -32,7 +32,7 @@ struct ComparisonValueRow: View {
             return .textField(inputType: .text)
         }
         return CharacteristicInputConfig.getInputType(
-            for: characteristicType,
+            for: characteristic?.type ?? characteristicType,
             format: fmt,
             minValue: minVal,
             maxValue: maxVal,

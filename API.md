@@ -843,7 +843,7 @@ Fires when a device characteristic changes.
 | `deviceName` | string | yes | Device name (for cross-device migration) |
 | `roomName` | string | yes | Room name |
 | `serviceId` | string | no | Specific service |
-| `characteristicType` | string | yes | Characteristic to watch (e.g. "Power") |
+| `characteristicId` | string | yes | Stable characteristic ID (resolvable via device registry) |
 | `condition` | object | no | Trigger condition (see below) |
 | `retriggerPolicy` | string | no | Override policy |
 
@@ -944,7 +944,7 @@ All blocks accept an optional `name` field.
 | `deviceName` | string | yes | For migration |
 | `roomName` | string | yes | For migration |
 | `serviceId` | string | no | Target specific service |
-| `characteristicType` | string | yes | Characteristic to set |
+| `characteristicId` | string | yes | Stable characteristic ID (resolvable via device registry) |
 | `value` | any | yes | Value to set |
 
 ##### runScene
@@ -990,7 +990,7 @@ All blocks accept an optional `name` field.
 | `deviceName` | string | yes | |
 | `roomName` | string | yes | |
 | `serviceId` | string | no | |
-| `characteristicType` | string | yes | |
+| `characteristicId` | string | yes | Stable characteristic ID (resolvable via device registry) |
 | `condition` | object | yes | Comparison (`equals`, `notEquals`, `greaterThan`, `lessThan`, `greaterThanOrEqual`, `lessThanOrEqual` with `value`) |
 | `timeoutSeconds` | number | yes | Max wait time |
 
@@ -1063,7 +1063,7 @@ Conditions are used in workflow-level guards, conditional blocks, and repeatWhil
 | `deviceName` | string | yes | |
 | `roomName` | string | yes | |
 | `serviceId` | string | no | |
-| `characteristicType` | string | yes | |
+| `characteristicId` | string | yes | Stable characteristic ID (resolvable via device registry) |
 | `comparison` | object | yes | `{type, value}` — types: `equals`, `notEquals`, `greaterThan`, `lessThan`, `greaterThanOrEqual`, `lessThanOrEqual` |
 
 #### timeCondition

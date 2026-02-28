@@ -81,7 +81,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         // Wire cross-service subscriptions (HomeKitManager → WorkflowEngine via Combine).
         container.wireServices()
         Task {
-            await container.workflowEngine.registerEvaluator(DeviceStateChangeTriggerEvaluator())
+            await container.workflowEngine.registerEvaluator(DeviceStateChangeTriggerEvaluator(registry: container.deviceRegistryService))
             await container.scheduleTriggerManager.setEngine(container.workflowEngine)
             await container.scheduleTriggerManager.setStorage(container.storageService)
             let workflows = await container.workflowStorageService.getAllWorkflows()
@@ -173,6 +173,14 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                             await self.container.workflowStorageService.replaceAll(workflows: migratedWorkflows)
                             currentWorkflows = migratedWorkflows
                             AppLogger.registry.info("Startup normalization: converted \(count) reference(s) to stable IDs")
+                        }
+
+                        // Migrate characteristicId from legacy HomeKit type strings → stable IDs
+                        let (charMigratedWorkflows, charCount) = WorkflowMigrationService.migrateCharacteristicIds(currentWorkflows, registry: registry)
+                        if charCount > 0 {
+                            await self.container.workflowStorageService.replaceAll(workflows: charMigratedWorkflows)
+                            currentWorkflows = charMigratedWorkflows
+                            AppLogger.registry.info("Startup: migrated \(charCount) characteristic type(s) to stable IDs")
                         }
                         if !self.container.storageService.readRegistryMigrationCompleted() {
                             await MainActor.run {

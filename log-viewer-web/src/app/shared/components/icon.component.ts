@@ -50,6 +50,7 @@ const ICON_MAP: Record<string, IconEntry> = {
   'xmark':                   { ms: 'close'                         },
   'funnel':                  { ms: 'filter_alt',         fill: 1  },
   'filter':                  { ms: 'filter_list'                   },
+  'pencil':                  { ms: 'edit'                           },
   'trash':                   { ms: 'delete'                        },
   'plus':                    { ms: 'add'                           },
   'eye':                     { ms: 'visibility'                    },

@@ -162,7 +162,7 @@ enum WorkflowMigrationService {
         for trigger in workflow.triggers {
             switch trigger {
             case let .deviceStateChange(t):
-                refs.insert(DeviceRef(deviceId: t.deviceId, serviceId: t.serviceId, contextName: t.deviceName, contextRoom: t.roomName, contextServiceType: t.serviceType, location: "trigger"))
+                refs.insert(DeviceRef(deviceId: t.deviceId, serviceId: t.serviceId, contextName: nil, contextRoom: nil, contextServiceType: nil, location: "trigger"))
             case let .compound(c):
                 collectCompoundTriggerRefs(c.triggers, into: &refs)
             default:
@@ -189,7 +189,7 @@ enum WorkflowMigrationService {
         for trigger in triggers {
             switch trigger {
             case let .deviceStateChange(t):
-                refs.insert(DeviceRef(deviceId: t.deviceId, serviceId: t.serviceId, contextName: t.deviceName, contextRoom: t.roomName, contextServiceType: t.serviceType, location: "trigger"))
+                refs.insert(DeviceRef(deviceId: t.deviceId, serviceId: t.serviceId, contextName: nil, contextRoom: nil, contextServiceType: nil, location: "trigger"))
             case let .compound(c):
                 collectCompoundTriggerRefs(c.triggers, into: &refs)
             default:
@@ -201,7 +201,7 @@ enum WorkflowMigrationService {
     private static func collectConditionRefs(_ condition: WorkflowCondition, into refs: inout Set<DeviceRef>) {
         switch condition {
         case let .deviceState(c):
-            refs.insert(DeviceRef(deviceId: c.deviceId, serviceId: c.serviceId, contextName: c.deviceName, contextRoom: c.roomName, contextServiceType: c.serviceType, location: "condition"))
+            refs.insert(DeviceRef(deviceId: c.deviceId, serviceId: c.serviceId, contextName: nil, contextRoom: nil, contextServiceType: nil, location: "condition"))
         case let .and(conditions):
             for c in conditions { collectConditionRefs(c, into: &refs) }
         case let .or(conditions):
@@ -218,14 +218,14 @@ enum WorkflowMigrationService {
         case let .action(action, _):
             switch action {
             case let .controlDevice(a):
-                refs.insert(DeviceRef(deviceId: a.deviceId, serviceId: a.serviceId, contextName: a.deviceName, contextRoom: a.roomName, contextServiceType: a.serviceType, location: "block"))
+                refs.insert(DeviceRef(deviceId: a.deviceId, serviceId: a.serviceId, contextName: nil, contextRoom: nil, contextServiceType: nil, location: "block"))
             default:
                 break
             }
         case let .flowControl(fc, _):
             switch fc {
             case let .waitForState(b):
-                refs.insert(DeviceRef(deviceId: b.deviceId, serviceId: b.serviceId, contextName: b.deviceName, contextRoom: b.roomName, contextServiceType: b.serviceType, location: "block"))
+                refs.insert(DeviceRef(deviceId: b.deviceId, serviceId: b.serviceId, contextName: nil, contextRoom: nil, contextServiceType: nil, location: "block"))
             case let .conditional(b):
                 collectConditionRefs(b.condition, into: &refs)
                 for nested in b.thenBlocks { collectBlockRefs(nested, into: &refs) }
@@ -281,7 +281,7 @@ enum WorkflowMigrationService {
     private static func collectSceneConditionRefs(_ condition: WorkflowCondition, into refs: inout Set<SceneRef>) {
         switch condition {
         case let .sceneActive(c):
-            refs.insert(SceneRef(sceneId: c.sceneId, sceneName: c.sceneName, location: "condition (sceneActive)"))
+            refs.insert(SceneRef(sceneId: c.sceneId, sceneName: nil, location: "condition (sceneActive)"))
         case let .and(conditions):
             for c in conditions { collectSceneConditionRefs(c, into: &refs) }
         case let .or(conditions):
@@ -298,7 +298,7 @@ enum WorkflowMigrationService {
         case let .action(action, _):
             switch action {
             case let .runScene(a):
-                refs.insert(SceneRef(sceneId: a.sceneId, sceneName: a.sceneName, location: "block (runScene)"))
+                refs.insert(SceneRef(sceneId: a.sceneId, sceneName: nil, location: "block (runScene)"))
             default:
                 break
             }
@@ -772,7 +772,7 @@ extension WorkflowMigrationService {
     private static func collectTriggerCharTypes(_ trigger: WorkflowTrigger, into types: inout Set<String>) {
         switch trigger {
         case .deviceStateChange(let t):
-            types.insert(t.characteristicType)
+            types.insert(t.characteristicId)
         case .compound(let c):
             for t in c.triggers { collectTriggerCharTypes(t, into: &types) }
         default: break
@@ -782,7 +782,7 @@ extension WorkflowMigrationService {
     private static func collectConditionCharTypes(_ condition: WorkflowCondition, into types: inout Set<String>) {
         switch condition {
         case .deviceState(let c):
-            types.insert(c.characteristicType)
+            types.insert(c.characteristicId)
         case .and(let conditions):
             for c in conditions { collectConditionCharTypes(c, into: &types) }
         case .or(let conditions):
@@ -797,12 +797,12 @@ extension WorkflowMigrationService {
         switch block {
         case .action(let action, _):
             switch action {
-            case .controlDevice(let a): types.insert(a.characteristicType)
+            case .controlDevice(let a): types.insert(a.characteristicId)
             default: break
             }
         case .flowControl(let fc, _):
             switch fc {
-            case .waitForState(let b): types.insert(b.characteristicType)
+            case .waitForState(let b): types.insert(b.characteristicId)
             case .conditional(let b):
                 collectConditionCharTypes(b.condition, into: &types)
                 for nested in b.thenBlocks { collectBlockCharTypes(nested, into: &types) }
@@ -859,5 +859,150 @@ extension WorkflowMigrationService {
         }
 
         return updatedWorkflow
+    }
+}
+
+// MARK: - Characteristic ID Migration (characteristicType → stable characteristicId)
+// TODO: Remove this extension once all existing workflows have been migrated.
+
+extension WorkflowMigrationService {
+
+    /// A characteristic reference: deviceId + the characteristicId value currently stored.
+    private struct CharRef: Hashable {
+        let deviceId: String
+        let characteristicId: String
+    }
+
+    /// One-time migration: replaces legacy HomeKit characteristic type strings stored in
+    /// `characteristicId` with the actual stable characteristic ID from the device registry.
+    ///
+    /// For each (deviceId, characteristicId) pair in triggers/conditions/blocks:
+    /// 1. If `characteristicId` already resolves as a stable ID in the registry → skip.
+    /// 2. Otherwise, treat it as a HomeKit characteristic type and look up the stable ID via
+    ///    `readStableCharacteristicId(forDeviceStableId:characteristicType:)`.
+    /// 3. If found, add to a remap table and apply via JSON string replacement.
+    static func migrateCharacteristicIds(_ workflows: [Workflow], registry: DeviceRegistryService) -> (workflows: [Workflow], migratedCount: Int) {
+        var charIdMap: [String: String] = [:]
+
+        // Collect all unique (deviceId, characteristicId) pairs
+        var refs = Set<CharRef>()
+        for workflow in workflows {
+            for trigger in workflow.triggers {
+                collectTriggerCharRefs(trigger, into: &refs)
+            }
+            if let conditions = workflow.conditions {
+                for condition in conditions {
+                    collectConditionCharRefs(condition, into: &refs)
+                }
+            }
+            for block in workflow.blocks {
+                collectBlockCharRefs(block, into: &refs)
+            }
+        }
+
+        for ref in refs {
+            guard charIdMap[ref.characteristicId] == nil else { continue }
+
+            // Already a stable ID — nothing to do
+            if registry.readCharacteristicType(forStableId: ref.characteristicId) != nil {
+                continue
+            }
+
+            // Treat as legacy characteristic type string, resolve to stable ID
+            if let stableId = registry.readStableCharacteristicId(
+                forDeviceStableId: ref.deviceId,
+                characteristicType: ref.characteristicId
+            ) {
+                charIdMap[ref.characteristicId] = stableId
+            }
+        }
+
+        if charIdMap.isEmpty {
+            return (workflows, 0)
+        }
+
+        // Apply via JSON string replacement
+        var result: [Workflow] = []
+        for workflow in workflows {
+            let encoder = JSONEncoder()
+            encoder.dateEncodingStrategy = .iso8601
+
+            guard let jsonData = try? encoder.encode(workflow),
+                  var jsonString = String(data: jsonData, encoding: .utf8) else {
+                result.append(workflow)
+                continue
+            }
+
+            for (oldValue, newValue) in charIdMap {
+                jsonString = jsonString.replacingOccurrences(of: "\"\(oldValue)\"", with: "\"\(newValue)\"")
+            }
+
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601
+
+            if let updatedData = jsonString.data(using: .utf8),
+               let updatedWorkflow = try? decoder.decode(Workflow.self, from: updatedData) {
+                result.append(updatedWorkflow)
+            } else {
+                result.append(workflow)
+            }
+        }
+
+        AppLogger.registry.info("Characteristic ID migration: remapped \(charIdMap.count) characteristic type(s) to stable IDs")
+        return (result, charIdMap.count)
+    }
+
+    // MARK: - Char Ref Collectors
+
+    private static func collectTriggerCharRefs(_ trigger: WorkflowTrigger, into refs: inout Set<CharRef>) {
+        switch trigger {
+        case .deviceStateChange(let t):
+            refs.insert(CharRef(deviceId: t.deviceId, characteristicId: t.characteristicId))
+        case .compound(let c):
+            for t in c.triggers { collectTriggerCharRefs(t, into: &refs) }
+        default: break
+        }
+    }
+
+    private static func collectConditionCharRefs(_ condition: WorkflowCondition, into refs: inout Set<CharRef>) {
+        switch condition {
+        case .deviceState(let c):
+            refs.insert(CharRef(deviceId: c.deviceId, characteristicId: c.characteristicId))
+        case .and(let conditions):
+            for c in conditions { collectConditionCharRefs(c, into: &refs) }
+        case .or(let conditions):
+            for c in conditions { collectConditionCharRefs(c, into: &refs) }
+        case .not(let c):
+            collectConditionCharRefs(c, into: &refs)
+        default: break
+        }
+    }
+
+    private static func collectBlockCharRefs(_ block: WorkflowBlock, into refs: inout Set<CharRef>) {
+        switch block {
+        case .action(let action, _):
+            switch action {
+            case .controlDevice(let a):
+                refs.insert(CharRef(deviceId: a.deviceId, characteristicId: a.characteristicId))
+            default: break
+            }
+        case .flowControl(let fc, _):
+            switch fc {
+            case .waitForState(let b):
+                refs.insert(CharRef(deviceId: b.deviceId, characteristicId: b.characteristicId))
+            case .conditional(let b):
+                collectConditionCharRefs(b.condition, into: &refs)
+                for nested in b.thenBlocks { collectBlockCharRefs(nested, into: &refs) }
+                for nested in (b.elseBlocks ?? []) { collectBlockCharRefs(nested, into: &refs) }
+            case .repeat(let b):
+                for nested in b.blocks { collectBlockCharRefs(nested, into: &refs) }
+            case .repeatWhile(let b):
+                collectConditionCharRefs(b.condition, into: &refs)
+                for nested in b.blocks { collectBlockCharRefs(nested, into: &refs) }
+            case .group(let b):
+                for nested in b.blocks { collectBlockCharRefs(nested, into: &refs) }
+            default: break
+            }
+        }
     }
 }

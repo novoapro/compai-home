@@ -656,7 +656,8 @@ actor WorkflowEngine: WorkflowEngineProtocol {
                 case let .controlDevice(a):
                     try await self.executeControlDevice(a, workflowId: context.workflow.id, workflowName: context.workflow.name)
                     let deviceName = await self.resolveDeviceName(a.deviceId)
-                    let charName = CharacteristicTypes.displayName(for: a.characteristicType)
+                    let resolvedCharType = self.registry?.readCharacteristicType(forStableId: a.characteristicId) ?? a.characteristicId
+                    let charName = CharacteristicTypes.displayName(for: resolvedCharType)
                     let svcName = await self.resolveServiceDisplayName(deviceId: a.deviceId, serviceId: a.serviceId)
                     let svcSuffix = svcName.map { " (\($0))" } ?? ""
                     result.detail = "Set \(charName) to \(a.value.value) on \(deviceName)\(svcSuffix)"
@@ -688,7 +689,9 @@ actor WorkflowEngine: WorkflowEngineProtocol {
     }
 
     private func executeControlDevice(_ action: ControlDeviceAction, workflowId: UUID, workflowName: String) async throws {
-        let resolvedType = CharacteristicTypes.characteristicType(forName: action.characteristicType) ?? action.characteristicType
+        let resolvedType = registry?.readCharacteristicType(forStableId: action.characteristicId)
+            ?? CharacteristicTypes.characteristicType(forName: action.characteristicId)
+            ?? action.characteristicId
 
         // Validate value against characteristic metadata
         let device: DeviceModel? = await MainActor.run { homeKitManager.getDeviceState(id: action.deviceId) }
@@ -702,9 +705,7 @@ actor WorkflowEngine: WorkflowEngineProtocol {
             await logOrphan(
                 workflowId: workflowId,
                 workflowName: workflowName,
-                location: "controlDevice block '\(action.name ?? "unnamed")'",
-                deviceName: action.deviceName,
-                roomName: action.roomName
+                location: "controlDevice block '\(action.name ?? "unnamed")'"
             )
         }
 
@@ -840,7 +841,8 @@ actor WorkflowEngine: WorkflowEngineProtocol {
 
             case let .waitForState(block):
                 let waitDeviceName = await resolveDeviceName(block.deviceId)
-                let waitCharName = CharacteristicTypes.displayName(for: block.characteristicType)
+                let waitResolvedType = registry?.readCharacteristicType(forStableId: block.characteristicId) ?? block.characteristicId
+                let waitCharName = CharacteristicTypes.displayName(for: waitResolvedType)
                 let waitSvcName = await resolveServiceDisplayName(deviceId: block.deviceId, serviceId: block.serviceId)
                 let waitSvcSuffix = waitSvcName.map { " (\($0))" } ?? ""
                 result.detail = "Waiting for \(waitDeviceName) \(waitCharName)\(waitSvcSuffix)..."
@@ -1222,19 +1224,17 @@ actor WorkflowEngine: WorkflowEngineProtocol {
 
     // MARK: - Orphan Logging
 
-    private func logOrphan(workflowId: UUID, workflowName: String, location: String, deviceName: String?, roomName: String?) async {
-        let deviceDesc = deviceName.map { name in
-            roomName.map { "\(name) (\($0))" } ?? name
-        } ?? "unknown device"
-
+    private func logOrphan(workflowId: UUID, workflowName: String, location: String) async {
         // Orphan details are captured in the WorkflowExecutionLog's block results.
-        AppLogger.workflow.warning("[\(workflowName)] Orphaned reference in \(location): \(deviceDesc)")
+        AppLogger.workflow.warning("[\(workflowName)] Orphaned reference in \(location): unknown device")
     }
 
     // MARK: - WaitForState
 
     private func waitForState(_ block: WaitForStateBlock, workflowId: UUID, workflowName: String, onProgress: ((Double) async -> Void)? = nil) async throws -> Bool {
-        let resolvedType = CharacteristicTypes.characteristicType(forName: block.characteristicType) ?? block.characteristicType
+        let resolvedType = registry?.readCharacteristicType(forStableId: block.characteristicId)
+            ?? CharacteristicTypes.characteristicType(forName: block.characteristicId)
+            ?? block.characteristicId
         let key = "\(block.deviceId):\(resolvedType)"
 
         // Check if condition is already met
@@ -1248,9 +1248,7 @@ actor WorkflowEngine: WorkflowEngineProtocol {
             await logOrphan(
                 workflowId: workflowId,
                 workflowName: workflowName,
-                location: "waitForState block '\(block.name ?? "unnamed")'",
-                deviceName: block.deviceName,
-                roomName: block.roomName
+                location: "waitForState block '\(block.name ?? "unnamed")'"
             )
         }
 

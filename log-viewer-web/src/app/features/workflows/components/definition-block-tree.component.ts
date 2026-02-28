@@ -1,10 +1,11 @@
-import { Component, input, computed } from '@angular/core';
+import { Component, input, computed, inject, signal } from '@angular/core';
 import { WorkflowBlockDef } from '../../../core/models/workflow-definition.model';
 import {
   blockTypeIcon, formatBlockType, isBlockingType,
   formatDuration, formatComparisonOperator,
 } from '../../../core/utils/workflow-definition-utils';
 import { IconComponent } from '../../../shared/components/icon.component';
+import { DeviceRegistryService } from '../../../core/services/device-registry.service';
 
 const DEPTH_COLORS = [
   'var(--depth-0)',
@@ -20,9 +21,15 @@ const DEPTH_COLORS = [
   imports: [IconComponent, DefinitionBlockTreeComponent],
   template: `
     <div class="block-node">
-      <div class="block-row">
+      <div class="block-row" [class.collapsible]="hasChildren()" (click)="toggle()">
         @for (i of depthRange(); track i) {
           <div class="connector-line" [style.background-color]="depthColor(i)"></div>
+        }
+
+        @if (hasChildren()) {
+          <span class="chevron" [class.collapsed]="collapsed()">
+            <app-icon name="chevron-down" [size]="12" />
+          </span>
         }
 
         <span class="type-icon" [style.color]="typeColor()">
@@ -42,29 +49,34 @@ const DEPTH_COLORS = [
           @if (detailText()) {
             <div class="block-detail">{{ detailText() }}</div>
           }
+          @if (collapsed() && hasChildren()) {
+            <span class="collapsed-hint">{{ totalChildCount() }} nested</span>
+          }
         </div>
       </div>
 
-      <!-- Then / Else for conditional -->
-      @if (block().type === 'conditional') {
-        @if (thenBlocks().length > 0) {
-          <div class="sub-label" [style.padding-left.px]="(depth() + 1) * 14 + 6">Then</div>
-          @for (b of thenBlocks(); track b.blockId) {
-            <app-definition-block-tree [block]="b" [depth]="depth() + 1" />
+      @if (!collapsed()) {
+        <!-- Then / Else for conditional -->
+        @if (block().type === 'conditional') {
+          @if (thenBlocks().length > 0) {
+            <div class="sub-label" [style.padding-left.px]="(depth() + 1) * 14 + 6">Then</div>
+            @for (b of thenBlocks(); track $index) {
+              <app-definition-block-tree [block]="b" [depth]="depth() + 1" />
+            }
+          }
+          @if (elseBlocks().length > 0) {
+            <div class="sub-label" [style.padding-left.px]="(depth() + 1) * 14 + 6">Else</div>
+            @for (b of elseBlocks(); track $index) {
+              <app-definition-block-tree [block]="b" [depth]="depth() + 1" />
+            }
           }
         }
-        @if (elseBlocks().length > 0) {
-          <div class="sub-label" [style.padding-left.px]="(depth() + 1) * 14 + 6">Else</div>
-          @for (b of elseBlocks(); track b.blockId) {
-            <app-definition-block-tree [block]="b" [depth]="depth() + 1" />
-          }
-        }
-      }
 
-      <!-- Nested blocks for repeat, repeatWhile, group -->
-      @if (nestedBlocks().length > 0 && block().type !== 'conditional') {
-        @for (b of nestedBlocks(); track b.blockId) {
-          <app-definition-block-tree [block]="b" [depth]="depth() + 1" />
+        <!-- Nested blocks for repeat, repeatWhile, group -->
+        @if (nestedBlocks().length > 0 && block().type !== 'conditional') {
+          @for (b of nestedBlocks(); track $index) {
+            <app-definition-block-tree [block]="b" [depth]="depth() + 1" />
+          }
         }
       }
     </div>
@@ -132,13 +144,48 @@ const DEPTH_COLORS = [
       letter-spacing: 0.08em;
       padding: 4px 0 0;
     }
+    .block-row.collapsible { cursor: pointer; border-radius: var(--radius-xs); }
+    .block-row.collapsible:hover { background: color-mix(in srgb, var(--text-tertiary) 6%, transparent); }
+    .chevron {
+      display: flex;
+      align-items: center;
+      flex-shrink: 0;
+      color: var(--text-tertiary);
+      transition: transform 0.15s ease;
+      margin-top: 1px;
+    }
+    .chevron.collapsed { transform: rotate(-90deg); }
+    .collapsed-hint {
+      font-size: var(--font-size-xs);
+      color: var(--text-tertiary);
+      font-style: italic;
+    }
   `]
 })
 export class DefinitionBlockTreeComponent {
+  private registry = inject(DeviceRegistryService);
+
   block = input.required<WorkflowBlockDef>();
   depth = input(0);
+  collapsed = signal(false);
 
   readonly depthRange = computed(() => Array.from({ length: this.depth() }, (_, i) => i));
+
+  readonly hasChildren = computed(() => {
+    const b = this.block();
+    if (b.type === 'conditional') return (b.thenBlocks?.length ?? 0) > 0 || (b.elseBlocks?.length ?? 0) > 0;
+    return (b.blocks?.length ?? 0) > 0;
+  });
+
+  readonly totalChildCount = computed(() => {
+    const b = this.block();
+    if (b.type === 'conditional') return (b.thenBlocks?.length ?? 0) + (b.elseBlocks?.length ?? 0);
+    return b.blocks?.length ?? 0;
+  });
+
+  toggle(): void {
+    if (this.hasChildren()) this.collapsed.update(v => !v);
+  }
 
   readonly icon = computed(() => blockTypeIcon(this.block().type, this.block().block));
 
@@ -154,8 +201,12 @@ export class DefinitionBlockTreeComponent {
   readonly displayName = computed(() => {
     const b = this.block();
     if (b.name) return b.name;
-    if (b.type === 'controlDevice' && b.deviceName) return b.deviceName;
-    if (b.type === 'runScene' && b.sceneName) return b.sceneName;
+    if (b.type === 'controlDevice' && b.deviceId) {
+      return this.registry.lookupDevice(b.deviceId)?.name || b.deviceId;
+    }
+    if (b.type === 'runScene' && b.sceneId) {
+      return this.registry.lookupScene(b.sceneId)?.name || b.sceneId;
+    }
     if (b.type === 'group' && b.label) return b.label;
     return formatBlockType(b.type);
   });
@@ -165,10 +216,15 @@ export class DefinitionBlockTreeComponent {
     switch (b.type) {
       case 'controlDevice': {
         const parts: string[] = [];
-        if (b.roomName) parts.push(b.roomName);
-        if (b.characteristicType) {
+        if (b.deviceId) {
+          const device = this.registry.lookupDevice(b.deviceId);
+          if (device?.room) parts.push(device.room);
+        }
+        if (b.characteristicId) {
+          const char = b.deviceId ? this.registry.lookupCharacteristic(b.deviceId, b.characteristicId) : undefined;
+          const charLabel = char?.name || b.characteristicId;
           const val = b.value !== undefined ? ` → ${formatVal(b.value)}` : '';
-          parts.push(`${b.characteristicType}${val}`);
+          parts.push(`${charLabel}${val}`);
         }
         return parts.join(' · ') || undefined;
       }
@@ -176,14 +232,18 @@ export class DefinitionBlockTreeComponent {
         return `${(b.method || 'POST').toUpperCase()} ${b.url || ''}`;
       }
       case 'log': return b.message || undefined;
-      case 'runScene': return b.sceneName ? undefined : b.sceneId;
+      case 'runScene': return undefined; // name shown via displayName()
       case 'delay': return b.seconds !== undefined ? formatDuration(b.seconds) : undefined;
       case 'waitForState': {
         const parts: string[] = [];
-        const device = b.deviceName || b.deviceId || '';
-        if (device) parts.push(device);
-        if (b.characteristicType && b.condition) {
-          parts.push(`${b.characteristicType} ${formatComparisonOperator(b.condition)}`);
+        if (b.deviceId) {
+          const device = this.registry.lookupDevice(b.deviceId);
+          parts.push(device?.name || b.deviceId);
+        }
+        if (b.characteristicId && b.condition) {
+          const char = b.deviceId ? this.registry.lookupCharacteristic(b.deviceId, b.characteristicId) : undefined;
+          const charLabel = char?.name || b.characteristicId;
+          parts.push(`${charLabel} ${formatComparisonOperator(b.condition)}`);
         }
         if (b.timeoutSeconds) parts.push(`Timeout: ${formatDuration(b.timeoutSeconds)}`);
         return parts.join(' · ') || undefined;

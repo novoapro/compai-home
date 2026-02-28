@@ -100,6 +100,49 @@ struct CharacteristicModel: Identifiable, Codable {
     let validValues: [Int]?
 }
 
+// MARK: - Characteristic Display
+
+extension CharacteristicModel {
+    /// Human-readable name derived from the HomeKit characteristic type.
+    var displayName: String {
+        CharacteristicTypes.displayName(for: type)
+    }
+}
+
+extension Array where Element == DeviceModel {
+    /// Resolves a characteristic's display name from a stable characteristic ID.
+    /// Searches across all devices and services for a matching characteristic.
+    /// Falls back to `CharacteristicTypes.displayName` (for legacy HK type strings) or the raw ID.
+    func resolvedCharacteristicName(deviceId: String, characteristicId: String) -> String {
+        if let device = first(where: { $0.id == deviceId }) {
+            for service in device.services {
+                if let char = service.characteristics.first(where: { $0.id == characteristicId }) {
+                    return char.displayName
+                }
+            }
+        }
+        // Fallback for legacy values that are still HK type strings
+        let name = CharacteristicTypes.displayName(for: characteristicId)
+        if name != characteristicId { return name }
+        return characteristicId
+    }
+}
+
+extension Array where Element == DeviceModel {
+    /// Resolves a stable characteristic ID to its HomeKit characteristic type string.
+    /// Returns the stable ID itself as fallback (for legacy values that are already HK types).
+    func resolvedCharacteristicType(deviceId: String, characteristicId: String) -> String {
+        if let device = first(where: { $0.id == deviceId }) {
+            for service in device.services {
+                if let char = service.characteristics.first(where: { $0.id == characteristicId }) {
+                    return char.type
+                }
+            }
+        }
+        return characteristicId
+    }
+}
+
 // MARK: - Characteristic Display Filtering
 
 extension CharacteristicModel {

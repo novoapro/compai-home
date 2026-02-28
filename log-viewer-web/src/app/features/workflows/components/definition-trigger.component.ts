@@ -1,4 +1,4 @@
-import { Component, input, computed } from '@angular/core';
+import { Component, input, computed, inject, signal } from '@angular/core';
 import {
   WorkflowTriggerDef, CompoundTriggerDef, DeviceStateTriggerDef,
   ScheduleTriggerDef, SunEventTriggerDef, WebhookTriggerDef,
@@ -6,6 +6,7 @@ import {
 import { TRIGGER_TYPE_ICONS } from '../../../core/models/workflow-log.model';
 import { formatTriggerCondition, formatScheduleType, formatRetriggerPolicy } from '../../../core/utils/workflow-definition-utils';
 import { IconComponent } from '../../../shared/components/icon.component';
+import { DeviceRegistryService } from '../../../core/services/device-registry.service';
 
 const DEPTH_COLORS = [
   'var(--depth-0)',
@@ -21,9 +22,15 @@ const DEPTH_COLORS = [
   imports: [IconComponent, DefinitionTriggerComponent],
   template: `
     <div class="trigger-node">
-      <div class="trigger-row">
+      <div class="trigger-row" [class.collapsible]="hasChildren()" (click)="toggle()">
         @for (i of depthRange(); track i) {
           <div class="connector-line" [style.background-color]="depthColor(i)"></div>
+        }
+
+        @if (hasChildren()) {
+          <span class="chevron" [class.collapsed]="collapsed()">
+            <app-icon name="chevron-down" [size]="12" />
+          </span>
         }
 
         <span class="trigger-icon" [style.color]="iconColor()">
@@ -45,10 +52,13 @@ const DEPTH_COLORS = [
               {{ retriggerLabel() }}
             </span>
           }
+          @if (collapsed() && hasChildren()) {
+            <span class="collapsed-hint">{{ compoundTriggers().length }} nested</span>
+          }
         </div>
       </div>
 
-      @if (trigger().type === 'compound') {
+      @if (!collapsed() && trigger().type === 'compound') {
         @for (sub of compoundTriggers(); track $index) {
           <app-definition-trigger [trigger]="sub" [depth]="depth() + 1" />
         }
@@ -125,13 +135,37 @@ const DEPTH_COLORS = [
       font-size: 9px;
       letter-spacing: 0.06em;
     }
+    .trigger-row.collapsible { cursor: pointer; border-radius: var(--radius-xs); }
+    .trigger-row.collapsible:hover { background: color-mix(in srgb, var(--text-tertiary) 6%, transparent); }
+    .chevron {
+      display: flex;
+      align-items: center;
+      flex-shrink: 0;
+      color: var(--text-tertiary);
+      transition: transform 0.15s ease;
+      margin-top: 1px;
+    }
+    .chevron.collapsed { transform: rotate(-90deg); }
+    .collapsed-hint {
+      font-size: var(--font-size-xs);
+      color: var(--text-tertiary);
+      font-style: italic;
+    }
   `]
 })
 export class DefinitionTriggerComponent {
+  private registry = inject(DeviceRegistryService);
+
   trigger = input.required<WorkflowTriggerDef>();
   depth = input(0);
+  collapsed = signal(false);
 
   readonly depthRange = computed(() => Array.from({ length: this.depth() }, (_, i) => i));
+  readonly hasChildren = computed(() => this.compoundTriggers().length > 0);
+
+  toggle(): void {
+    if (this.hasChildren()) this.collapsed.update(v => !v);
+  }
 
   readonly triggerIcon = computed(() => {
     return TRIGGER_TYPE_ICONS[this.trigger().type] || 'bolt-circle-fill';
@@ -153,7 +187,7 @@ export class DefinitionTriggerComponent {
     switch (t.type) {
       case 'deviceStateChange': {
         const d = t as DeviceStateTriggerDef;
-        return d.deviceName || d.deviceId;
+        return this.registry.lookupDevice(d.deviceId)?.name || d.deviceId;
       }
       case 'schedule': return 'Schedule';
       case 'webhook': return 'Webhook';
@@ -172,9 +206,12 @@ export class DefinitionTriggerComponent {
     switch (t.type) {
       case 'deviceStateChange': {
         const d = t as DeviceStateTriggerDef;
+        const device = this.registry.lookupDevice(d.deviceId);
+        const char = this.registry.lookupCharacteristic(d.deviceId, d.characteristicId);
+        const charLabel = char?.name || d.characteristicId;
         const parts: string[] = [];
-        if (d.roomName) parts.push(d.roomName);
-        parts.push(`${d.characteristicType} ${formatTriggerCondition(d.condition)}`);
+        if (device?.room) parts.push(device.room);
+        parts.push(`${charLabel} ${formatTriggerCondition(d.condition)}`);
         return parts.join(' · ');
       }
       case 'schedule': {

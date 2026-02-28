@@ -1,4 +1,4 @@
-import { Component, input, computed } from '@angular/core';
+import { Component, input, computed, inject, signal } from '@angular/core';
 import {
   WorkflowConditionDef, DeviceStateConditionDef, TimeConditionDef,
   SceneActiveConditionDef, BlockResultConditionDef,
@@ -6,6 +6,7 @@ import {
 } from '../../../core/models/workflow-definition.model';
 import { formatComparisonOperator, formatTimeConditionMode } from '../../../core/utils/workflow-definition-utils';
 import { IconComponent } from '../../../shared/components/icon.component';
+import { DeviceRegistryService } from '../../../core/services/device-registry.service';
 
 @Component({
   selector: 'app-definition-condition',
@@ -13,9 +14,15 @@ import { IconComponent } from '../../../shared/components/icon.component';
   imports: [IconComponent, DefinitionConditionComponent],
   template: `
     <div class="condition-node">
-      <div class="condition-row">
+      <div class="condition-row" [class.collapsible]="hasChildren()" (click)="toggle()">
         @for (i of depthRange(); track i) {
           <div class="connector-line"></div>
+        }
+
+        @if (hasChildren()) {
+          <span class="chevron" [class.collapsed]="collapsed()">
+            <app-icon name="chevron-down" [size]="12" />
+          </span>
         }
 
         @if (isLogic()) {
@@ -31,10 +38,13 @@ import { IconComponent } from '../../../shared/components/icon.component';
           @if (detailText()) {
             <span class="condition-detail">{{ detailText() }}</span>
           }
+          @if (collapsed() && hasChildren()) {
+            <span class="collapsed-hint">{{ childConditions().length }} nested</span>
+          }
         </div>
       </div>
 
-      @if (childConditions().length > 0) {
+      @if (!collapsed() && childConditions().length > 0) {
         @for (child of childConditions(); track $index) {
           <app-definition-condition [condition]="child" [depth]="depth() + 1" />
         }
@@ -92,13 +102,36 @@ import { IconComponent } from '../../../shared/components/icon.component';
       color: var(--text-secondary);
       line-height: 1.4;
     }
+    .condition-row.collapsible { cursor: pointer; border-radius: var(--radius-xs); }
+    .condition-row.collapsible:hover { background: color-mix(in srgb, var(--text-tertiary) 6%, transparent); }
+    .chevron {
+      display: flex;
+      align-items: center;
+      flex-shrink: 0;
+      color: var(--text-tertiary);
+      transition: transform 0.15s ease;
+    }
+    .chevron.collapsed { transform: rotate(-90deg); }
+    .collapsed-hint {
+      font-size: var(--font-size-xs);
+      color: var(--text-tertiary);
+      font-style: italic;
+    }
   `]
 })
 export class DefinitionConditionComponent {
+  private registry = inject(DeviceRegistryService);
+
   condition = input.required<WorkflowConditionDef>();
   depth = input(0);
+  collapsed = signal(false);
 
   readonly depthRange = computed(() => Array.from({ length: this.depth() }, (_, i) => i));
+  readonly hasChildren = computed(() => this.childConditions().length > 0);
+
+  toggle(): void {
+    if (this.hasChildren()) this.collapsed.update(v => !v);
+  }
 
   readonly isLogic = computed(() => {
     const t = this.condition().type;
@@ -128,7 +161,7 @@ export class DefinitionConditionComponent {
     switch (c.type) {
       case 'deviceState': {
         const d = c as DeviceStateConditionDef;
-        return d.deviceName || d.deviceId;
+        return this.registry.lookupDevice(d.deviceId)?.name || d.deviceId;
       }
       case 'timeCondition': {
         const t = c as TimeConditionDef;
@@ -136,7 +169,7 @@ export class DefinitionConditionComponent {
       }
       case 'sceneActive': {
         const s = c as SceneActiveConditionDef;
-        const name = s.sceneName || s.sceneId;
+        const name = this.registry.lookupScene(s.sceneId)?.name || s.sceneId;
         return `${name} is ${s.isActive ? 'active' : 'inactive'}`;
       }
       case 'blockResult': {
@@ -158,9 +191,12 @@ export class DefinitionConditionComponent {
     switch (c.type) {
       case 'deviceState': {
         const d = c as DeviceStateConditionDef;
+        const device = this.registry.lookupDevice(d.deviceId);
+        const char = this.registry.lookupCharacteristic(d.deviceId, d.characteristicId);
+        const charLabel = char?.name || d.characteristicId;
         const parts: string[] = [];
-        if (d.roomName) parts.push(d.roomName);
-        parts.push(`${d.characteristicType} ${formatComparisonOperator(d.comparison)}`);
+        if (device?.room) parts.push(device.room);
+        parts.push(`${charLabel} ${formatComparisonOperator(d.comparison)}`);
         return parts.join(' · ');
       }
       default: return undefined;
