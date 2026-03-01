@@ -541,7 +541,7 @@ actor AIWorkflowService {
 
         ```json
         { "block": "flowControl", "type": "delay", "name": "optional", "seconds": 5.0 }
-        { "block": "flowControl", "type": "waitForState", "name": "optional", "deviceId": "...", "deviceName": "Living Room Light", "roomName": "Living Room", "serviceId": "optional", "characteristicType": "Power", "condition": { "type": "equals", "value": true }, "timeoutSeconds": 60 }
+        { "block": "flowControl", "type": "waitForState", "name": "optional", "condition": { "type": "deviceState", "deviceId": "...", "deviceName": "Living Room Light", "roomName": "Living Room", "characteristicId": "Power", "comparison": { "type": "equals", "value": true } }, "timeoutSeconds": 60 }
         { "block": "flowControl", "type": "conditional", "name": "optional", "condition": { ... }, "thenBlocks": [ ... ], "elseBlocks": [ ... ] }
         { "block": "flowControl", "type": "repeat", "name": "optional", "count": 3, "blocks": [ ... ], "delayBetweenSeconds": 1.0 }
         { "block": "flowControl", "type": "repeatWhile", "name": "optional", "condition": { ... }, "blocks": [ ... ], "maxIterations": 10, "delayBetweenSeconds": 1.0 }
@@ -555,18 +555,13 @@ actor AIWorkflowService {
         executeWorkflow modes: "inline" (wait for it), "parallel" (fire and continue), "delegate" (fire and stop this workflow).
         delayBetweenSeconds is optional on repeat and repeatWhile blocks.
 
-        ### Compound conditions in conditional and repeatWhile blocks
-        The "condition" field in conditional and repeatWhile blocks accepts compound conditions \
+        ### Compound conditions in conditional, repeatWhile, and waitForState blocks
+        The "condition" field in conditional, repeatWhile, and waitForState blocks accepts compound conditions \
         using the same format as guard conditions: {"type":"and","conditions":[...]}, \
         {"type":"or","conditions":[...]}, {"type":"not","condition":{...}}. These can be nested \
-        to any depth. For example, a conditional block could use \
-        {"type":"and","conditions":[{"type":"deviceState",...},{"type":"timeCondition","mode":"nighttime"}]} to check \
-        multiple conditions together.
-
-        ### waitForState condition format
-        The "condition" in waitForState uses ComparisonOperator: "equals", "notEquals", \
-        "greaterThan", "lessThan", "greaterThanOrEqual", "lessThanOrEqual" with a "value" field. \
-        "changed" and "transitioned" are NOT valid here.
+        to any depth. For example, a waitForState block could use \
+        {"type":"and","conditions":[{"type":"deviceState",...},{"type":"deviceState",...}]} to wait \
+        for multiple device states simultaneously.
 
         ## Guard Condition Types (workflow-level "conditions" array)
 

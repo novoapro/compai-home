@@ -225,7 +225,7 @@ enum WorkflowMigrationService {
         case let .flowControl(fc, _):
             switch fc {
             case let .waitForState(b):
-                refs.insert(DeviceRef(deviceId: b.deviceId, serviceId: b.serviceId, contextName: nil, contextRoom: nil, contextServiceType: nil, location: "block"))
+                collectConditionRefs(b.condition, into: &refs)
             case let .conditional(b):
                 collectConditionRefs(b.condition, into: &refs)
                 for nested in b.thenBlocks { collectBlockRefs(nested, into: &refs) }
@@ -802,7 +802,8 @@ extension WorkflowMigrationService {
             }
         case .flowControl(let fc, _):
             switch fc {
-            case .waitForState(let b): types.insert(b.characteristicId)
+            case .waitForState(let b):
+                collectConditionCharTypes(b.condition, into: &types)
             case .conditional(let b):
                 collectConditionCharTypes(b.condition, into: &types)
                 for nested in b.thenBlocks { collectBlockCharTypes(nested, into: &types) }
@@ -989,7 +990,7 @@ extension WorkflowMigrationService {
         case .flowControl(let fc, _):
             switch fc {
             case .waitForState(let b):
-                refs.insert(CharRef(deviceId: b.deviceId, characteristicId: b.characteristicId))
+                collectConditionCharRefs(b.condition, into: &refs)
             case .conditional(let b):
                 collectConditionCharRefs(b.condition, into: &refs)
                 for nested in b.thenBlocks { collectBlockCharRefs(nested, into: &refs) }

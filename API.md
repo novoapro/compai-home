@@ -986,13 +986,10 @@ All blocks accept an optional `name` field.
 | Field | Type | Required | Description |
 |---|---|---|---|
 | `type` | `"waitForState"` | yes | |
-| `deviceId` | string | yes | Stable device ID |
-| `deviceName` | string | yes | |
-| `roomName` | string | yes | |
-| `serviceId` | string | no | |
-| `characteristicId` | string | yes | Stable characteristic ID (resolvable via device registry) |
-| `condition` | object | yes | Comparison (`equals`, `notEquals`, `greaterThan`, `lessThan`, `greaterThanOrEqual`, `lessThanOrEqual` with `value`) |
-| `timeoutSeconds` | number | yes | Max wait time |
+| `condition` | WorkflowCondition | yes | Condition to wait for (same format as conditional/repeatWhile — supports AND/OR/NOT groups, deviceState, timeCondition, sceneActive) |
+| `timeoutSeconds` | number | yes | Max wait time in seconds |
+
+> **Backward compatibility:** The old flat format (`deviceId`, `characteristicId`, `condition` as ComparisonOperator) is still accepted for decoding and automatically converted to a `WorkflowCondition.deviceState`.
 
 ##### conditional
 

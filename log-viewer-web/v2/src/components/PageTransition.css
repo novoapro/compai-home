@@ -1,0 +1,7 @@
+.page-transition {
+  height: 100%;
+}
+
+.page-enter {
+  animation: pageFadeIn 200ms var(--ease-decelerate) both;
+}

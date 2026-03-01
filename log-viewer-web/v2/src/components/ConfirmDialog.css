@@ -1,0 +1,108 @@
+.cd-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-overlay);
+  animation: cdFadeIn 200ms ease;
+  padding: var(--spacing-md);
+}
+
+@keyframes cdFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.cd-dialog {
+  background: var(--bg-card);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-elevated);
+  width: min(380px, 100%);
+  padding: var(--spacing-lg);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: var(--spacing-sm);
+  animation: cdSlideUp 250ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+@keyframes cdSlideUp {
+  from { opacity: 0; transform: scale(0.95) translateY(8px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.cd-icon-wrap {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: var(--spacing-xs);
+  background: color-mix(in srgb, var(--tint-main) 12%, transparent);
+  color: var(--tint-main);
+}
+.cd-icon-wrap.destructive {
+  background: color-mix(in srgb, var(--status-error) 12%, transparent);
+  color: var(--status-error);
+}
+
+.cd-title {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.cd-message {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  line-height: var(--line-height-relaxed);
+  margin: 0;
+}
+
+.cd-actions {
+  display: flex;
+  gap: var(--spacing-sm);
+  margin-top: var(--spacing-md);
+  width: 100%;
+}
+
+.cd-btn {
+  flex: 1;
+  padding: 10px 16px;
+  border-radius: var(--radius-sm);
+  font-family: inherit;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  border: none;
+  min-height: var(--touch-target-min);
+}
+
+.cd-btn.cancel {
+  background: var(--bg-detail);
+  color: var(--text-secondary);
+}
+.cd-btn.cancel:hover {
+  background: var(--bg-pill);
+}
+
+.cd-btn.confirm {
+  background: var(--tint-main);
+  color: white;
+}
+.cd-btn.confirm:hover {
+  filter: brightness(1.08);
+}
+
+.cd-btn.confirm.destructive {
+  background: var(--status-error);
+}
+.cd-btn.confirm.destructive:hover {
+  filter: brightness(1.08);
+}

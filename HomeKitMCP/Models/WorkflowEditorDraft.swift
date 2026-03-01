@@ -438,7 +438,7 @@ extension BlockDraft {
         case let .delay(d):
             return d.autoName()
         case let .waitForState(d):
-            return d.autoName(devices: devices)
+            return d.autoName(devices: devices, scenes: scenes)
         case let .conditional(d):
             return d.autoName(devices: devices, scenes: scenes)
         case let .repeatBlock(d):
@@ -521,13 +521,9 @@ private extension DelayDraft {
 }
 
 private extension WaitForStateDraft {
-    func autoName(devices: [DeviceModel]) -> String {
-        guard !deviceId.isEmpty else { return "Wait for State" }
-        let devName = devices.resolvedName(deviceId: deviceId, serviceId: serviceId)
-        let charName = characteristicId.isEmpty ? "" : devices.resolvedCharacteristicName(deviceId: deviceId, characteristicId: characteristicId)
-        let resolvedCharType = devices.resolvedCharacteristicType(deviceId: deviceId, characteristicId: characteristicId)
-        let displayVal = CharacteristicInputConfig.displayValueForName(characteristicType: resolvedCharType, rawValue: comparisonValue)
-        return "Wait \(devName) \(charName) \(comparisonType.symbol) \(displayVal)".trimmingCharacters(in: .whitespaces)
+    func autoName(devices: [DeviceModel], scenes: [SceneModel] = []) -> String {
+        let desc = conditionRoot.autoDescription(devices: devices, scenes: scenes)
+        return desc.isEmpty ? "Wait for State" : "Wait \(desc)"
     }
 }
 
@@ -869,19 +865,8 @@ struct DelayDraft {
 
 struct WaitForStateDraft {
     var name: String = ""
-    var deviceId: String = ""
-    var serviceId: String?
-    var characteristicId: String = ""
-    var comparisonType: ComparisonType = .equals
-    var comparisonValue: String = ""
+    var conditionRoot: ConditionGroupDraft = .withOneLeaf()
     var timeoutSeconds: Double = 30.0
-
-    // Cached characteristic metadata for UI rendering when device isn't available
-    var characteristicFormat: String?
-    var characteristicMinValue: Double?
-    var characteristicMaxValue: Double?
-    var characteristicStepValue: Double?
-    var characteristicValidValues: [Int]?
 }
 
 struct ConditionalDraft {
@@ -1518,22 +1503,10 @@ extension WorkflowDraft {
         case let .delay(b):
             return BlockDraft(id: blockId, blockType: .delay(DelayDraft(name: b.name ?? "", seconds: b.seconds)))
         case let .waitForState(b):
-            let (compType, compValue) = convertComparison(b.condition)
-            let meta = lookupCharacteristicMeta(deviceId: b.deviceId, characteristicId: b.characteristicId, in: devices)
-            return BlockDraft(id: blockId, blockType: .waitForState(WaitForStateDraft(
-                name: b.name ?? "",
-                deviceId: b.deviceId,
-                serviceId: b.serviceId,
-                characteristicId: b.characteristicId,
-                comparisonType: compType,
-                comparisonValue: compValue,
-                timeoutSeconds: b.timeoutSeconds,
-                characteristicFormat: meta.format,
-                characteristicMinValue: meta.minValue,
-                characteristicMaxValue: meta.maxValue,
-                characteristicStepValue: meta.stepValue,
-                characteristicValidValues: meta.validValues
-            )))
+            var draft = WaitForStateDraft(name: b.name ?? "")
+            draft.conditionRoot = convertConditionTree([b.condition], devices: devices)
+            draft.timeoutSeconds = b.timeoutSeconds
+            return BlockDraft(id: blockId, blockType: .waitForState(draft))
         case let .conditional(b):
             var draft = ConditionalDraft(name: b.name ?? "")
             draft.conditionRoot = convertConditionTree([b.condition], devices: devices)
@@ -1800,11 +1773,11 @@ extension BlockDraft {
         case let .delay(d):
             return .flowControl(.delay(DelayBlock(seconds: d.seconds, name: d.name.isEmpty ? nil : d.name)), blockId: id)
         case let .waitForState(d):
+            let condition = d.conditionRoot.toCondition(devices: devices) ?? .deviceState(DeviceStateCondition(
+                deviceId: "", characteristicId: "", comparison: .equals(AnyCodable(true))
+            ))
             return .flowControl(.waitForState(WaitForStateBlock(
-                deviceId: d.deviceId,
-                serviceId: d.serviceId,
-                characteristicId: d.characteristicId,
-                condition: d.comparisonType.toOperator(value: d.comparisonValue),
+                condition: condition,
                 timeoutSeconds: d.timeoutSeconds,
                 name: d.name.isEmpty ? nil : d.name
             )), blockId: id)

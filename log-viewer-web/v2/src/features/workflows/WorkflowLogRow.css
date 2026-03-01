@@ -1,0 +1,126 @@
+.wflr-card {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-sm);
+  padding: var(--card-padding);
+  background: var(--bg-card);
+  border-radius: var(--radius-md);
+  border: none;
+  box-shadow: var(--shadow-card);
+  margin-bottom: var(--card-gap);
+  cursor: pointer;
+  transition: background 150ms ease, box-shadow 150ms ease;
+}
+.wflr-card:hover {
+  box-shadow: var(--shadow-card-hover);
+}
+
+.wflr-status-icon {
+  flex-shrink: 0;
+}
+
+.wflr-content {
+  flex: 1;
+  min-width: 0;
+  padding-top: 4px;
+}
+.wflr-header-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  flex-wrap: wrap;
+}
+.wflr-name {
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-primary);
+}
+.wflr-trigger-text {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  margin-top: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wflr-meta-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  margin-top: 4px;
+}
+.wflr-step-count {
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+}
+.wflr-message {
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.wflr-message.error {
+  color: var(--status-error);
+}
+.wflr-message.success {
+  color: var(--status-active);
+}
+.wflr-message.cancelled {
+  color: var(--status-warning);
+}
+
+.wflr-time-col {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-shrink: 0;
+  padding-top: 4px;
+}
+.wflr-time {
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+}
+.wflr-duration {
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+}
+
+.wflr-chevron {
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+  padding-top: 8px;
+}
+
+@media (max-width: 768px) {
+  .wflr-card {
+    --card-padding: 12px;
+    border-radius: var(--radius-sm);
+    gap: var(--spacing-xs);
+  }
+  .wflr-content {
+    padding-top: 2px;
+  }
+  .wflr-time-col {
+    padding-top: 2px;
+  }
+  .wflr-chevron {
+    padding-top: 6px;
+  }
+  .wflr-name {
+    font-size: var(--font-size-sm);
+  }
+  .wflr-trigger-text {
+    font-size: var(--font-size-xs);
+  }
+}
+@media (max-width: 480px) {
+  .wflr-time-col {
+    display: none;
+  }
+  .wflr-meta-row {
+    flex-wrap: wrap;
+  }
+}

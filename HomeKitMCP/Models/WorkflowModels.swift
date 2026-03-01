@@ -387,13 +387,26 @@ enum FlowControlBlock: Codable {
                 name: name
             ))
         case .waitForState:
-            let charId = try container.decodeIfPresent(String.self, forKey: .characteristicId)
-                ?? container.decode(String.self, forKey: .characteristicType)
+            // New format: condition is a WorkflowCondition (AND/OR/NOT groups)
+            // Old format: flat deviceId + characteristicId + ComparisonOperator → migrate to WorkflowCondition
+            let condition: WorkflowCondition
+            if let deviceId = try container.decodeIfPresent(String.self, forKey: .deviceId) {
+                // Old flat format — convert to WorkflowCondition.deviceState
+                let charId = try container.decodeIfPresent(String.self, forKey: .characteristicId)
+                    ?? container.decode(String.self, forKey: .characteristicType)
+                let comparison = try container.decode(ComparisonOperator.self, forKey: .condition)
+                let serviceId = try container.decodeIfPresent(String.self, forKey: .serviceId)
+                condition = .deviceState(DeviceStateCondition(
+                    deviceId: deviceId,
+                    serviceId: serviceId,
+                    characteristicId: charId,
+                    comparison: comparison
+                ))
+            } else {
+                condition = try container.decode(WorkflowCondition.self, forKey: .condition)
+            }
             self = try .waitForState(WaitForStateBlock(
-                deviceId: container.decode(String.self, forKey: .deviceId),
-                serviceId: container.decodeIfPresent(String.self, forKey: .serviceId),
-                characteristicId: charId,
-                condition: container.decode(ComparisonOperator.self, forKey: .condition),
+                condition: condition,
                 timeoutSeconds: container.decode(Double.self, forKey: .timeoutSeconds),
                 name: name
             ))
@@ -450,9 +463,6 @@ enum FlowControlBlock: Codable {
         case let .waitForState(block):
             try container.encode(FlowControlType.waitForState, forKey: .type)
             try container.encodeIfPresent(block.name, forKey: .name)
-            try container.encode(block.deviceId, forKey: .deviceId)
-            try container.encodeIfPresent(block.serviceId, forKey: .serviceId)
-            try container.encode(block.characteristicId, forKey: .characteristicId)
             try container.encode(block.condition, forKey: .condition)
             try container.encode(block.timeoutSeconds, forKey: .timeoutSeconds)
         case let .conditional(block):
@@ -517,17 +527,11 @@ struct DelayBlock {
 }
 
 struct WaitForStateBlock {
-    let deviceId: String
-    let serviceId: String?
-    let characteristicId: String
-    let condition: ComparisonOperator
+    let condition: WorkflowCondition
     let timeoutSeconds: Double
     let name: String?
 
-    init(deviceId: String, serviceId: String? = nil, characteristicId: String, condition: ComparisonOperator, timeoutSeconds: Double, name: String? = nil) {
-        self.deviceId = deviceId
-        self.serviceId = serviceId
-        self.characteristicId = characteristicId
+    init(condition: WorkflowCondition, timeoutSeconds: Double, name: String? = nil) {
         self.condition = condition
         self.timeoutSeconds = timeoutSeconds
         self.name = name

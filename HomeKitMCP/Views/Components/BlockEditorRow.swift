@@ -280,7 +280,7 @@ extension BlockEditorRow {
     }
 
     private var waitForStateContent: some View {
-        WaitForStateEditor(block: $block, devices: devices)
+        WaitForStateEditor(block: $block, devices: devices, scenes: scenes, continueOnError: continueOnError, allBlocks: allBlocks, currentBlockId: block.id, blockOrdinals: blockOrdinals)
     }
 
     private var conditionalContent: some View {
@@ -477,6 +477,11 @@ private struct DelayEditor: View {
 private struct WaitForStateEditor: View {
     @Binding var block: BlockDraft
     let devices: [DeviceModel]
+    var scenes: [SceneModel] = []
+    var continueOnError: Bool = false
+    var allBlocks: [BlockDraft] = []
+    var currentBlockId: UUID? = nil
+    var blockOrdinals: [UUID: Int] = [:]
 
     private var draft: Binding<WaitForStateDraft> {
         Binding(
@@ -489,31 +494,16 @@ private struct WaitForStateEditor: View {
     }
 
     var body: some View {
-        DeviceCharacteristicPicker(
+        ConditionGroupEditor(
+            group: draft.conditionRoot,
             devices: devices,
-            selectedDeviceId: draft.deviceId,
-            selectedServiceId: draft.serviceId,
-            selectedCharacteristicType: draft.characteristicId,
-            onCharacteristicSelected: { char in
-                draft.wrappedValue.characteristicFormat = char?.format
-                draft.wrappedValue.characteristicMinValue = char?.minValue
-                draft.wrappedValue.characteristicMaxValue = char?.maxValue
-                draft.wrappedValue.characteristicStepValue = char?.stepValue
-                draft.wrappedValue.characteristicValidValues = char?.validValues
-            }
-        )
-
-        ComparisonValueRow(
-            comparisonType: draft.comparisonType,
-            value: draft.comparisonValue,
-            characteristicType: draft.wrappedValue.characteristicId,
-            devices: devices,
-            deviceId: draft.wrappedValue.deviceId,
-            fallbackFormat: draft.wrappedValue.characteristicFormat,
-            fallbackMinValue: draft.wrappedValue.characteristicMinValue,
-            fallbackMaxValue: draft.wrappedValue.characteristicMaxValue,
-            fallbackStepValue: draft.wrappedValue.characteristicStepValue,
-            fallbackValidValues: draft.wrappedValue.characteristicValidValues
+            scenes: scenes,
+            depth: 0,
+            continueOnError: continueOnError,
+            allBlocks: allBlocks,
+            currentBlockId: currentBlockId,
+            allowBlockResult: false,
+            blockOrdinals: blockOrdinals
         )
 
         HStack {

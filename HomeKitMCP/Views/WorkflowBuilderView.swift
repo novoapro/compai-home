@@ -724,7 +724,7 @@ private struct BuilderFlowControlBlockRow: View {
         switch flowControl {
         case .delay(let b): return b.name ?? "Delay \(b.seconds)s"
         case .waitForState(let b):
-            return b.name ?? "Wait \(devices.resolvedName(deviceId: b.deviceId, serviceId: b.serviceId)) \(devices.resolvedCharacteristicName(deviceId: b.deviceId, characteristicId: b.characteristicId)) \(ConditionEvaluator.comparisonDescription(b.condition))"
+            return b.name ?? "Wait for condition (timeout \(Int(b.timeoutSeconds))s)"
         case .conditional(let b): return b.name ?? "If/Else"
         case .repeat(let b): return b.name ?? "Repeat \(b.count) times"
         case .repeatWhile(let b): return b.name ?? "Repeat while (max \(b.maxIterations))"

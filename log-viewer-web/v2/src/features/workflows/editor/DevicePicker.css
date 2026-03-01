@@ -1,0 +1,121 @@
+.device-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.picker-field {
+  position: relative;
+}
+
+.picker-field label {
+  display: block;
+  font-size: 10px;
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 4px;
+}
+
+.picker-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.picker-input {
+  width: 100%;
+  padding: 9px 12px;
+  padding-right: 32px;
+  border-radius: var(--radius-sm);
+  border: 1px solid color-mix(in srgb, var(--text-tertiary) 20%, transparent);
+  background: var(--bg-detail);
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  font-family: inherit;
+  outline: none;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+.picker-input:focus {
+  border-color: var(--tint-main);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--tint-main) 12%, transparent);
+}
+.picker-input::placeholder {
+  color: var(--text-tertiary);
+}
+
+.picker-clear {
+  position: absolute;
+  right: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: none;
+  background: none;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  padding: 0;
+}
+.picker-clear:hover {
+  background: color-mix(in srgb, var(--text-tertiary) 10%, transparent);
+  color: var(--text-secondary);
+}
+
+.picker-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 200;
+  margin-top: 4px;
+  max-height: 200px;
+  overflow-y: auto;
+  border-radius: var(--radius-sm);
+  background: var(--bg-card);
+  border: 1px solid color-mix(in srgb, var(--text-tertiary) 15%, transparent);
+  box-shadow: var(--shadow-card);
+}
+
+.picker-option {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 9px 12px;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+  font-size: var(--font-size-sm);
+  color: var(--text-primary);
+}
+.picker-option:hover,
+.picker-option.focused {
+  background: color-mix(in srgb, var(--tint-main) 8%, transparent);
+}
+.picker-option.selected {
+  background: color-mix(in srgb, var(--tint-main) 12%, transparent);
+  color: var(--tint-main);
+  font-weight: var(--font-weight-medium);
+}
+
+.picker-opt-secondary {
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+}
+
+.picker-empty {
+  padding: 12px;
+  text-align: center;
+  font-size: var(--font-size-sm);
+  color: var(--text-tertiary);
+}
+
+.picker-selected-label {
+  font-size: var(--font-size-xs);
+  color: var(--tint-main);
+  margin-top: -2px;
+  padding-left: 2px;
+  font-weight: var(--font-weight-medium);
+}

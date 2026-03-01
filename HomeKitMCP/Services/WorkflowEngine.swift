@@ -116,7 +116,7 @@ actor WorkflowEngine: WorkflowEngineProtocol {
         guard storage.readWorkflowsEnabled() else { return }
 
         // Notify any waitForState waiters first
-        notifyStateWaiters(change)
+        await notifyStateWaiters(change)
 
         let workflows = await workflowStorageService.getEnabledWorkflows()
         let context = TriggerContext.stateChange(change)
@@ -840,22 +840,18 @@ actor WorkflowEngine: WorkflowEngineProtocol {
                 result.status = .success
 
             case let .waitForState(block):
-                let waitDeviceName = await resolveDeviceName(block.deviceId)
-                let waitResolvedType = registry?.readCharacteristicType(forStableId: block.characteristicId) ?? block.characteristicId
-                let waitCharName = CharacteristicTypes.displayName(for: waitResolvedType)
-                let waitSvcName = await resolveServiceDisplayName(deviceId: block.deviceId, serviceId: block.serviceId)
-                let waitSvcSuffix = waitSvcName.map { " (\($0))" } ?? ""
-                result.detail = "Waiting for \(waitDeviceName) \(waitCharName)\(waitSvcSuffix)..."
+                let waitDesc = waitForStateDescription(block)
+                result.detail = "Waiting for \(waitDesc)..."
                 await onUpdate(result)
 
                 let matched = try await waitForState(block, workflowId: context.workflow.id, workflowName: context.workflow.name) { elapsedSeconds in
                     // Update parent with elapsed time while waiting
-                    result.detail = "Waiting for \(waitDeviceName) \(waitCharName)\(waitSvcSuffix)... (\(String(format: "%.1f", elapsedSeconds))s)"
+                    result.detail = "Waiting for \(waitDesc)... (\(String(format: "%.1f", elapsedSeconds))s)"
                     await onUpdate(result)
                 }
                 result.detail = matched
-                    ? "Waited for \(waitDeviceName) \(waitCharName)\(waitSvcSuffix) — condition met"
-                    : "Waited for \(waitDeviceName) \(waitCharName)\(waitSvcSuffix) — timed out after \(block.timeoutSeconds)s"
+                    ? "Waited for \(waitDesc) — condition met"
+                    : "Waited for \(waitDesc) — timed out after \(block.timeoutSeconds)s"
                 result.status = matched ? .success : .failure
                 if !matched {
                     result.errorMessage = "Timed out after \(block.timeoutSeconds)s"
@@ -1231,25 +1227,64 @@ actor WorkflowEngine: WorkflowEngineProtocol {
 
     // MARK: - WaitForState
 
+    /// Build a human-readable description of a waitForState block's condition.
+    private func waitForStateDescription(_ block: WaitForStateBlock) -> String {
+        switch block.condition {
+        case .deviceState(let c):
+            let resolvedType = registry?.readCharacteristicType(forStableId: c.characteristicId) ?? c.characteristicId
+            let charName = CharacteristicTypes.displayName(for: resolvedType)
+            return "condition on \(charName)"
+        case .and(let conditions):
+            return "\(conditions.count) conditions (AND)"
+        case .or(let conditions):
+            return "\(conditions.count) conditions (OR)"
+        case .not:
+            return "negated condition"
+        default:
+            return "condition"
+        }
+    }
+
+    /// Extract all `deviceId:characteristicType` keys from a WorkflowCondition for waiter registration.
+    private func extractWaiterKeys(from condition: WorkflowCondition) -> Set<String> {
+        var keys = Set<String>()
+        collectWaiterKeys(condition, into: &keys)
+        return keys
+    }
+
+    private func collectWaiterKeys(_ condition: WorkflowCondition, into keys: inout Set<String>) {
+        switch condition {
+        case .deviceState(let c):
+            let resolvedType = registry?.readCharacteristicType(forStableId: c.characteristicId)
+                ?? CharacteristicTypes.characteristicType(forName: c.characteristicId)
+                ?? c.characteristicId
+            keys.insert("\(c.deviceId):\(resolvedType)")
+        case .and(let conditions):
+            for c in conditions { collectWaiterKeys(c, into: &keys) }
+        case .or(let conditions):
+            for c in conditions { collectWaiterKeys(c, into: &keys) }
+        case .not(let inner):
+            collectWaiterKeys(inner, into: &keys)
+        default:
+            break // timeCondition, sceneActive, blockResult don't need waiters
+        }
+    }
+
     private func waitForState(_ block: WaitForStateBlock, workflowId: UUID, workflowName: String, onProgress: ((Double) async -> Void)? = nil) async throws -> Bool {
-        let resolvedType = registry?.readCharacteristicType(forStableId: block.characteristicId)
-            ?? CharacteristicTypes.characteristicType(forName: block.characteristicId)
-            ?? block.characteristicId
-        let key = "\(block.deviceId):\(resolvedType)"
+        let keys = extractWaiterKeys(from: block.condition)
 
         // Check if condition is already met
-        let device = await MainActor.run { homeKitManager.getDeviceState(id: block.deviceId) }
-        if let device {
-            let currentValue = findCharacteristicValue(in: device, characteristicType: resolvedType, serviceId: block.serviceId)
-            if ConditionEvaluator.compare(currentValue, using: block.condition) {
-                return true
-            }
-        } else {
-            await logOrphan(
-                workflowId: workflowId,
-                workflowName: workflowName,
-                location: "waitForState block '\(block.name ?? "unnamed")'"
-            )
+        conditionEvaluator.workflowId = workflowId
+        conditionEvaluator.workflowName = workflowName
+        let initialResult = await conditionEvaluator.evaluate(block.condition)
+        if initialResult.passed {
+            return true
+        }
+
+        guard !keys.isEmpty else {
+            // No device state refs in condition — cannot wait for state changes
+            AppLogger.workflow.warning("[\(workflowName)] waitForState has no device state conditions to wait on")
+            return false
         }
 
         // Start time for progress tracking
@@ -1257,6 +1292,7 @@ actor WorkflowEngine: WorkflowEngineProtocol {
 
         // Pre-generate waiter ID so the cancellation handler can reference it
         let waiterId = UUID()
+        let firstKey = keys.first!
         var progressTask: Task<Void, Never>?
         var timeoutTask: Task<Void, Never>?
 
@@ -1264,17 +1300,18 @@ actor WorkflowEngine: WorkflowEngineProtocol {
             try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Bool, Error>) in
                 let waiter = StateWaiter(
                     id: waiterId,
-                    deviceId: block.deviceId,
-                    characteristicType: resolvedType,
-                    serviceId: block.serviceId,
+                    keys: keys,
                     condition: block.condition,
                     continuation: continuation
                 )
 
-                if stateWaiters[key] == nil {
-                    stateWaiters[key] = []
+                // Register waiter under all relevant device+characteristic keys
+                for key in keys {
+                    if stateWaiters[key] == nil {
+                        stateWaiters[key] = []
+                    }
+                    stateWaiters[key]?.append(waiter)
                 }
-                stateWaiters[key]?.append(waiter)
 
                 // Progress reporting task
                 progressTask = Task {
@@ -1291,13 +1328,13 @@ actor WorkflowEngine: WorkflowEngineProtocol {
                 timeoutTask = Task { [weak self] in
                     try? await Task.sleep(nanoseconds: UInt64(block.timeoutSeconds * 1_000_000_000))
                     guard !Task.isCancelled else { return }
-                    await self?.timeoutWaiter(waiter, key: key)
+                    await self?.timeoutWaiter(waiter, key: firstKey)
                 }
             }
         } onCancel: { [weak self] in
             // Runs on arbitrary thread — dispatch to actor for safe stateWaiters access
             Task { [weak self] in
-                await self?.cancelWaiter(id: waiterId, key: key)
+                await self?.cancelWaiter(id: waiterId, key: firstKey)
             }
         }
 
@@ -1308,47 +1345,46 @@ actor WorkflowEngine: WorkflowEngineProtocol {
         return result
     }
 
-    private func notifyStateWaiters(_ change: StateChange) {
+    private func notifyStateWaiters(_ change: StateChange) async {
         let key = "\(change.deviceId):\(change.characteristicType)"
         guard let waiters = stateWaiters[key], !waiters.isEmpty else { return }
 
-        var remainingWaiters: [StateWaiter] = []
+        var resolvedWaiterIds = Set<UUID>()
         for waiter in waiters {
-            // If waiter targets a specific service, skip changes from other services
-            if let waiterServiceId = waiter.serviceId,
-               let changeServiceId = change.serviceId,
-               waiterServiceId != changeServiceId {
-                remainingWaiters.append(waiter)
-                continue
-            }
-            if ConditionEvaluator.compare(change.newValue, using: waiter.condition) {
+            let result = await conditionEvaluator.evaluate(waiter.condition)
+            if result.passed {
+                resolvedWaiterIds.insert(waiter.id)
+                // Remove from ALL keys before resuming
+                removeWaiter(id: waiter.id, keys: waiter.keys)
                 waiter.continuation.resume(returning: true)
-            } else {
-                remainingWaiters.append(waiter)
             }
         }
-        stateWaiters[key] = remainingWaiters.isEmpty ? nil : remainingWaiters
+    }
+
+    /// Remove a waiter from all its registered keys.
+    private func removeWaiter(id: UUID, keys: Set<String>) {
+        for key in keys {
+            guard var waiters = stateWaiters[key] else { continue }
+            waiters.removeAll { $0.id == id }
+            stateWaiters[key] = waiters.isEmpty ? nil : waiters
+        }
     }
 
     private func timeoutWaiter(_ waiter: StateWaiter, key: String) {
-        guard var waiters = stateWaiters[key] else { return }
-        if let index = waiters.firstIndex(where: { $0.id == waiter.id }) {
-            waiters.remove(at: index)
-            stateWaiters[key] = waiters.isEmpty ? nil : waiters
-            waiter.continuation.resume(returning: false)
-        }
+        // Check if waiter still exists (may have been resolved already)
+        guard let waiters = stateWaiters[key], waiters.contains(where: { $0.id == waiter.id }) else { return }
+        removeWaiter(id: waiter.id, keys: waiter.keys)
+        waiter.continuation.resume(returning: false)
     }
 
     /// Cancel a waiter due to task cancellation. Actor-isolated so access to
     /// `stateWaiters` is safe. If the waiter was already removed by
     /// `notifyStateWaiters` or `timeoutWaiter`, this is a no-op (no double-resume).
     private func cancelWaiter(id: UUID, key: String) {
-        guard var waiters = stateWaiters[key] else { return }
-        if let index = waiters.firstIndex(where: { $0.id == id }) {
-            let waiter = waiters.remove(at: index)
-            stateWaiters[key] = waiters.isEmpty ? nil : waiters
-            waiter.continuation.resume(throwing: CancellationError())
-        }
+        // Find the waiter in any key to get its full key set
+        guard let waiters = stateWaiters[key], let waiter = waiters.first(where: { $0.id == id }) else { return }
+        removeWaiter(id: id, keys: waiter.keys)
+        waiter.continuation.resume(throwing: CancellationError())
     }
 
     private func findCharacteristicValue(in device: DeviceModel, characteristicType: String, serviceId: String?) -> Any? {
@@ -1398,10 +1434,9 @@ private struct ExecutionContext {
 
 private struct StateWaiter {
     let id: UUID
-    let deviceId: String
-    let characteristicType: String
-    let serviceId: String?
-    let condition: ComparisonOperator
+    /// All device+characteristic keys this waiter is registered under.
+    let keys: Set<String>
+    let condition: WorkflowCondition
     let continuation: CheckedContinuation<Bool, Error>
 }
 

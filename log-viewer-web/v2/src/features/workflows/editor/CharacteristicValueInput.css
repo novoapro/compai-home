@@ -1,0 +1,167 @@
+/* Boolean toggle group — height-matched to .editor-select / .editor-input */
+.char-toggle-wrap {
+  display: flex;
+  gap: 0;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  /* No border here — the outer wrapper border is removed so the toggle options
+     can use the exact same padding+border as .editor-select for pixel-perfect height. */
+}
+
+.char-toggle-option {
+  flex: 1;
+  /* Match .editor-select exactly: same padding, border, font, line-height */
+  padding: 9px 14px;
+  border: 1px solid color-mix(in srgb, var(--text-tertiary) 20%, transparent);
+  background: var(--bg-detail);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  font-family: inherit;
+  line-height: 1.15;
+  box-sizing: border-box;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+.char-toggle-option:first-child {
+  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+}
+.char-toggle-option:last-child {
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+.char-toggle-option + .char-toggle-option {
+  margin-left: -1px;
+}
+.char-toggle-option.active {
+  background: color-mix(in srgb, var(--tint-main) 15%, transparent);
+  color: var(--tint-main);
+  font-weight: var(--font-weight-bold);
+  border-color: color-mix(in srgb, var(--tint-main) 40%, transparent);
+  position: relative;
+  z-index: 1;
+}
+.char-toggle-option:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Slider */
+.char-slider-wrap {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  height: stretch;
+}
+
+.char-slider {
+  flex: 1;
+  height: 6px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: color-mix(in srgb, var(--text-tertiary) 20%, transparent);
+  border-radius: 3px;
+  outline: none;
+  cursor: pointer;
+}
+.char-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--tint-main);
+  border: 2px solid var(--bg-primary);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+  transition: transform var(--transition-fast);
+}
+.char-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+}
+.char-slider:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.char-value-readout {
+  min-width: 52px;
+  text-align: right;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Unit suffix */
+.char-unit {
+  font-weight: var(--font-weight-normal);
+  color: var(--text-tertiary);
+  margin-left: 2px;
+  font-size: 0.9em;
+}
+
+/* Number input with any button */
+.char-number-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.char-number-wrap .editor-input {
+  flex: 1;
+}
+
+/* Any state */
+.char-any-wrap {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-detail);
+  border: 1px solid color-mix(in srgb, var(--text-tertiary) 20%, transparent);
+}
+
+.char-any-label {
+  flex: 1;
+  font-size: var(--font-size-sm);
+  color: var(--text-tertiary);
+  font-style: italic;
+}
+
+.char-any-clear {
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid color-mix(in srgb, var(--tint-main) 30%, transparent);
+  background: none;
+  color: var(--tint-main);
+  font-size: var(--font-size-xs);
+  font-family: inherit;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+.char-any-clear:hover {
+  background: color-mix(in srgb, var(--tint-main) 10%, transparent);
+}
+
+.char-any-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--radius-sm);
+  border: 1px solid color-mix(in srgb, var(--text-tertiary) 20%, transparent);
+  background: var(--bg-detail);
+  color: var(--text-tertiary);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all var(--transition-fast);
+}
+.char-any-btn:hover {
+  border-color: var(--status-error);
+  color: var(--status-error);
+  background: color-mix(in srgb, var(--status-error) 8%, transparent);
+}

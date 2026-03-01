@@ -260,9 +260,7 @@ enum MCPToolDefinitions {
                 • log: + message
                 Flow control blocks: { "block":"flowControl", "type":"...", ... }
                 • delay: + seconds
-                • waitForState: + deviceId, deviceName, roomName, serviceId?, characteristicType, \
-                condition (ComparisonOperator: equals/notEquals/greaterThan/lessThan/greaterThanOrEqual/ \
-                lessThanOrEqual, each with "value"), timeoutSeconds
+                • waitForState: + condition (WorkflowCondition, same as conditional/repeatWhile), timeoutSeconds
                 • conditional: + condition (WorkflowCondition, see below), thenBlocks, elseBlocks?
                 • repeat: + count, blocks, delayBetweenSeconds?
                 • repeatWhile: + condition (WorkflowCondition), blocks, maxIterations, delayBetweenSeconds?

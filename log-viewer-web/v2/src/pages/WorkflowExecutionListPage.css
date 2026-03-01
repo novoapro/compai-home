@@ -1,0 +1,91 @@
+.wfel-page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--bg-main);
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 0 var(--spacing-md);
+}
+
+.wfel-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 14px;
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--tint-main);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+  margin-top: var(--spacing-md);
+  align-self: flex-start;
+  background: none;
+  border: none;
+  font-family: inherit;
+}
+.wfel-back-btn:hover {
+  background: color-mix(in srgb, var(--tint-main) 10%, transparent);
+}
+
+.wfel-page-header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) 0;
+}
+
+.wfel-page-title {
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-black);
+  color: var(--text-primary);
+  margin: 0;
+  letter-spacing: -0.03em;
+}
+
+.wfel-loading-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--tint-main);
+  animation: pulse 1.5s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+.wfel-error-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) 0;
+  color: var(--status-error);
+  font-size: var(--font-size-sm);
+}
+
+.wfel-skeleton-list {
+  padding: var(--spacing-sm) 0;
+}
+
+.wfel-skeleton-card {
+  height: 80px;
+  margin-bottom: var(--card-gap);
+  border-radius: var(--radius-md);
+}
+
+.wfel-log-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--spacing-sm) 0 calc(var(--spacing-3xl) + env(safe-area-inset-bottom, 0px));
+}
+
+@media (max-width: 768px) {
+  .wfel-page {
+    padding: 0 var(--spacing-sm);
+  }
+  .wfel-page-header {
+    display: none;
+  }
+  .wfel-skeleton-card {
+    border-radius: var(--radius-sm);
+  }
+}
