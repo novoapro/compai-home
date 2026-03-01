@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router';
 import { Icon } from '@/components/Icon';
 import { EmptyState } from '@/components/EmptyState';
@@ -18,6 +18,7 @@ export function WorkflowsPage() {
   const [workflows, setWorkflows] = useState<Workflow[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const loadWorkflows = useCallback(async () => {
     setIsLoading(true);
@@ -43,6 +44,12 @@ export function WorkflowsPage() {
     });
     return unsub;
   }, [ws]);
+
+  const filteredWorkflows = useMemo(() => {
+    if (!searchQuery.trim()) return workflows;
+    const q = searchQuery.toLowerCase();
+    return workflows.filter((wf) => wf.name.toLowerCase().includes(q));
+  }, [workflows, searchQuery]);
 
   const toggleWorkflow = useCallback(async (workflow: Workflow, enabled: boolean) => {
     // Optimistic update
@@ -83,10 +90,25 @@ export function WorkflowsPage() {
 
   return (
     <div className="wf-list-page">
-      {/* Page header */}
+      {/* Desktop page header */}
       <div className="wf-page-header">
         <h1 className="wf-page-title">Workflows</h1>
         {isLoading && <span className="wf-loading-dot" />}
+        <div className="wf-search-wrap desktop">
+          <Icon name="magnifyingglass" size={13} className="wf-search-icon" />
+          <input
+            className="wf-search-input"
+            type="text"
+            placeholder="Search workflows..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+          {searchQuery && (
+            <button className="wf-search-clear" onClick={() => setSearchQuery('')} type="button">
+              <Icon name="xmark-circle-fill" size={14} />
+            </button>
+          )}
+        </div>
         <button className="wf-ai-btn" onClick={() => setShowAIDialog(true)}>
           <Icon name="sparkles" size={15} />
           Generate with AI
@@ -94,6 +116,31 @@ export function WorkflowsPage() {
         <button className="wf-new-btn" onClick={() => navigate('/workflows/new')}>
           <Icon name="plus" size={15} />
           New Workflow
+        </button>
+      </div>
+
+      {/* Mobile toolbar: search + icon CTAs */}
+      <div className="wf-mobile-toolbar">
+        <div className="wf-search-wrap">
+          <Icon name="magnifyingglass" size={13} className="wf-search-icon" />
+          <input
+            className="wf-search-input"
+            type="text"
+            placeholder="Search workflows..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+          {searchQuery && (
+            <button className="wf-search-clear" onClick={() => setSearchQuery('')} type="button">
+              <Icon name="xmark-circle-fill" size={14} />
+            </button>
+          )}
+        </div>
+        <button className="wf-toolbar-icon-btn ai" onClick={() => setShowAIDialog(true)} title="Generate with AI">
+          <Icon name="sparkles" size={17} />
+        </button>
+        <button className="wf-toolbar-icon-btn primary" onClick={() => navigate('/workflows/new')} title="New Workflow">
+          <Icon name="plus" size={17} />
         </button>
       </div>
 
@@ -123,10 +170,19 @@ export function WorkflowsPage() {
         />
       )}
 
+      {/* Search no results */}
+      {!isLoading && workflows.length > 0 && filteredWorkflows.length === 0 && searchQuery.trim() && (
+        <EmptyState
+          icon="magnifyingglass"
+          title="No matches"
+          message={`No workflows matching "${searchQuery}".`}
+        />
+      )}
+
       {/* Workflow card list */}
-      {workflows.length > 0 && (
+      {filteredWorkflows.length > 0 && (
         <div className="wf-card-list">
-          {workflows.map((wf, i) => (
+          {filteredWorkflows.map((wf, i) => (
             <WorkflowCard
               key={wf.id}
               workflow={wf}
@@ -138,16 +194,6 @@ export function WorkflowsPage() {
           ))}
         </div>
       )}
-
-      {/* Mobile FABs */}
-      <div className="wf-fab-stack">
-        <button className="wf-fab-ai" onClick={() => setShowAIDialog(true)}>
-          <Icon name="sparkles" size={16} />
-        </button>
-        <button className="wf-fab" onClick={() => navigate('/workflows/new')}>
-          <Icon name="plus" size={18} />
-        </button>
-      </div>
 
       <AIGenerateDialog
         open={showAIDialog}

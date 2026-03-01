@@ -40,7 +40,10 @@ export function createApiClient(baseUrl: string, bearerToken: string): ApiClient
       let errorMessage = `HTTP ${res.status}: ${res.statusText}`;
       try {
         const errorJson = JSON.parse(errorText);
-        if (errorJson.error) errorMessage = errorJson.error;
+        // Custom error responses use { "error": "message" }
+        if (typeof errorJson.error === 'string') errorMessage = errorJson.error;
+        // Vapor's Abort errors use { "error": true, "reason": "message" }
+        else if (errorJson.reason) errorMessage = errorJson.reason;
       } catch { /* use default message */ }
       throw new Error(errorMessage);
     }

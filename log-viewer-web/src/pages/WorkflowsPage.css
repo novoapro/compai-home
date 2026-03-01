@@ -20,8 +20,69 @@
   letter-spacing: -0.03em;
 }
 
-.wf-ai-btn {
+/* Search input */
+.wf-search-wrap {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+.wf-search-wrap.desktop {
+  max-width: 260px;
   margin-left: auto;
+}
+
+.wf-search-icon {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-tertiary);
+  pointer-events: none;
+}
+
+.wf-search-input {
+  width: 100%;
+  padding: 8px 32px 8px 30px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+  background: var(--bg-detail);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: var(--font-size-sm);
+  outline: none;
+  transition: border-color var(--transition-fast), background var(--transition-fast);
+}
+.wf-search-input::placeholder {
+  color: var(--text-tertiary);
+}
+.wf-search-input:focus {
+  border-color: var(--tint-main);
+  background: var(--bg-card);
+}
+
+.wf-search-clear {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: none;
+  background: none;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  padding: 0;
+  border-radius: 50%;
+}
+.wf-search-clear:hover {
+  color: var(--text-secondary);
+}
+
+/* Desktop action buttons */
+.wf-ai-btn {
   display: inline-flex;
   align-items: center;
   gap: 5px;
@@ -59,51 +120,51 @@
 .wf-new-btn:hover { filter: brightness(1.1); }
 .wf-new-btn:active { transform: scale(0.97); }
 
-/* FAB stack (mobile) */
-.wf-fab-stack {
+/* Mobile toolbar */
+.wf-mobile-toolbar {
   display: none;
-  position: fixed;
-  bottom: calc(var(--spacing-lg) + env(safe-area-inset-bottom, 0px));
-  right: var(--spacing-md);
-  flex-direction: column;
   align-items: center;
-  gap: var(--spacing-sm);
-  z-index: 100;
+  gap: 6px;
+  padding: var(--spacing-sm) var(--spacing-sm);
+  flex-shrink: 0;
 }
 
-.wf-fab {
-  width: 52px;
-  height: 52px;
-  border-radius: 50%;
-  border: none;
-  background: var(--tint-main);
-  color: white;
+.wf-toolbar-icon-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+  background: var(--bg-detail);
+  color: var(--text-secondary);
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 4px 16px color-mix(in srgb, var(--tint-main) 40%, transparent);
-  transition: transform var(--transition-fast), filter var(--transition-fast);
+  flex-shrink: 0;
+  padding: 0;
+  transition: background var(--transition-fast), color var(--transition-fast);
 }
-.wf-fab:hover { filter: brightness(1.1); }
-.wf-fab:active { transform: scale(0.93); }
+.wf-toolbar-icon-btn:hover {
+  background: var(--bg-pill);
+  color: var(--text-primary);
+}
+.wf-toolbar-icon-btn:active { transform: scale(0.93); }
 
-.wf-fab-ai {
-  width: 42px;
-  height: 42px;
-  border-radius: 50%;
-  border: 1px solid var(--border-main);
-  background: var(--bg-card);
+.wf-toolbar-icon-btn.ai {
+  background: color-mix(in srgb, var(--tint-main) 12%, transparent);
+  border-color: color-mix(in srgb, var(--tint-main) 25%, transparent);
   color: var(--tint-main);
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
-  transition: transform var(--transition-fast), background var(--transition-fast);
 }
-.wf-fab-ai:hover { background: var(--bg-detail); }
-.wf-fab-ai:active { transform: scale(0.93); }
+.wf-toolbar-icon-btn.ai:hover {
+  background: color-mix(in srgb, var(--tint-main) 20%, transparent);
+}
+
+.wf-toolbar-icon-btn.primary {
+  background: var(--tint-main);
+  border-color: var(--tint-main);
+  color: white;
+}
+.wf-toolbar-icon-btn.primary:hover { filter: brightness(1.1); }
 
 .wf-loading-dot {
   width: 6px;
@@ -144,11 +205,11 @@
   .wf-page-header {
     display: none;
   }
-  .wf-fab-stack {
+  .wf-mobile-toolbar {
     display: flex;
   }
   .wf-card-list {
-    padding: var(--spacing-sm) var(--spacing-sm) calc(var(--spacing-3xl) + env(safe-area-inset-bottom, 0px));
+    padding: var(--spacing-sm) var(--spacing-sm) calc(var(--spacing-xl) + env(safe-area-inset-bottom, 0px));
   }
   .wf-skeleton-list {
     padding: var(--spacing-xs) var(--spacing-sm);

@@ -492,31 +492,31 @@ class MCPServer: ObservableObject, MCPServerProtocol, @unchecked Sendable {
 
     private func guardWorkflowsEnabled() throws {
         guard storage.readWorkflowsEnabled() else {
-            throw Abort(.notFound)
+            throw Abort(.notFound, reason: "Workflows are not enabled. Enable them in the app settings.")
         }
     }
 
     private func guardMCPProtocolEnabled() throws {
         guard storage.readMCPProtocolEnabled() else {
-            throw Abort(.notFound)
+            throw Abort(.notFound, reason: "MCP protocol is not enabled. Enable it in the app settings.")
         }
     }
 
     private func guardRestApiEnabled() throws {
         guard storage.readRestApiEnabled() else {
-            throw Abort(.notFound)
+            throw Abort(.notFound, reason: "REST API is not enabled. Enable it in the app settings.")
         }
     }
 
     private func guardLogAccessEnabled() throws {
         guard storage.readLogAccessEnabled() else {
-            throw Abort(.notFound)
+            throw Abort(.notFound, reason: "Log access is not enabled. Enable it in the app settings.")
         }
     }
 
     private func guardAIEnabled() throws {
         guard storage.readAIEnabled() else {
-            throw Abort(.notFound, reason: "AI features are not enabled")
+            throw Abort(.notFound, reason: "AI features are not enabled. Enable them in the app settings.")
         }
     }
 
