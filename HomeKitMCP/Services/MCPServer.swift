@@ -1147,6 +1147,8 @@ class MCPServer: ObservableObject, MCPServerProtocol, @unchecked Sendable {
         return httpResponse
     }
 
+    /// MCP Streamable HTTP spec: GET is reserved for future SSE-based server-initiated notifications.
+    /// Currently unsupported — return 405 per spec.
     private func handleStreamableGet(_ req: Request) -> Response {
         return Response(status: .methodNotAllowed)
     }

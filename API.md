@@ -107,6 +107,7 @@ All messages are JSON objects with a `type` field.
 | `workflow_log` | New workflow execution started | `{"type":"workflow_log","data":{...WorkflowExecutionLog...}}` |
 | `workflow_log_updated` | Existing workflow execution updated (completed/failed) | `{"type":"workflow_log_updated","data":{...WorkflowExecutionLog...}}` |
 | `workflows_updated` | Workflow definitions changed (created/updated/deleted/enabled/disabled) | `{"type":"workflows_updated","data":[{...Workflow...}]}` |
+| `devices_updated` | Device list changed (device added/removed/reachability changed) | `{"type":"devices_updated"}` |
 | `logs_cleared` | All logs have been cleared on the server | `{"type":"logs_cleared"}` |
 | `pong` | Response to client ping | `{"type":"pong"}` |
 
@@ -1182,7 +1183,6 @@ Serialized as flat JSON for all log categories.
 | `requestBody` | string | yes | Summary/trigger description |
 | `responseBody` | string | yes | Result/block summary |
 | `detailedRequestBody` | string | yes | Full request detail |
-| `returnOutcome` | string | yes | Workflow return outcome |
 | `workflowExecution` | WorkflowExecutionLog | yes | Full workflow execution data (present only for `workflow_execution` and `workflow_error` categories) |
 
 ### LogCategory

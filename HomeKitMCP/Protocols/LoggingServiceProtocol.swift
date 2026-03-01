@@ -7,7 +7,6 @@ protocol LoggingServiceProtocol: AnyObject, Sendable {
     var logsSubject: PassthroughSubject<[StateChangeLog], Never> { get }
 
     // MARK: - Write
-    func log(_ change: StateChange) async
     func logEntry(_ entry: StateChangeLog) async
 
     // MARK: - Read

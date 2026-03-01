@@ -401,8 +401,6 @@ extension StateChangeLog {
         }
     }
 
-    var returnOutcome: String? { nil }
-
     /// The full workflow execution log; non-nil for `.workflowExecution` and `.workflowError` entries.
     var workflowExecution: WorkflowExecutionLog? {
         switch payload {
@@ -494,7 +492,6 @@ extension StateChangeLog: Codable {
         case deviceId, deviceName, roomName, serviceId, serviceName
         case characteristicType, oldValue, newValue
         case errorDetails, requestBody, responseBody, detailedRequestBody
-        case returnOutcome
         case workflowExecution
     }
 

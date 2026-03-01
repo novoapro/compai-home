@@ -158,28 +158,6 @@ extension KeychainService {
         _ = save(key: Keys.mcpApiTokens, value: json)
     }
 
-    // MARK: - Legacy Single Token (kept for backward compatibility during migration)
-
-    /// Returns the existing MCP API token, or generates and stores a new one.
-    func getOrCreateMCPApiToken() -> String {
-        // Prefer multi-token system
-        let tokens = getAPITokens()
-        if let first = tokens.first {
-            return first.token
-        }
-        // Fallback: create a default token
-        let newToken = addAPIToken(name: "Default")
-        return newToken.token
-    }
-
-    /// Generates a new MCP API token, replacing any existing one.
-    @discardableResult
-    func regenerateMCPApiToken() -> String {
-        let token = generateSecureToken()
-        _ = save(key: Keys.mcpApiToken, value: token)
-        return token
-    }
-
     // MARK: - Webhook Secret
 
     /// Returns the existing webhook secret, or generates and stores a new one.

@@ -535,10 +535,10 @@ enum PreviewData {
         )
         let aiInteractionLogService = AIInteractionLogService()
         let aiWorkflowService = AIWorkflowService(storage: storage, homeKitManager: manager, keychainService: keychainService, interactionLog: aiInteractionLogService)
-        let backupService = BackupService(storage: storage, keychainService: keychainService, configService: configService, workflowStorageService: workflowStorage, homeKitManager: manager, loggingService: loggingService)
+        let registryService = DeviceRegistryService()
+        let backupService = BackupService(storage: storage, keychainService: keychainService, configService: configService, workflowStorageService: workflowStorage, homeKitManager: manager, loggingService: loggingService, deviceRegistryService: registryService)
         let cloudBackupService = CloudBackupService(backupService: backupService, storage: storage, workflowStorageService: workflowStorage)
         let appleSignInService = AppleSignInService(keychainService: keychainService)
-        let registryService = DeviceRegistryService()
         return SettingsViewModel(
             storage: storage, webhookService: webhookService, mcpServer: mcpServer, configService: configService,
             keychainService: keychainService, aiWorkflowService: aiWorkflowService,
@@ -599,7 +599,7 @@ enum PreviewData {
         let webhookService = WebhookService(storage: storage, loggingService: loggingService, keychainService: keychainService)
         let manager = HomeKitManager(loggingService: loggingService, webhookService: webhookService, configService: configService, storage: storage)
         let workflowStorage = WorkflowStorageService()
-        let backupService = BackupService(storage: storage, keychainService: keychainService, configService: configService, workflowStorageService: workflowStorage, homeKitManager: manager, loggingService: loggingService)
+        let backupService = BackupService(storage: storage, keychainService: keychainService, configService: configService, workflowStorageService: workflowStorage, homeKitManager: manager, loggingService: loggingService, deviceRegistryService: DeviceRegistryService())
         return CloudBackupService(backupService: backupService, storage: storage, workflowStorageService: workflowStorage)
     }
 

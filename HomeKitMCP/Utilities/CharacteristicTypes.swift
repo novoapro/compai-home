@@ -57,15 +57,7 @@ enum CharacteristicTypes {
     static func isSupported(_ type: String) -> Bool {
         // Strict allowlist: only characteristics with a mapped friendly name are supported.
         // This filters out vendor-specific (UUIDs) and other unsupported characteristics.
-        
-        // Check exact match first
-        if mapping[type] != nil { return true }
-        
-        // Check case-insensitive
-        if mapping[type.uppercased()] != nil { return true }
-        if mapping[type.lowercased()] != nil { return true }
-        
-        return false
+        return mapping[type] != nil
     }
 
     /// Maps human-readable names back to HMCharacteristic type UUIDs for MCP tool usage.

@@ -3,6 +3,7 @@ import type {
   WorkflowTriggerDef,
   WorkflowConditionDef,
   WorkflowBlockDef,
+  ScheduleType,
 } from '@/types/workflow-definition';
 import type {
   WorkflowDraft,
@@ -122,22 +123,20 @@ export function draftToPayload(draft: WorkflowDraft): Partial<WorkflowDefinition
   };
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function rewritePayloadConditionBlockRefs(conditions: any[], map: Map<string, string>): void {
+function rewritePayloadConditionBlockRefs(conditions: WorkflowConditionDef[], map: Map<string, string>): void {
   for (const c of conditions) {
     if (c.type === 'blockResult' && c.blockResultScope?.scope === 'specific' && c.blockResultScope.blockId) {
       const mapped = map.get(c.blockResultScope.blockId);
       if (mapped) c.blockResultScope = { scope: 'specific', blockId: mapped };
     }
-    if (c.conditions) rewritePayloadConditionBlockRefs(c.conditions, map);
-    if (c.condition) rewritePayloadConditionBlockRefs([c.condition], map);
+    if ('conditions' in c && c.conditions) rewritePayloadConditionBlockRefs(c.conditions, map);
+    if ('condition' in c && c.condition) rewritePayloadConditionBlockRefs([c.condition as WorkflowConditionDef], map);
   }
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function rewritePayloadBlockConditionRefs(blocks: any[], map: Map<string, string>): void {
+function rewritePayloadBlockConditionRefs(blocks: WorkflowBlockDef[], map: Map<string, string>): void {
   for (const b of blocks) {
-    if (b.condition) rewritePayloadConditionBlockRefs([b.condition], map);
+    if (b.condition) rewritePayloadConditionBlockRefs([b.condition as WorkflowConditionDef], map);
     if (b.thenBlocks) rewritePayloadBlockConditionRefs(b.thenBlocks, map);
     if (b.elseBlocks) rewritePayloadBlockConditionRefs(b.elseBlocks, map);
     if (b.blocks) rewritePayloadBlockConditionRefs(b.blocks, map);
@@ -145,39 +144,37 @@ function rewritePayloadBlockConditionRefs(blocks: any[], map: Map<string, string
 }
 
 function triggerDraftToPayload(t: WorkflowTriggerDraft): WorkflowTriggerDef {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const base: any = { type: t.type };
-  if (t.name) base.name = t.name;
-  if (t.retriggerPolicy) base.retriggerPolicy = t.retriggerPolicy;
+  const shared: { name?: string; retriggerPolicy?: string } = {};
+  if (t.name) shared.name = t.name;
+  if (t.retriggerPolicy) shared.retriggerPolicy = t.retriggerPolicy;
 
   switch (t.type) {
     case 'deviceStateChange':
-      base.deviceId = t.deviceId;
-      base.serviceId = t.serviceId;
-      base.characteristicId = t.characteristicId;
-      base.condition = t.condition ?? { type: 'changed' };
-      break;
+      return {
+        ...shared,
+        type: 'deviceStateChange',
+        deviceId: t.deviceId!,
+        serviceId: t.serviceId,
+        characteristicId: t.characteristicId!,
+        condition: t.condition ?? { type: 'changed' },
+      };
     case 'schedule':
-      base.scheduleType = buildScheduleType(t);
-      break;
+      return { ...shared, type: 'schedule', scheduleType: buildScheduleType(t) };
     case 'webhook':
-      base.token = t.token;
-      break;
+      return { ...shared, type: 'webhook', token: t.token! };
     case 'sunEvent':
-      base.event = t.event;
-      base.offsetMinutes = t.offsetMinutes ?? 0;
-      break;
+      return { ...shared, type: 'sunEvent', event: t.event!, offsetMinutes: t.offsetMinutes ?? 0 };
     case 'workflow':
-      break;
+      return { ...shared, type: 'workflow' };
+    default:
+      return { ...shared, type: t.type } as WorkflowTriggerDef;
   }
-  return base as WorkflowTriggerDef;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function buildScheduleType(t: WorkflowTriggerDraft): any {
+function buildScheduleType(t: WorkflowTriggerDraft): ScheduleType {
   switch (t.scheduleType) {
     case 'once':
-      return { type: 'once', date: t.scheduleDate };
+      return { type: 'once', date: t.scheduleDate! };
     case 'daily':
       return { type: 'daily', time: t.scheduleTime ?? { hour: 8, minute: 0 } };
     case 'weekly':
@@ -190,101 +187,103 @@ function buildScheduleType(t: WorkflowTriggerDraft): any {
 }
 
 function conditionDraftToPayload(c: WorkflowConditionDraft): WorkflowConditionDef {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const base: any = { type: c.type };
   switch (c.type) {
     case 'deviceState':
-      base.deviceId = c.deviceId;
-      base.serviceId = c.serviceId;
-      base.characteristicId = c.characteristicId;
-      base.comparison = c.comparison ?? { type: 'equals', value: true };
-      break;
+      return {
+        type: 'deviceState',
+        deviceId: c.deviceId!,
+        serviceId: c.serviceId,
+        characteristicId: c.characteristicId!,
+        comparison: c.comparison ?? { type: 'equals', value: true },
+      };
     case 'timeCondition':
-      base.mode = c.mode;
-      if (c.startTime) base.startTime = c.startTime;
-      if (c.endTime) base.endTime = c.endTime;
-      break;
+      return {
+        type: 'timeCondition',
+        mode: c.mode!,
+        ...(c.startTime && { startTime: c.startTime }),
+        ...(c.endTime && { endTime: c.endTime }),
+      };
     case 'sceneActive':
-      base.sceneId = c.sceneId;
-      base.isActive = c.isActive ?? true;
-      break;
+      return { type: 'sceneActive', sceneId: c.sceneId!, isActive: c.isActive ?? true };
     case 'blockResult':
-      base.blockResultScope = c.blockResultScope ?? { scope: 'any' };
-      base.expectedStatus = c.expectedStatus ?? 'success';
-      break;
+      return {
+        type: 'blockResult',
+        blockResultScope: c.blockResultScope ?? { scope: 'any' },
+        expectedStatus: c.expectedStatus ?? 'success',
+      };
     case 'and':
+      return { type: 'and', conditions: (c.conditions ?? []).map(conditionDraftToPayload) };
     case 'or':
-      base.conditions = (c.conditions ?? []).map(conditionDraftToPayload);
-      break;
+      return { type: 'or', conditions: (c.conditions ?? []).map(conditionDraftToPayload) };
     case 'not':
-      base.condition = c.condition ? conditionDraftToPayload(c.condition) : undefined;
-      break;
+      return { type: 'not', condition: c.condition ? conditionDraftToPayload(c.condition) : undefined! };
   }
-  return base as WorkflowConditionDef;
 }
 
 function blockDraftToPayload(b: WorkflowBlockDraft, idMap?: Map<string, string>): WorkflowBlockDef {
   const blockId = newUUID();
   if (idMap) idMap.set(b._draftId, blockId);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const base: any = { block: b.block, blockId, type: b.type };
-  if (b.name) base.name = b.name;
+  const shared: Pick<WorkflowBlockDef, 'block' | 'blockId' | 'type' | 'name'> = {
+    block: b.block,
+    blockId,
+    type: b.type,
+    ...(b.name && { name: b.name }),
+  };
 
   switch (b.type) {
     case 'controlDevice':
-      base.deviceId = b.deviceId;
-      base.serviceId = b.serviceId;
-      base.characteristicId = b.characteristicId;
-      base.value = b.value;
-      break;
+      return { ...shared, deviceId: b.deviceId, serviceId: b.serviceId, characteristicId: b.characteristicId, value: b.value };
     case 'runScene':
-      base.sceneId = b.sceneId;
-      break;
+      return { ...shared, sceneId: b.sceneId };
     case 'webhook':
-      base.url = b.url;
-      base.method = b.method ?? 'POST';
-      if (b.headers) base.headers = b.headers;
-      if (b.body !== undefined) base.body = b.body;
-      break;
+      return {
+        ...shared,
+        url: b.url,
+        method: b.method ?? 'POST',
+        ...(b.headers && { headers: b.headers }),
+        ...(b.body !== undefined && { body: b.body }),
+      };
     case 'log':
-      base.message = b.message;
-      break;
+      return { ...shared, message: b.message };
     case 'delay':
-      base.seconds = b.seconds ?? 1;
-      break;
+      return { ...shared, seconds: b.seconds ?? 1 };
     case 'waitForState':
-      base.condition = b.condition ? conditionDraftToPayload(b.condition) : undefined;
-      base.timeoutSeconds = b.timeoutSeconds ?? 30;
-      break;
+      return {
+        ...shared,
+        condition: b.condition ? conditionDraftToPayload(b.condition) : undefined,
+        timeoutSeconds: b.timeoutSeconds ?? 30,
+      };
     case 'conditional':
-      base.condition = b.condition ? conditionDraftToPayload(b.condition) : undefined;
-      base.thenBlocks = (b.thenBlocks ?? []).map((child) => blockDraftToPayload(child, idMap));
-      if (b.elseBlocks?.length) base.elseBlocks = b.elseBlocks.map((child) => blockDraftToPayload(child, idMap));
-      break;
+      return {
+        ...shared,
+        condition: b.condition ? conditionDraftToPayload(b.condition) : undefined,
+        thenBlocks: (b.thenBlocks ?? []).map((child) => blockDraftToPayload(child, idMap)),
+        ...(b.elseBlocks?.length && { elseBlocks: b.elseBlocks.map((child) => blockDraftToPayload(child, idMap)) }),
+      };
     case 'repeat':
-      base.count = b.count ?? 1;
-      base.blocks = (b.blocks ?? []).map((child) => blockDraftToPayload(child, idMap));
-      if (b.delayBetweenSeconds != null) base.delayBetweenSeconds = b.delayBetweenSeconds;
-      break;
+      return {
+        ...shared,
+        count: b.count ?? 1,
+        blocks: (b.blocks ?? []).map((child) => blockDraftToPayload(child, idMap)),
+        ...(b.delayBetweenSeconds != null && { delayBetweenSeconds: b.delayBetweenSeconds }),
+      };
     case 'repeatWhile':
-      base.condition = b.condition ? conditionDraftToPayload(b.condition) : undefined;
-      base.blocks = (b.blocks ?? []).map((child) => blockDraftToPayload(child, idMap));
-      if (b.maxIterations != null) base.maxIterations = b.maxIterations;
-      break;
+      return {
+        ...shared,
+        condition: b.condition ? conditionDraftToPayload(b.condition) : undefined,
+        blocks: (b.blocks ?? []).map((child) => blockDraftToPayload(child, idMap)),
+        ...(b.maxIterations != null && { maxIterations: b.maxIterations }),
+      };
     case 'group':
-      base.label = b.label;
-      base.blocks = (b.blocks ?? []).map((child) => blockDraftToPayload(child, idMap));
-      break;
+      return { ...shared, label: b.label, blocks: (b.blocks ?? []).map((child) => blockDraftToPayload(child, idMap)) };
     case 'stop':
     case 'return':
-      base.outcome = b.outcome ?? 'success';
-      break;
+      return { ...shared, outcome: b.outcome ?? 'success' };
     case 'executeWorkflow':
-      base.targetWorkflowId = b.targetWorkflowId;
-      base.executionMode = b.executionMode ?? 'async';
-      break;
+      return { ...shared, targetWorkflowId: b.targetWorkflowId, executionMode: b.executionMode ?? 'async' };
+    default:
+      return shared;
   }
-  return base as WorkflowBlockDef;
 }
 
 // --- WorkflowDefinition → Draft ---
@@ -355,8 +354,7 @@ function rewriteDraftBlockConditionRefs(blocks: WorkflowBlockDraft[], map: Map<s
 }
 
 function triggerDefToDraft(t: WorkflowTriggerDef): WorkflowTriggerDraft {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const base: WorkflowTriggerDraft = { _draftId: newUUID(), type: t.type as any };
+  const base: WorkflowTriggerDraft = { _draftId: newUUID(), type: t.type };
   if (t.name) base.name = t.name;
   if ('retriggerPolicy' in t && t.retriggerPolicy) base.retriggerPolicy = t.retriggerPolicy;
 
@@ -393,8 +391,7 @@ function triggerDefToDraft(t: WorkflowTriggerDef): WorkflowTriggerDraft {
 }
 
 function conditionDefToDraft(c: WorkflowConditionDef): WorkflowConditionDraft {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const base: WorkflowConditionDraft = { _draftId: newUUID(), type: c.type as any };
+  const base: WorkflowConditionDraft = { _draftId: newUUID(), type: c.type };
   switch (c.type) {
     case 'deviceState':
       base.deviceId = c.deviceId;
@@ -501,8 +498,7 @@ const COMPARISON_SYMBOLS: Record<string, string> = {
 
 const DAYS_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function formatAutoVal(val: any): string {
+function formatAutoVal(val: unknown): string {
   if (val === undefined || val === null) return '?';
   if (val === true) return 'On';
   if (val === false) return 'Off';
@@ -530,8 +526,7 @@ export function triggerAutoName(t: WorkflowTriggerDraft, registry: RegistryLike)
         const char = registry.lookupCharacteristic(t.deviceId, t.characteristicId);
         parts.push(char?.name || t.characteristicId);
       }
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const cond = t.condition as any;
+      const cond = t.condition;
       if (cond) {
         if (cond.type === 'changed') {
           parts.push('Changed');
@@ -589,10 +584,8 @@ export function conditionAutoName(c: WorkflowConditionDraft, registry: RegistryL
         parts.push(char?.name || c.characteristicId);
       }
       if (c.comparison) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const sym = COMPARISON_SYMBOLS[(c.comparison as any).type] || '=';
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        parts.push(`${sym} ${formatAutoVal((c.comparison as any).value)}`);
+        const sym = COMPARISON_SYMBOLS[c.comparison.type] || '=';
+        parts.push(`${sym} ${formatAutoVal('value' in c.comparison ? c.comparison.value : undefined)}`);
       }
       return parts.join(' ');
     }

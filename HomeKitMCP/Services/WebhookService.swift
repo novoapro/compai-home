@@ -299,13 +299,11 @@ enum WebhookStatus: Equatable {
 
 enum WebhookError: LocalizedError {
     case httpError(statusCode: Int)
-    case noURL
     case ssrfBlocked
 
     var errorDescription: String? {
         switch self {
         case .httpError(let code): return "HTTP error \(code)"
-        case .noURL: return "No webhook URL configured"
         case .ssrfBlocked: return "Request blocked: URL resolves to a private/internal IP address"
         }
     }

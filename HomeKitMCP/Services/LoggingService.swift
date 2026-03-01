@@ -30,19 +30,6 @@ actor LoggingService: LoggingServiceProtocol {
         }
     }
 
-    func log(_ change: StateChange) {
-        let entry = StateChangeLog.stateChange(
-            deviceId: change.deviceId,
-            deviceName: change.deviceName,
-            serviceId: change.serviceId,
-            serviceName: change.serviceName,
-            characteristicType: change.characteristicType,
-            oldValue: change.oldValue.map { AnyCodable($0) },
-            newValue: change.newValue.map { AnyCodable($0) }
-        )
-        appendEntry(entry)
-    }
-
     func logEntry(_ entry: StateChangeLog) {
         appendEntry(entry.truncatingLargeFields())
     }

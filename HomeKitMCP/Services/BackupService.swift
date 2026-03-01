@@ -21,7 +21,7 @@ class BackupService: ObservableObject, BackupServiceProtocol {
         workflowStorageService: WorkflowStorageService,
         homeKitManager: HomeKitManager,
         loggingService: LoggingService,
-        deviceRegistryService: DeviceRegistryService = DeviceRegistryService()
+        deviceRegistryService: DeviceRegistryService
     ) {
         self.storage = storage
         self.keychainService = keychainService

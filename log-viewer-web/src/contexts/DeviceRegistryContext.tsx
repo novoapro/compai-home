@@ -10,17 +10,15 @@ import {
 } from 'react';
 import { useApi } from '@/hooks/useApi';
 import { useWebSocket } from './WebSocketContext';
-import type { RESTDevice, RESTScene, RESTService, RESTCharacteristic } from '@/types/homekit-device';
+import type { RESTDevice, RESTScene, RESTCharacteristic } from '@/types/homekit-device';
 
 interface DeviceRegistryContextValue {
   devices: RESTDevice[];
   scenes: RESTScene[];
   isLoading: boolean;
   lookupDevice: (deviceId: string) => RESTDevice | undefined;
-  lookupService: (deviceId: string, serviceId: string) => RESTService | undefined;
   lookupCharacteristic: (deviceId: string, charId: string) => RESTCharacteristic | undefined;
   lookupScene: (sceneId: string) => RESTScene | undefined;
-  describeDeviceCharacteristic: (deviceId: string, serviceId?: string, charType?: string) => string;
   refresh: () => void;
 }
 
@@ -68,10 +66,6 @@ export function DeviceRegistryProvider({ children }: { children: ReactNode }) {
     return deviceMapRef.current.get(deviceId);
   }, []);
 
-  const lookupService = useCallback((deviceId: string, serviceId: string) => {
-    return deviceMapRef.current.get(deviceId)?.services.find(s => s.id === serviceId);
-  }, []);
-
   const lookupCharacteristic = useCallback((deviceId: string, charId: string) => {
     const device = deviceMapRef.current.get(deviceId);
     if (!device) return undefined;
@@ -86,28 +80,17 @@ export function DeviceRegistryProvider({ children }: { children: ReactNode }) {
     return sceneMapRef.current.get(sceneId);
   }, []);
 
-  const describeDeviceCharacteristic = useCallback((deviceId: string, _serviceId?: string, charType?: string) => {
-    const device = deviceMapRef.current.get(deviceId);
-    if (!device) return deviceId;
-    const parts: string[] = [device.name];
-    if (device.room) parts.push(`(${device.room})`);
-    if (charType) parts.push(`→ ${charType}`);
-    return parts.join(' ');
-  }, []);
-
   const value = useMemo<DeviceRegistryContextValue>(
     () => ({
       devices,
       scenes,
       isLoading,
       lookupDevice,
-      lookupService,
       lookupCharacteristic,
       lookupScene,
-      describeDeviceCharacteristic,
       refresh: loadRegistry,
     }),
-    [devices, scenes, isLoading, lookupDevice, lookupService, lookupCharacteristic, lookupScene, describeDeviceCharacteristic, loadRegistry],
+    [devices, scenes, isLoading, lookupDevice, lookupCharacteristic, lookupScene, loadRegistry],
   );
 
   return (
