@@ -423,8 +423,11 @@ actor AIWorkflowService {
 
         ## CRITICAL: Anti-Hallucination Rules
 
-        - Do NOT invent device IDs, scene IDs, or characteristic types that are not listed in the \
+        - Do NOT invent device IDs, scene IDs, or characteristic IDs that are not listed in the \
         available devices/scenes provided with the user message.
+        - IMPORTANT: For characteristicId in triggers, actions, and conditions, always use the \
+        characteristic UUID (shown as "type:" in the device list), NOT the display name. \
+        For example, use "characteristicId": "00000025-0000-1000-8000-0026BB765291" instead of "Power".
         - If the user's description is ambiguous, too vague, or does not clearly specify what \
         devices to control and what actions to take, do NOT guess. Instead, return an error JSON \
         (see Error Format below).
@@ -519,7 +522,7 @@ actor AIWorkflowService {
           "deviceName": "Living Room Light",
           "roomName": "Living Room",
           "serviceId": "optional-service-uuid",
-          "characteristicType": "Power",
+          "characteristicId": "<characteristic-uuid-from-device-list>",
           "condition": { "type": "equals", "value": true }
         }
         ```
@@ -560,7 +563,7 @@ actor AIWorkflowService {
         ### Action Blocks
 
         ```json
-        { "block": "action", "type": "controlDevice", "name": "optional", "deviceId": "...", "deviceName": "Living Room Light", "roomName": "Living Room", "serviceId": "optional-service-uuid", "characteristicType": "Power", "value": true }
+        { "block": "action", "type": "controlDevice", "name": "optional", "deviceId": "...", "deviceName": "Living Room Light", "roomName": "Living Room", "serviceId": "optional-service-uuid", "characteristicId": "<characteristic-uuid>", "value": true }
         { "block": "action", "type": "runScene", "name": "optional", "sceneId": "scene-uuid", "sceneName": "Scene Name" }
         { "block": "action", "type": "webhook", "name": "optional", "url": "https://...", "method": "POST", "headers": {}, "body": {} }
         { "block": "action", "type": "log", "name": "optional", "message": "Something happened" }
@@ -570,7 +573,7 @@ actor AIWorkflowService {
 
         ```json
         { "block": "flowControl", "type": "delay", "name": "optional", "seconds": 5.0 }
-        { "block": "flowControl", "type": "waitForState", "name": "optional", "condition": { "type": "deviceState", "deviceId": "...", "deviceName": "Living Room Light", "roomName": "Living Room", "characteristicId": "Power", "comparison": { "type": "equals", "value": true } }, "timeoutSeconds": 60 }
+        { "block": "flowControl", "type": "waitForState", "name": "optional", "condition": { "type": "deviceState", "deviceId": "...", "deviceName": "Living Room Light", "roomName": "Living Room", "characteristicId": "<characteristic-uuid>", "comparison": { "type": "equals", "value": true } }, "timeoutSeconds": 60 }
         { "block": "flowControl", "type": "conditional", "name": "optional", "condition": { ... }, "thenBlocks": [ ... ], "elseBlocks": [ ... ] }
         { "block": "flowControl", "type": "repeat", "name": "optional", "count": 3, "blocks": [ ... ], "delayBetweenSeconds": 1.0 }
         { "block": "flowControl", "type": "repeatWhile", "name": "optional", "condition": { ... }, "blocks": [ ... ], "maxIterations": 10, "delayBetweenSeconds": 1.0 }
@@ -602,7 +605,7 @@ actor AIWorkflowService {
         Do NOT use blockResult in guard conditions — no blocks have executed yet at that point.
 
         ```json
-        { "type": "deviceState", "deviceId": "...", "deviceName": "Living Room Light", "roomName": "Living Room", "serviceId": "optional", "characteristicType": "Power", "comparison": { "type": "equals", "value": true } }
+        { "type": "deviceState", "deviceId": "...", "deviceName": "Living Room Light", "roomName": "Living Room", "serviceId": "optional", "characteristicId": "<characteristic-uuid>", "comparison": { "type": "equals", "value": true } }
         { "type": "timeCondition", "mode": "afterSunset" }
         { "type": "timeCondition", "mode": "nighttime" }
         { "type": "timeCondition", "mode": "daytime" }
