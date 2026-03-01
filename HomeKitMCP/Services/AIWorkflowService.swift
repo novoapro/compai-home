@@ -426,8 +426,8 @@ actor AIWorkflowService {
         - Do NOT invent device IDs, scene IDs, or characteristic IDs that are not listed in the \
         available devices/scenes provided with the user message.
         - IMPORTANT: For characteristicId in triggers, actions, and conditions, always use the \
-        characteristic UUID (shown as "type:" in the device list), NOT the display name. \
-        For example, use "characteristicId": "00000025-0000-1000-8000-0026BB765291" instead of "Power".
+        characteristic ID (shown as "id:" in the device list), NOT the display name. \
+        Similarly, always use the device ID and service ID exactly as shown in the device list.
         - If the user's description is ambiguous, too vague, or does not clearly specify what \
         devices to control and what actions to take, do NOT guess. Instead, return an error JSON \
         (see Error Format below).
@@ -745,7 +745,27 @@ actor AIWorkflowService {
                     guard char.isUserFacing else { continue }
                     let name = CharacteristicTypes.displayName(for: char.type)
                     let val = char.value.map { "\($0.value)" } ?? "nil"
-                    lines.append("    - \(name) (type: \(char.type)) = \(val)")
+                    var meta: [String] = []
+                    meta.append("format: \(char.format)")
+                    if let units = char.units { meta.append("units: \(units)") }
+                    if char.permissions.contains("read") && char.permissions.contains("write") {
+                        meta.append("read/write")
+                    } else if char.permissions.contains("read") {
+                        meta.append("read-only")
+                    } else if char.permissions.contains("write") {
+                        meta.append("write-only")
+                    }
+                    if let min = char.minValue, let max = char.maxValue {
+                        if let step = char.stepValue {
+                            meta.append("range: \(min)–\(max), step: \(step)")
+                        } else {
+                            meta.append("range: \(min)–\(max)")
+                        }
+                    }
+                    if let validVals = char.validValues, !validVals.isEmpty {
+                        meta.append("valid: \(validVals.map { String($0) }.joined(separator: ","))")
+                    }
+                    lines.append("    - \(name) (id: \(char.id)) = \(val) [\(meta.joined(separator: ", "))]")
                 }
             }
             lines.append("")
