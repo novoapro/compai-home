@@ -22,7 +22,7 @@ export function newBlockDraft(type: string): WorkflowBlockDraft {
     case 'repeatWhile': base.condition = newConditionDraft(); base.blocks = []; base.maxIterations = 10; break;
     case 'group': base.label = ''; base.blocks = []; break;
     case 'stop': base.outcome = 'success'; break;
-    case 'executeWorkflow': base.executionMode = 'async'; break;
+    case 'executeWorkflow': base.executionMode = 'inline'; break;
   }
   return base;
 }
@@ -148,6 +148,7 @@ export const OUTCOMES = [
 ];
 
 export const EXEC_MODES = [
-  { value: 'async', label: 'Async (fire & forget)' },
-  { value: 'sync', label: 'Sync (wait for completion)' },
+  { value: 'inline', label: 'Inline (Wait)' },
+  { value: 'parallel', label: 'Parallel' },
+  { value: 'delegate', label: 'Delegate (Launch & Stop)' },
 ];

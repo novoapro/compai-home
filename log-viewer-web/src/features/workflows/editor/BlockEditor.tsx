@@ -1,17 +1,21 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState, useEffect } from 'react';
 import { Icon } from '@/components/Icon';
 import { useDeviceRegistry } from '@/contexts/DeviceRegistryContext';
+import { useApi } from '@/hooks/useApi';
 import { DevicePicker } from './DevicePicker';
 import { CharacteristicValueInput } from './CharacteristicValueInput';
 import type { WorkflowBlockDraft } from './workflow-editor-types';
 import { blockAutoName, conditionAutoName } from './workflow-editor-utils';
+import { SearchableSelect } from './SearchableSelect';
 import { HTTP_METHODS, OUTCOMES, EXEC_MODES } from './block-helpers';
+import type { Workflow } from '@/types/workflow-log';
 import './BlockEditor.css';
 import './TriggerEditor.css'; // shared form styles
 
 interface BlockEditorProps {
   draft: WorkflowBlockDraft;
   showHeader?: boolean;
+  currentWorkflowId?: string;
   onChange: (updated: WorkflowBlockDraft) => void;
   onNavigateToNested?: (info: { field: string; label: string }) => void;
 }
@@ -19,10 +23,28 @@ interface BlockEditorProps {
 export function BlockEditor({
   draft,
   showHeader = true,
+  currentWorkflowId,
   onChange,
   onNavigateToNested,
 }: BlockEditorProps) {
   const registry = useDeviceRegistry();
+  const api = useApi();
+
+  // Fetch callable workflows (those with a 'workflow' trigger)
+  const [callableWorkflows, setCallableWorkflows] = useState<Workflow[]>([]);
+  useEffect(() => {
+    if (draft.type !== 'executeWorkflow') return;
+    let cancelled = false;
+    api.getWorkflows().then(workflows => {
+      if (cancelled) return;
+      const callable = workflows.filter(w =>
+        w.id !== currentWorkflowId &&
+        w.triggers.some(t => t.type === 'workflow')
+      );
+      setCallableWorkflows(callable);
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [api, draft.type, currentWorkflowId]);
 
   const autoDescription = useMemo(
     () => draft.name || blockAutoName(draft, registry),
@@ -302,18 +324,25 @@ export function BlockEditor({
       {/* executeWorkflow */}
       {draft.type === 'executeWorkflow' && (
         <>
-          <div className="editor-field">
-            <label>Target Workflow ID</label>
-            <input className="editor-input" value={draft.targetWorkflowId || ''} onChange={(e) => patch({ targetWorkflowId: e.target.value })} placeholder="Workflow UUID" />
-          </div>
-          <div className="editor-field">
-            <label>Execution Mode</label>
-            <select className="editor-select" value={draft.executionMode || 'async'} onChange={(e) => patch({ executionMode: e.target.value })}>
-              {EXEC_MODES.map((m) => (
-                <option key={m.value} value={m.value}>{m.label}</option>
-              ))}
-            </select>
-          </div>
+          <SearchableSelect
+            label="Target Workflow"
+            options={callableWorkflows.map((w) => ({ id: w.id, label: w.name }))}
+            selectedId={draft.targetWorkflowId || ''}
+            placeholder="Search workflows..."
+            onSelect={(id) => patch({ targetWorkflowId: id })}
+            onClear={() => patch({ targetWorkflowId: undefined })}
+          />
+          {callableWorkflows.length === 0 && (
+            <span className="editor-hint">No callable workflows found. Add a "Workflow" trigger to a workflow to make it callable.</span>
+          )}
+          <SearchableSelect
+            label="Execution Mode"
+            options={EXEC_MODES.map((m) => ({ id: m.value, label: m.label }))}
+            selectedId={draft.executionMode || 'inline'}
+            placeholder="Select mode..."
+            onSelect={(id) => patch({ executionMode: id })}
+            onClear={() => patch({ executionMode: 'inline' })}
+          />
         </>
       )}
     </div>

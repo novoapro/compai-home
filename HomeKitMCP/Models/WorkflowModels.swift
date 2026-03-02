@@ -708,7 +708,7 @@ enum WorkflowTrigger: Codable {
             ))
         case .webhook:
             self = try .webhook(WebhookTrigger(
-                token: container.decode(String.self, forKey: .token),
+                token: container.decodeIfPresent(String.self, forKey: .token) ?? UUID().uuidString,
                 name: name,
                 retriggerPolicy: policy
             ))

@@ -827,7 +827,11 @@ class MCPServer: ObservableObject, MCPServerProtocol, @unchecked Sendable {
             let now = ISO8601DateFormatter().string(from: Date())
             if dict["createdAt"] == nil { dict["createdAt"] = now }
             if dict["updatedAt"] == nil { dict["updatedAt"] = now }
-            if dict["metadata"] == nil {
+            if var meta = dict["metadata"] as? [String: Any] {
+                if meta["totalExecutions"] == nil { meta["totalExecutions"] = 0 }
+                if meta["consecutiveFailures"] == nil { meta["consecutiveFailures"] = 0 }
+                dict["metadata"] = meta
+            } else {
                 dict["metadata"] = ["totalExecutions": 0, "consecutiveFailures": 0] as [String: Any]
             }
 

@@ -807,6 +807,7 @@ export function WorkflowEditorPage() {
                     onChange={(updated) => handleBlockChange(i, updated)}
                     onNavigateToNested={navigateToNested}
                     reorderMode={reorderMode}
+                    currentWorkflowId={workflowId}
                   />
                 ))}
               </div>

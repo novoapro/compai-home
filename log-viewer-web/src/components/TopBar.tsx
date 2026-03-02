@@ -41,7 +41,7 @@ export function TopBar({
         <button className="hamburger-btn" onClick={onMenuClick} aria-label="Open menu">
           <Icon name="menu" size={20} />
         </button>
-        <img src="/logo.svg" alt="HomeKit MCP" className="topbar-logo" />
+        <img src="/logo.png" alt="HomeKit MCP" className="topbar-logo" />
         <span className="topbar-title">{title}</span>
         {badge != null && <span className="topbar-badge">{badge}</span>}
         {showLoading && <span className="topbar-loading-dot" />}

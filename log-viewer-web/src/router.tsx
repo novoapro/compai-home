@@ -9,6 +9,7 @@ const WorkflowDefinitionPage = lazy(() => import('@/pages/WorkflowDefinitionPage
 const WorkflowExecutionListPage = lazy(() => import('@/pages/WorkflowExecutionListPage').then(m => ({ default: m.WorkflowExecutionListPage })));
 const WorkflowExecutionDetailPage = lazy(() => import('@/pages/WorkflowExecutionDetailPage').then(m => ({ default: m.WorkflowExecutionDetailPage })));
 const WorkflowEditorPage = lazy(() => import('@/features/workflows/editor/WorkflowEditorPage').then(m => ({ default: m.WorkflowEditorPage })));
+const DevicesPage = lazy(() => import('@/pages/DevicesPage').then(m => ({ default: m.DevicesPage })));
 
 function LoadingFallback() {
   return (
@@ -31,6 +32,10 @@ export function AppRoutes() {
     <Suspense fallback={<LoadingFallback />}>
       <Routes>
         <Route path="/" element={<Navigate to="/workflows" replace />} />
+        <Route
+          path="/devices"
+          element={<ConfigGuard><DevicesPage /></ConfigGuard>}
+        />
         <Route
           path="/logs"
           element={<ConfigGuard><LogsPage /></ConfigGuard>}

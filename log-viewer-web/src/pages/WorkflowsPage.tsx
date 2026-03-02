@@ -200,7 +200,7 @@ export function WorkflowsPage() {
         ) : (
           <>
             <div className="wf-search-wrap desktop">
-              <Icon name="magnifyingglass" size={13} className="wf-search-icon" />
+              <Icon name="magnifying-glass" size={13} className="wf-search-icon" />
               <input
                 className="wf-search-input"
                 type="text"
@@ -237,7 +237,7 @@ export function WorkflowsPage() {
         ) : (
           <>
             <div className="wf-search-wrap">
-              <Icon name="magnifyingglass" size={13} className="wf-search-icon" />
+              <Icon name="magnifying-glass" size={13} className="wf-search-icon" />
               <input
                 className="wf-search-input"
                 type="text"

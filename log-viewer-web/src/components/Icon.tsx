@@ -77,6 +77,7 @@ const ICON_MAP: Record<string, IconEntry> = {
   'checkmark':               { ms: 'check'                         },
   'eye':                     { ms: 'visibility'                    },
   'eye-slash':               { ms: 'visibility_off'                },
+  'bell':                    { ms: 'notifications'                 },
 
   // HomeKit services
   'hk-lightbulb':            { ms: 'lightbulb'                     },

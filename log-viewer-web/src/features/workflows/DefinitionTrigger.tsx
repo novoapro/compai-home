@@ -1,6 +1,7 @@
-import { useMemo } from 'react';
+import { useMemo, useState, useCallback } from 'react';
 import { Icon } from '@/components/Icon';
 import { useDeviceRegistry } from '@/contexts/DeviceRegistryContext';
+import { useConfig } from '@/contexts/ConfigContext';
 import type {
   WorkflowTriggerDef, DeviceStateTriggerDef,
   ScheduleTriggerDef, SunEventTriggerDef, WebhookTriggerDef,
@@ -24,7 +25,15 @@ interface DefinitionTriggerProps {
 
 export function DefinitionTrigger({ trigger, depth = 0 }: DefinitionTriggerProps) {
   const registry = useDeviceRegistry();
+  const { baseUrl } = useConfig();
   const depthRange = Array.from({ length: depth }, (_, i) => i);
+  const [copied, setCopied] = useState<'token' | 'url' | null>(null);
+
+  const copyToClipboard = useCallback((text: string, which: 'token' | 'url') => {
+    navigator.clipboard.writeText(text);
+    setCopied(which);
+    setTimeout(() => setCopied(null), 2000);
+  }, []);
 
   const triggerIcon = TRIGGER_TYPE_ICONS[trigger.type] || 'bolt-circle-fill';
 
@@ -102,6 +111,26 @@ export function DefinitionTrigger({ trigger, depth = 0 }: DefinitionTriggerProps
         <div className="tree-info">
           <span className="tree-name">{displayName}</span>
           {detailText && <span className="tree-detail">{detailText}</span>}
+          {trigger.type === 'webhook' && (trigger as WebhookTriggerDef).token && (
+            <div className="tree-copy-actions">
+              <button
+                type="button"
+                className="tree-copy-btn"
+                onClick={() => copyToClipboard((trigger as WebhookTriggerDef).token, 'token')}
+              >
+                <Icon name={copied === 'token' ? 'checkmark' : 'doc-on-doc'} size={12} />
+                {copied === 'token' ? 'Copied' : 'Copy token'}
+              </button>
+              <button
+                type="button"
+                className="tree-copy-btn"
+                onClick={() => copyToClipboard(`${baseUrl}/workflows/webhook/${(trigger as WebhookTriggerDef).token}`, 'url')}
+              >
+                <Icon name={copied === 'url' ? 'checkmark' : 'doc-on-doc'} size={12} />
+                {copied === 'url' ? 'Copied' : 'Copy URL'}
+              </button>
+            </div>
+          )}
           {retriggerLabel && (
             <span className="retrigger-badge">
               <span className="retrigger-badge-key">Retrigger</span>

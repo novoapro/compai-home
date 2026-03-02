@@ -18,6 +18,7 @@ interface BlockCardProps {
   onChange: (updated: WorkflowBlockDraft) => void;
   onNavigateToNested?: (blockId: string, info: { field: string; label: string }) => void;
   reorderMode: boolean;
+  currentWorkflowId?: string;
 }
 
 export function BlockCard({
@@ -29,6 +30,7 @@ export function BlockCard({
   onChange,
   onNavigateToNested,
   reorderMode,
+  currentWorkflowId,
 }: BlockCardProps) {
   const registry = useDeviceRegistry();
   const isExpanded = expandedId === block._draftId && !reorderMode;
@@ -106,6 +108,7 @@ export function BlockCard({
           <BlockEditor
             draft={block}
             showHeader={false}
+            currentWorkflowId={currentWorkflowId}
             onChange={onChange}
             onNavigateToNested={onNavigateToNested ? (info) => onNavigateToNested(block._draftId, info) : undefined}
           />

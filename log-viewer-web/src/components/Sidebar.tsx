@@ -82,7 +82,7 @@ export function Sidebar({ isOpen, collapsed, onClose, onToggleCollapse }: Sideba
       >
         {/* Logo */}
         <div className="sidebar-logo">
-          <img src="/logo.svg" alt="HomeKit MCP Dashboard" className="sidebar-logo-img" />
+          <img src="/logo.png" alt="HomeKit MCP Dashboard" className="sidebar-logo-img" />
           <span className="sidebar-logo-text">HomeKit MCP<br />Dashboard</span>
         </div>
 
@@ -96,6 +96,10 @@ export function Sidebar({ isOpen, collapsed, onClose, onToggleCollapse }: Sideba
           <NavLink to="/workflows" className={navItemClass} onClick={handleNavClick}>
             <Icon name="play-circle-fill" size={20} />
             <span className="sidebar-nav-label">Workflows</span>
+          </NavLink>
+          <NavLink to="/devices" className={navItemClass} onClick={handleNavClick}>
+            <Icon name="house" size={20} />
+            <span className="sidebar-nav-label">Devices</span>
           </NavLink>
           <NavLink to="/logs" className={navItemClass} onClick={handleNavClick}>
             <Icon name="bolt-circle-fill" size={20} />

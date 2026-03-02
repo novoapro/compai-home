@@ -89,6 +89,30 @@
   font-style: italic;
 }
 
+.tree-copy-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+}
+.tree-copy-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  border: none;
+  background: color-mix(in srgb, var(--tint-main) 10%, transparent);
+  color: var(--tint-main);
+  font-size: 10px;
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+.tree-copy-btn:hover {
+  background: color-mix(in srgb, var(--tint-main) 20%, transparent);
+}
+
 .retrigger-badge {
   display: inline-flex;
   align-items: center;

@@ -1,12 +1,14 @@
-import { useMemo, useCallback } from 'react';
+import { useMemo, useCallback, useState } from 'react';
 import { Icon } from '@/components/Icon';
 import { useDeviceRegistry } from '@/contexts/DeviceRegistryContext';
 import { DevicePicker } from './DevicePicker';
 import { CharacteristicValueInput } from './CharacteristicValueInput';
 import { CurrentValueIndicator } from './CurrentValueIndicator';
+import { useConfig } from '@/contexts/ConfigContext';
 import type { WorkflowTriggerDraft } from './workflow-editor-types';
 import { triggerAutoName } from './workflow-editor-utils';
 import './TriggerEditor.css';
+import '../tree-common.css';
 
 const TRIGGER_TYPES = [
   { value: 'deviceStateChange', label: 'Device State Change' },
@@ -52,6 +54,8 @@ interface TriggerEditorProps {
 
 export function TriggerEditor({ index, draft, onChange, onRemove }: TriggerEditorProps) {
   const registry = useDeviceRegistry();
+  const { baseUrl } = useConfig();
+  const [copied, setCopied] = useState<'token' | 'url' | null>(null);
 
   const autoDescription = useMemo(
     () => draft.name || triggerAutoName(draft, registry),
@@ -306,6 +310,34 @@ export function TriggerEditor({ index, draft, onChange, onRemove }: TriggerEdito
       {draft.type === 'webhook' && (
         <div className="trigger-info-box">
           <strong>Token:</strong> {draft.token || '(auto-generated on save)'}
+          {draft.token && (
+            <div className="tree-copy-actions">
+              <button
+                type="button"
+                className="tree-copy-btn"
+                onClick={() => {
+                  navigator.clipboard.writeText(draft.token!);
+                  setCopied('token');
+                  setTimeout(() => setCopied(null), 2000);
+                }}
+              >
+                <Icon name={copied === 'token' ? 'checkmark' : 'doc-on-doc'} size={12} />
+                {copied === 'token' ? 'Copied' : 'Copy token'}
+              </button>
+              <button
+                type="button"
+                className="tree-copy-btn"
+                onClick={() => {
+                  navigator.clipboard.writeText(`${baseUrl}/workflows/webhook/${draft.token}`);
+                  setCopied('url');
+                  setTimeout(() => setCopied(null), 2000);
+                }}
+              >
+                <Icon name={copied === 'url' ? 'checkmark' : 'doc-on-doc'} size={12} />
+                {copied === 'url' ? 'Copied' : 'Copy URL'}
+              </button>
+            </div>
+          )}
         </div>
       )}
 
