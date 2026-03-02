@@ -226,7 +226,8 @@ class HomeKitViewModel: ObservableObject {
                         let key = "\(device.id):\(service.id):\(char.id)"
                         let config = allConfigs[key] ?? .default
                         if config.externalAccessEnabled { anyExternal = true }
-                        if config.webhookEnabled { anyWebhook = true }
+                        // Only consider notifiable characteristics for webhook state
+                        if config.webhookEnabled && char.permissions.contains("notify") { anyWebhook = true }
                     }
                 }
 
@@ -256,8 +257,19 @@ class HomeKitViewModel: ObservableObject {
     }
 
     func setDeviceConfig(device: DeviceModel, externalAccessEnabled: Bool? = nil, webhookEnabled: Bool? = nil) {
-        let services = device.services.map { service in
-            (serviceId: service.id, characteristicIds: service.characteristics.map(\.id))
+        // When setting webhookEnabled, only include characteristics that support notify
+        let services: [(serviceId: String, characteristicIds: [String])]
+        if webhookEnabled != nil {
+            services = device.services.map { service in
+                let charIds = service.characteristics
+                    .filter { webhookEnabled == nil || $0.permissions.contains("notify") }
+                    .map(\.id)
+                return (serviceId: service.id, characteristicIds: charIds)
+            }
+        } else {
+            services = device.services.map { service in
+                (serviceId: service.id, characteristicIds: service.characteristics.map(\.id))
+            }
         }
         Task {
             await configService.setAllForDevice(deviceId: device.id, services: services, externalAccessEnabled: externalAccessEnabled, webhookEnabled: webhookEnabled)
@@ -272,8 +284,18 @@ class HomeKitViewModel: ObservableObject {
         let devices = filteredDevicesByRoom.flatMap(\.devices)
         Task {
             for device in devices {
-                let services = device.services.map { service in
-                    (serviceId: service.id, characteristicIds: service.characteristics.map(\.id))
+                let services: [(serviceId: String, characteristicIds: [String])]
+                if webhookEnabled != nil {
+                    services = device.services.map { service in
+                        let charIds = service.characteristics
+                            .filter { webhookEnabled == nil || $0.permissions.contains("notify") }
+                            .map(\.id)
+                        return (serviceId: service.id, characteristicIds: charIds)
+                    }
+                } else {
+                    services = device.services.map { service in
+                        (serviceId: service.id, characteristicIds: service.characteristics.map(\.id))
+                    }
                 }
                 await configService.setAllForDevice(
                     deviceId: device.id,

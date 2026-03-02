@@ -843,6 +843,12 @@ class MCPServer: ObservableObject, MCPServerProtocol, @unchecked Sendable {
             throw Abort(.badRequest, reason: "Invalid workflow JSON")
         }
 
+        // Validate characteristic permissions (notify for triggers, write for control blocks)
+        if let validationError = await handler.validateWorkflowPermissions(workflow) {
+            logRESTCall(method: "POST", path: "/workflows", statusCode: 400, resultSummary: "Validation Error")
+            throw Abort(.badRequest, reason: validationError)
+        }
+
         let created = await workflowStorageService.createWorkflow(workflow)
         let data = try JSONEncoder.iso8601.encode(created)
         logRESTCall(method: "POST", path: "/workflows", statusCode: 201,
@@ -894,6 +900,20 @@ class MCPServer: ObservableObject, MCPServerProtocol, @unchecked Sendable {
             if let blocksArray = updates["blocks"] {
                 let data = try JSONSerialization.data(withJSONObject: blocksArray)
                 parsedBlocks = try JSONDecoder.iso8601.decode([WorkflowBlock].self, from: data)
+            }
+
+            // Build a preview of the merged workflow for validation
+            guard var existing = await workflowStorageService.getWorkflow(id: workflowId) else {
+                throw Abort(.notFound, reason: "Workflow not found")
+            }
+            if let name = updates["name"] as? String { existing.name = name }
+            if let triggers = parsedTriggers { existing.triggers = triggers }
+            if let blocks = parsedBlocks { existing.blocks = blocks }
+
+            // Validate characteristic permissions (notify for triggers, write for control blocks)
+            if let validationError = await handler.validateWorkflowPermissions(existing) {
+                logRESTCall(method: "PUT", path: "/workflows/\(idStr)", statusCode: 400, resultSummary: "Validation Error")
+                throw Abort(.badRequest, reason: validationError)
             }
 
             let updated = await workflowStorageService.updateWorkflow(id: workflowId) { workflow in

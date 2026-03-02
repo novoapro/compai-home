@@ -410,12 +410,20 @@ final class MCPRequestHandler: Sendable {
             )
         }
 
-        // Validate value against characteristic metadata
+        // Validate value against characteristic metadata and check write permission
         let resolvedType = CharacteristicTypes.characteristicType(forName: characteristicType) ?? characteristicType
         let device: DeviceModel? = await MainActor.run { homeKitManager.getDeviceState(id: deviceId) }
         if let device {
             let targetServices = serviceId != nil ? device.services.filter({ $0.id == serviceId }) : device.services
             if let characteristic = targetServices.flatMap(\.characteristics).first(where: { $0.type == resolvedType }) {
+                // Check write permission
+                guard characteristic.permissions.contains("write") else {
+                    return toolResult(
+                        text: "Characteristic '\(CharacteristicTypes.displayName(for: resolvedType))' is not writable (permissions: \(characteristic.permissions.joined(separator: ", "))).",
+                        isError: true,
+                        id: id
+                    )
+                }
                 do {
                     try CharacteristicValidator.validate(value: value, against: characteristic)
                 } catch let error as CharacteristicValidator.ValidationError {
@@ -780,6 +788,12 @@ final class MCPRequestHandler: Sendable {
 
         do {
             let workflow = try parseWorkflowFromDict(workflowDict)
+
+            // Validate characteristic permissions
+            if let validationError = await validateWorkflowPermissions(workflow) {
+                return toolResult(text: validationError, isError: true, id: id)
+            }
+
             let created = await workflowStorageService.createWorkflow(workflow)
             return toolResult(text: "Workflow created successfully.\nID: \(created.id.uuidString)\nName: \(created.name)", id: id)
         } catch {
@@ -824,6 +838,11 @@ final class MCPRequestHandler: Sendable {
             if let blocksArray = updates["blocks"] {
                 let data = try JSONSerialization.data(withJSONObject: blocksArray)
                 merged.blocks = try JSONDecoder.iso8601.decode([WorkflowBlock].self, from: data)
+            }
+
+            // Validate characteristic permissions
+            if let validationError = await validateWorkflowPermissions(merged) {
+                return toolResult(text: validationError, isError: true, id: id)
             }
 
             let updated = await workflowStorageService.updateWorkflow(id: workflowId) { workflow in
@@ -1040,6 +1059,98 @@ final class MCPRequestHandler: Sendable {
 
         let jsonData = try JSONSerialization.data(withJSONObject: workflowDict, options: [])
         return try JSONDecoder.iso8601.decode(Workflow.self, from: jsonData)
+    }
+
+    // MARK: - Workflow Permission Validation
+
+    /// Validates that workflow triggers and blocks reference characteristics with the required permissions.
+    /// - deviceStateChange triggers require "notify" permission
+    /// - controlDevice actions require "write" permission
+    /// Returns nil if valid, or an error message string if invalid.
+    func validateWorkflowPermissions(_ workflow: Workflow) async -> String? {
+        // Collect all devices once
+        let allDevices = await MainActor.run { homeKitManager.getAllDevices() }
+        let deviceMap = Dictionary(uniqueKeysWithValues: allDevices.map { ($0.id, $0) })
+
+        // Validate triggers
+        for (index, trigger) in workflow.triggers.enumerated() {
+            if case .deviceStateChange(let t) = trigger {
+                if let error = checkCharacteristicPermission(
+                    deviceId: t.deviceId, characteristicId: t.characteristicId,
+                    requiredPermission: "notify", context: "Trigger \(index + 1)",
+                    deviceMap: deviceMap
+                ) {
+                    return error
+                }
+            }
+        }
+
+        // Validate blocks (recursive)
+        if let error = validateBlockPermissions(workflow.blocks, deviceMap: deviceMap) {
+            return error
+        }
+
+        return nil
+    }
+
+    /// Recursively validates block permissions.
+    private func validateBlockPermissions(_ blocks: [WorkflowBlock], deviceMap: [String: DeviceModel]) -> String? {
+        for block in blocks {
+            switch block {
+            case .action(let action, _):
+                if case .controlDevice(let ctrl) = action {
+                    if let error = checkCharacteristicPermission(
+                        deviceId: ctrl.deviceId, characteristicId: ctrl.characteristicId,
+                        requiredPermission: "write", context: "Control Device block",
+                        deviceMap: deviceMap
+                    ) {
+                        return error
+                    }
+                }
+            case .flowControl(let fc, _):
+                // Recurse into nested blocks
+                switch fc {
+                case .conditional(let c):
+                    if let error = validateBlockPermissions(c.thenBlocks, deviceMap: deviceMap) { return error }
+                    if let error = validateBlockPermissions(c.elseBlocks ?? [], deviceMap: deviceMap) { return error }
+                case .repeat(let r):
+                    if let error = validateBlockPermissions(r.blocks, deviceMap: deviceMap) { return error }
+                case .repeatWhile(let r):
+                    if let error = validateBlockPermissions(r.blocks, deviceMap: deviceMap) { return error }
+                case .group(let g):
+                    if let error = validateBlockPermissions(g.blocks, deviceMap: deviceMap) { return error }
+                default:
+                    break
+                }
+            }
+        }
+        return nil
+    }
+
+    /// Checks if a characteristic has the required permission.
+    private func checkCharacteristicPermission(
+        deviceId: String, characteristicId: String,
+        requiredPermission: String, context: String,
+        deviceMap: [String: DeviceModel]
+    ) -> String? {
+        guard let device = deviceMap[deviceId] else {
+            // Device not found — skip validation (may be a stable ID not yet resolved)
+            return nil
+        }
+        for service in device.services {
+            if let char = service.characteristics.first(where: { $0.id == characteristicId }) {
+                if !char.permissions.contains(requiredPermission) {
+                    let charName = CharacteristicTypes.displayName(for: char.type)
+                    return "\(context): characteristic '\(charName)' on device '\(device.name)' does not have '\(requiredPermission)' permission (has: \(char.permissions.joined(separator: ", "))). " +
+                        (requiredPermission == "notify"
+                         ? "Device state change triggers require characteristics that support notifications."
+                         : "Control device actions require writable characteristics.")
+                }
+                return nil // Found and has permission
+            }
+        }
+        // Characteristic not found on device — skip validation
+        return nil
     }
 
     // MARK: - Metadata Hints

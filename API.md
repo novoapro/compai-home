@@ -511,6 +511,8 @@ Set a characteristic value on a device.
 
 All 45+ HomeKit characteristic types are supported. The full display name (e.g., `Target Humidity`, `Door State`, `Active`) can also be used as the `characteristic_type` value. Values are validated against the characteristic's metadata (format, min/max, valid values).
 
+**Permission requirement:** The target characteristic must have `"write"` permission. Attempting to set a value on a read-only characteristic (e.g., `current_temperature`, `Motion Detected`) will return an error.
+
 ---
 
 ##### list_rooms
@@ -724,7 +726,7 @@ Triggers all workflows with a matching webhook trigger. Returns scheduling outco
 
 ## Outgoing Webhooks
 
-When a HomeKit device state changes, the app can send an HTTP POST to a configured webhook URL.
+When a HomeKit device state changes, the app can send an HTTP POST to a configured webhook URL. Webhooks can only be enabled for characteristics that have `"notify"` permission — only these characteristics receive real-time state change events from HomeKit.
 
 ### Payload
 
@@ -800,7 +802,7 @@ Private IP ranges are blocked by default (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0
 | `value` | any | yes | Current value (bool, int, float, or string) |
 | `format` | string | no | Value format (e.g. "bool", "uint8", "float") |
 | `units` | string | yes | Unit of measurement (e.g. "celsius", "percentage") |
-| `permissions` | string[] | no | Access permissions: `"pr"` (read), `"pw"` (write) |
+| `permissions` | string[] | no | Access permissions: `"read"`, `"write"`, `"notify"`. Read = value can be queried; Write = value can be set; Notify = HomeKit pushes state change events (required for webhooks and workflow triggers) |
 | `minValue` | number | yes | Minimum allowed value |
 | `maxValue` | number | yes | Maximum allowed value |
 | `stepValue` | number | yes | Step increment |
@@ -878,7 +880,7 @@ Each trigger has a `type` discriminator and an optional `retriggerPolicy` that o
 
 #### deviceStateChange
 
-Fires when a device characteristic changes.
+Fires when a device characteristic changes. **The referenced characteristic must have `"notify"` permission** — only characteristics that support HomeKit event notifications can trigger workflows. The server validates this on create/update and returns an error if the characteristic lacks notify permission.
 
 | Field | Type | Required | Description |
 |---|---|---|---|
@@ -979,6 +981,8 @@ All blocks accept an optional `name` field.
 | `serviceId` | string | no | Target specific service |
 | `characteristicId` | string | yes | Stable characteristic ID (resolvable via device registry) |
 | `value` | any | yes | Value to set |
+
+**Permission requirement:** The referenced characteristic must have `"write"` permission. The server validates this on workflow create/update.
 
 ##### runScene
 

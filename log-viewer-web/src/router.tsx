@@ -31,7 +31,7 @@ export function AppRoutes() {
   return (
     <Suspense fallback={<LoadingFallback />}>
       <Routes>
-        <Route path="/" element={<Navigate to="/workflows" replace />} />
+        <Route path="/" element={<Navigate to="/devices" replace />} />
         <Route
           path="/devices"
           element={<ConfigGuard><DevicesPage /></ConfigGuard>}

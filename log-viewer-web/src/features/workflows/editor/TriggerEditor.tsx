@@ -131,6 +131,7 @@ export function TriggerEditor({ index, draft, onChange, onRemove }: TriggerEdito
             initialDeviceId={draft.deviceId}
             initialServiceId={draft.serviceId}
             initialCharId={draft.characteristicId}
+            notifiableOnly
             onChange={(val) => patch({ deviceId: val.deviceId, serviceId: val.serviceId, characteristicId: val.characteristicId })}
           />
           {draft.deviceId && draft.characteristicId && (

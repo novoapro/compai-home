@@ -93,13 +93,13 @@ export function Sidebar({ isOpen, collapsed, onClose, onToggleCollapse }: Sideba
 
         {/* Navigation */}
         <div className="sidebar-nav">
-          <NavLink to="/workflows" className={navItemClass} onClick={handleNavClick}>
-            <Icon name="play-circle-fill" size={20} />
-            <span className="sidebar-nav-label">Workflows</span>
-          </NavLink>
           <NavLink to="/devices" className={navItemClass} onClick={handleNavClick}>
             <Icon name="house" size={20} />
             <span className="sidebar-nav-label">Devices</span>
+          </NavLink>
+          <NavLink to="/workflows" className={navItemClass} onClick={handleNavClick}>
+            <Icon name="play-circle-fill" size={20} />
+            <span className="sidebar-nav-label">Workflows</span>
           </NavLink>
           <NavLink to="/logs" className={navItemClass} onClick={handleNavClick}>
             <Icon name="bolt-circle-fill" size={20} />

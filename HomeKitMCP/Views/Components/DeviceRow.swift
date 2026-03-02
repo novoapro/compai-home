@@ -28,6 +28,11 @@ struct DeviceRow: View {
         viewModel.isWebhookEnabled(for: device)
     }
 
+    /// Whether the device has any characteristic that supports notify (and thus webhooks).
+    private var deviceHasNotifiableCharacteristics: Bool {
+        device.services.flatMap(\.characteristics).contains { $0.permissions.contains("notify") }
+    }
+
     // MARK: - Category-based colors (matching Apple Home app)
 
     private var categoryColor: Color {
@@ -94,6 +99,11 @@ struct DeviceRow: View {
                             viewModel.setDeviceConfig(device: device, webhookEnabled: result)
                         }
                     ), label: "Webhook")
+                    .disabled(!deviceHasNotifiableCharacteristics)
+                    .opacity(deviceHasNotifiableCharacteristics ? 1 : 0.4)
+                    .help(deviceHasNotifiableCharacteristics
+                          ? "Send webhook notifications on state changes"
+                          : "No characteristics support notifications")
                 }
                 .padding(.trailing, 8)
 
@@ -212,12 +222,14 @@ struct DeviceRow: View {
                       systemImage: deviceExternalAccessEnabled ? "xmark.circle" : "checkmark.circle")
             }
 
-            Button {
-                viewModel.setDeviceConfig(device: device, webhookEnabled: !deviceWebhookEnabled)
-                updateAllConfigs(webhookEnabled: !deviceWebhookEnabled)
-            } label: {
-                Label(deviceWebhookEnabled ? "Disable Webhook" : "Enable Webhook",
-                      systemImage: deviceWebhookEnabled ? "xmark.circle" : "checkmark.circle")
+            if deviceHasNotifiableCharacteristics {
+                Button {
+                    viewModel.setDeviceConfig(device: device, webhookEnabled: !deviceWebhookEnabled)
+                    updateAllConfigs(webhookEnabled: !deviceWebhookEnabled)
+                } label: {
+                    Label(deviceWebhookEnabled ? "Disable Webhook" : "Enable Webhook",
+                          systemImage: deviceWebhookEnabled ? "xmark.circle" : "checkmark.circle")
+                }
             }
         }
         .task {
@@ -268,15 +280,21 @@ struct DeviceRow: View {
 
                     Spacer()
 
-                    MiniToggle(isOn: Binding(
-                        get: { config.webhookEnabled },
-                        set: { val in
-                            var updated = config
-                            updated.webhookEnabled = val
-                            configs[key] = updated
-                            viewModel.setConfig(deviceId: device.id, serviceId: service.id, characteristicId: char.id, config: updated)
-                        }
-                    ), label: "Webhook")
+                    if char.permissions.contains("notify") {
+                        MiniToggle(isOn: Binding(
+                            get: { config.webhookEnabled },
+                            set: { val in
+                                var updated = config
+                                updated.webhookEnabled = val
+                                configs[key] = updated
+                                viewModel.setConfig(deviceId: device.id, serviceId: service.id, characteristicId: char.id, config: updated)
+                            }
+                        ), label: "Webhook")
+                    } else {
+                        Text("No notify")
+                            .font(.system(size: 11))
+                            .foregroundColor(Theme.Text.tertiary)
+                    }
                 }
             }
         }
@@ -295,7 +313,10 @@ struct DeviceRow: View {
                 let key = configKey(deviceId: device.id, serviceId: service.id, charId: char.id)
                 var config = configs[key] ?? .default
                 if let ext = externalAccessEnabled { config.externalAccessEnabled = ext }
-                if let webhook = webhookEnabled { config.webhookEnabled = webhook }
+                // Only set webhook for characteristics that support notify
+                if let webhook = webhookEnabled, char.permissions.contains("notify") {
+                    config.webhookEnabled = webhook
+                }
                 configs[key] = config
             }
         }
