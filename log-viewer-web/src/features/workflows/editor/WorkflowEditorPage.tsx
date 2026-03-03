@@ -19,6 +19,7 @@ import { Icon } from '@/components/Icon';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { useApi } from '@/hooks/useApi';
 import { useDeviceRegistry } from '@/contexts/DeviceRegistryContext';
+import { useSetTopBar } from '@/contexts/TopBarContext';
 import { useWorkflowDraft } from './useWorkflowDraft';
 import { TriggerEditor } from './TriggerEditor';
 import { ConditionEditor } from './ConditionEditor';
@@ -69,6 +70,7 @@ export function WorkflowEditorPage() {
   const registry = useDeviceRegistry();
 
   const isEditMode = !!workflowId;
+  useSetTopBar(isEditMode ? 'Edit Workflow' : 'New Workflow');
 
   const {
     draft,

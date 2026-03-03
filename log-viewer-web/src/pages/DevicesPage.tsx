@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback } from 'react';
 import { useDeviceRegistry } from '@/contexts/DeviceRegistryContext';
+import { useSetTopBar } from '@/contexts/TopBarContext';
 import { useDebounce } from '@/hooks/useDebounce';
 import { Icon } from '@/components/Icon';
 import { EmptyState } from '@/components/EmptyState';
@@ -13,6 +14,7 @@ type ReachabilityFilter = 'all' | 'reachable' | 'unreachable';
 
 export function DevicesPage() {
   const { devices, scenes, isLoading } = useDeviceRegistry();
+  useSetTopBar('Devices', devices.length > 0 ? devices.length : null, isLoading);
 
   const [activeTab, setActiveTab] = useState<Tab>('devices');
   const [searchText, setSearchText] = useState('');
@@ -123,15 +125,6 @@ export function DevicesPage() {
 
   return (
     <div className="devices-page">
-      {/* Header */}
-      <div className="page-header">
-        <h1 className="page-title">Devices</h1>
-        <span className="log-count-badge">
-          {activeTab === 'devices' ? devices.length : scenes.length}
-        </span>
-        {isLoading && <span className="loading-dot" />}
-      </div>
-
       {/* Tab bar */}
       <div className="devices-tab-bar">
         <button

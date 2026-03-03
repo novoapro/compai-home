@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router';
+import { useSetTopBar } from '@/contexts/TopBarContext';
 import { Icon } from '@/components/Icon';
 import { EmptyState } from '@/components/EmptyState';
 import { WorkflowLogRow } from '@/features/workflows/WorkflowLogRow';
@@ -17,6 +18,7 @@ export function WorkflowExecutionListPage() {
   const [logs, setLogs] = useState<WorkflowExecutionLog[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  useSetTopBar('Executions', logs.length > 0 ? logs.length : null, isLoading);
 
   const loadLogs = useCallback(async () => {
     if (!workflowId) return;

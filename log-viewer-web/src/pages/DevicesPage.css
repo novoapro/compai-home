@@ -5,6 +5,13 @@
   background: var(--bg-main);
 }
 
+.page-header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-lg) var(--spacing-md) var(--spacing-sm);
+}
+
 /* ===== Tab bar ===== */
 .devices-tab-bar {
   display: flex;

@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import { useSetTopBar } from '@/contexts/TopBarContext';
 import { usePolling } from '@/hooks/usePolling';
 import { useWebSocket } from '@/contexts/WebSocketContext';
 import { useConfig } from '@/contexts/ConfigContext';
@@ -233,6 +234,7 @@ export function LogsPage() {
 
   const logCount = filteredLogs.length;
   const hasMore = polling.logs.length < polling.totalCount;
+  useSetTopBar('Activity Log', logCount > 0 ? logCount : null, polling.isLoading);
 
   function onCategoriesChange(cats: Set<string>) {
     setSelectedCategories(cats);

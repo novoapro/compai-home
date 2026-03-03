@@ -5,12 +5,14 @@ import { PageTransition } from '@/components/PageTransition';
 import { AppRoutes } from '@/router';
 import { useConfig } from '@/contexts/ConfigContext';
 import { useWebSocket } from '@/contexts/WebSocketContext';
+import { useTopBar } from '@/contexts/TopBarContext';
 import '@/components/Sidebar.css';
 import '@/components/TopBar.css';
 
 export function App() {
   const { config } = useConfig();
   const ws = useWebSocket();
+  const topBar = useTopBar();
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() =>
@@ -39,7 +41,9 @@ export function App() {
         style={{ transition: 'margin-left var(--sidebar-transition)' }}
       >
         <TopBar
-          title="HomeKit MCP"
+          title={topBar.title}
+          badge={topBar.badge}
+          showLoading={topBar.showLoading}
           websocketEnabled={config.websocketEnabled}
           connectionState={ws.connectionState}
           lastPollTime={null}

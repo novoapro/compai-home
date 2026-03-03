@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router';
+import { useSetTopBar } from '@/contexts/TopBarContext';
 import { Icon } from '@/components/Icon';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { DefinitionTrigger } from '@/features/workflows/DefinitionTrigger';
@@ -18,6 +19,7 @@ export function WorkflowDefinitionPage() {
 
   const [workflow, setWorkflow] = useState<WorkflowDefinition | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  useSetTopBar(workflow?.name ?? 'Workflow', null, isLoading);
   const [isDuplicating, setIsDuplicating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router';
+import { useSetTopBar } from '@/contexts/TopBarContext';
 import { Icon } from '@/components/Icon';
 import { StatusBadge } from '@/components/StatusBadge';
 import { ConditionResultTree } from '@/features/workflows/ConditionResultTree';
@@ -41,6 +42,7 @@ export function WorkflowExecutionDetailPage() {
   const [log, setLog] = useState<WorkflowExecutionLog | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  useSetTopBar('Execution Detail', null, isLoading);
 
   const loadDetail = useCallback(async () => {
     if (!workflowId || !logId) return;

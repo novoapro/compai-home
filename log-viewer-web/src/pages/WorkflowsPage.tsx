@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router';
+import { useSetTopBar } from '@/contexts/TopBarContext';
 import { Icon } from '@/components/Icon';
 import { EmptyState } from '@/components/EmptyState';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
@@ -21,6 +22,7 @@ export function WorkflowsPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  useSetTopBar('Workflows', workflows.length > 0 ? workflows.length : null, isLoading);
 
   // Selection mode
   const [selectionMode, setSelectionMode] = useState(false);

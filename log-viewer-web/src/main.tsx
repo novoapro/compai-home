@@ -6,6 +6,7 @@ import { ThemeProvider } from '@/contexts/ThemeContext';
 import { ConfigProvider } from '@/contexts/ConfigContext';
 import { WebSocketProvider } from '@/contexts/WebSocketContext';
 import { DeviceRegistryProvider } from '@/contexts/DeviceRegistryContext';
+import { TopBarProvider } from '@/contexts/TopBarContext';
 import { App } from '@/App';
 import './index.css';
 
@@ -17,7 +18,9 @@ createRoot(document.getElementById('root')!).render(
           <ConfigProvider>
             <WebSocketProvider>
               <DeviceRegistryProvider>
-                <App />
+                <TopBarProvider>
+                  <App />
+                </TopBarProvider>
               </DeviceRegistryProvider>
             </WebSocketProvider>
           </ConfigProvider>

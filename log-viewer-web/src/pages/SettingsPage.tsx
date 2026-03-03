@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { Switch } from '@headlessui/react';
 import { useConfig } from '@/contexts/ConfigContext';
+import { useSetTopBar } from '@/contexts/TopBarContext';
 import { useWebSocket } from '@/contexts/WebSocketContext';
 import { Icon } from '@/components/Icon';
 import './SettingsPage.css';
@@ -8,6 +9,7 @@ import './SettingsPage.css';
 export function SettingsPage() {
   const { config, setConfig, save } = useConfig();
   const ws = useWebSocket();
+  useSetTopBar('Settings');
 
   const [localState, setLocalState] = useState({
     serverAddress: config.serverAddress,
