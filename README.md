@@ -24,11 +24,85 @@ A macOS menu bar app that exposes your Apple HomeKit devices through the [Model 
 ## Requirements
 
 - macOS 13.0 (Ventura) or later
-- Xcode 15.0+
+- Xcode 16+
+- [XcodeGen](https://github.com/yonaskolb/XcodeGen) (`brew install xcodegen`)
+- Node.js 22+ (for the web dashboard)
 - HomeKit-compatible accessories configured in the Apple Home app
 - An Apple Developer account (for HomeKit entitlement)
 
-## Getting Started
+## Quick Start
+
+```bash
+# Generate the Xcode project from project.yml
+make generate
+
+# Build and launch in dev mode (auto-accepts a default auth token)
+make dev
+
+# Install web dashboard dependencies & start dev server
+make web-install
+make web-dev
+```
+
+In **dev mode**, the bearer token `dev-token-homekit-mcp` is automatically accepted — no manual Keychain setup needed.
+
+## Make Commands
+
+| Command | Description |
+|---------|-------------|
+| `make help` | Show all available commands |
+| `make generate` | Generate the Xcode project from `project.yml` |
+| `make dev` | Build and launch in **Dev** mode (auto-accepts dev token) |
+| `make prod` | Build and launch in **Prod** mode (requires real Keychain tokens) |
+| `make test` | Run all tests (Swift + web) |
+| `make test-swift` | Run Swift unit tests only |
+| `make test-web` | Run web unit tests only |
+| `make web-dev` | Start the web dashboard dev server |
+| `make web-install` | Install web dashboard npm dependencies |
+| `make clean` | Clean Xcode build artifacts |
+| `make kill` | Kill running HomeKitMCP process |
+
+## Build Configurations
+
+The project uses [XcodeGen](https://github.com/yonaskolb/XcodeGen) (`project.yml`) with four build configurations:
+
+| Configuration | Scheme | Use Case |
+|---------------|--------|----------|
+| **Dev Debug** | `HomeKitMCP` | Local development with debugger (`make dev`) |
+| **Dev Release** | `HomeKitMCP` | Optimized dev build |
+| **Prod Debug** | `HomeKitMCP-Prod` | Production behavior with debugger (`make prod`) |
+| **Prod Release** | `HomeKitMCP-Prod` | Distribution build |
+
+**Dev** builds compile with the `DEV_ENVIRONMENT` flag, which injects a well-known dev token (`dev-token-homekit-mcp`) so you don't need to configure Keychain tokens during development.
+
+**Prod** builds behave like the final app — tokens must be created and stored in the Keychain through the app's settings UI.
+
+## Testing
+
+```bash
+# Run all tests (Swift + web)
+make test
+
+# Swift tests only (DeviceRegistryService, etc.)
+make test-swift
+
+# Web tests only (Vitest)
+make test-web
+
+# Web tests in watch mode
+cd log-viewer-web && npm run test:watch
+```
+
+## CI/CD
+
+GitHub Actions runs automatically on every push and PR to `main`:
+
+- **Swift job** (macOS): generates project via XcodeGen, builds, runs unit tests
+- **Web job** (Ubuntu): TypeScript type-check, Vitest tests, production build
+
+See [.github/workflows/ci.yml](.github/workflows/ci.yml) for details. GitHub Actions is free for public repositories and includes 2,000 minutes/month for private repos on the free tier.
+
+## Getting Started (Manual)
 
 ### Build
 
