@@ -127,21 +127,21 @@ actor WorkflowEngine: WorkflowEngineProtocol {
             guard let matchedPolicy = await checkTriggers(workflow.triggers, context: context) else { continue }
 
             // Already running?
-            if let existingTask = runningTasks[workflow.id] {
+            if runningTasks[workflow.id] != nil {
                 switch matchedPolicy {
                 case .ignoreNew:
                     AppLogger.workflow.debug("[\(workflow.name)] Ignoring new trigger — workflow already running (ignoreNew policy)")
                     continue
                 case .cancelAndRestart:
                     AppLogger.workflow.debug("[\(workflow.name)] Cancelling running execution — restarting (cancelAndRestart policy)")
-                    existingTask.cancel()
+                    cancelWorkflowTree(workflow.id)
                     runningTasks.removeValue(forKey: workflow.id)
                 case .queueAndExecute:
                     enqueueWorkflow(workflow, change: change)
                     continue
                 case .cancelOnly:
                     AppLogger.workflow.debug("[\(workflow.name)] Cancelling running execution — no restart (cancelOnly policy)")
-                    existingTask.cancel()
+                    cancelWorkflowTree(workflow.id)
                     runningTasks.removeValue(forKey: workflow.id)
                     continue
                 }
@@ -157,18 +157,18 @@ actor WorkflowEngine: WorkflowEngineProtocol {
         guard let workflow = await workflowStorageService.getWorkflow(id: id) else { return nil }
 
         // Handle retrigger policy for manual trigger (use workflow-level fallback)
-        if let existingTask = runningTasks[id] {
+        if runningTasks[id] != nil {
             switch workflow.retriggerPolicy {
             case .ignoreNew:
                 return nil
             case .cancelAndRestart:
-                existingTask.cancel()
+                cancelWorkflowTree(id)
                 runningTasks.removeValue(forKey: id)
             case .queueAndExecute:
                 enqueueWorkflow(workflow, change: nil)
                 return nil
             case .cancelOnly:
-                existingTask.cancel()
+                cancelWorkflowTree(id)
                 runningTasks.removeValue(forKey: id)
                 return nil
             }
@@ -176,7 +176,9 @@ actor WorkflowEngine: WorkflowEngineProtocol {
 
         let task = Task { [weak self] () -> WorkflowExecutionLog in
             let result = await self?.executeWorkflow(workflow, change: nil) ?? WorkflowExecutionLog(workflowId: id, workflowName: workflow.name, triggerEvent: nil)
-            await self?.removeRunning(id)
+            if !Task.isCancelled {
+                await self?.removeRunning(id)
+            }
             return result
         }
         runningTasks[id] = Task {
@@ -202,18 +204,18 @@ actor WorkflowEngine: WorkflowEngineProtocol {
 
         let effectivePolicy = policy ?? workflow.retriggerPolicy
 
-        if let existingTask = runningTasks[id] {
+        if runningTasks[id] != nil {
             switch effectivePolicy {
             case .ignoreNew:
                 return nil
             case .cancelAndRestart:
-                existingTask.cancel()
+                cancelWorkflowTree(id)
                 runningTasks.removeValue(forKey: id)
             case .queueAndExecute:
                 enqueueWorkflow(workflow, change: nil)
                 return nil
             case .cancelOnly:
-                existingTask.cancel()
+                cancelWorkflowTree(id)
                 runningTasks.removeValue(forKey: id)
                 return nil
             }
@@ -221,7 +223,9 @@ actor WorkflowEngine: WorkflowEngineProtocol {
 
         let task = Task { [weak self] () -> WorkflowExecutionLog in
             let result = await self?.executeWorkflow(workflow, change: nil, triggerEvent: triggerEvent) ?? WorkflowExecutionLog(workflowId: id, workflowName: workflow.name, triggerEvent: triggerEvent)
-            await self?.removeRunning(id)
+            if !Task.isCancelled {
+                await self?.removeRunning(id)
+            }
             return result
         }
         runningTasks[id] = Task {
@@ -246,7 +250,7 @@ actor WorkflowEngine: WorkflowEngineProtocol {
             case .ignoreNew:
                 return .ignored(workflowId: id, workflowName: workflow.name)
             case .cancelAndRestart:
-                runningTasks[id]?.cancel()
+                cancelWorkflowTree(id)
                 runningTasks.removeValue(forKey: id)
                 startExecution(workflow, change: nil)
                 return .replaced(workflowId: id, workflowName: workflow.name)
@@ -254,7 +258,7 @@ actor WorkflowEngine: WorkflowEngineProtocol {
                 enqueueWorkflow(workflow, change: nil)
                 return .queued(workflowId: id, workflowName: workflow.name)
             case .cancelOnly:
-                runningTasks[id]?.cancel()
+                cancelWorkflowTree(id)
                 runningTasks.removeValue(forKey: id)
                 return .cancelled(workflowId: id, workflowName: workflow.name)
             }
@@ -282,7 +286,7 @@ actor WorkflowEngine: WorkflowEngineProtocol {
             case .ignoreNew:
                 return .ignored(workflowId: id, workflowName: workflow.name)
             case .cancelAndRestart:
-                runningTasks[id]?.cancel()
+                cancelWorkflowTree(id)
                 runningTasks.removeValue(forKey: id)
                 startExecution(workflow, change: nil, triggerEvent: triggerEvent)
                 return .replaced(workflowId: id, workflowName: workflow.name)
@@ -290,7 +294,7 @@ actor WorkflowEngine: WorkflowEngineProtocol {
                 enqueueWorkflow(workflow, change: nil, triggerEvent: triggerEvent)
                 return .queued(workflowId: id, workflowName: workflow.name)
             case .cancelOnly:
-                runningTasks[id]?.cancel()
+                cancelWorkflowTree(id)
                 runningTasks.removeValue(forKey: id)
                 return .cancelled(workflowId: id, workflowName: workflow.name)
             }
@@ -317,18 +321,18 @@ actor WorkflowEngine: WorkflowEngineProtocol {
             return false
         })?.resolvedRetriggerPolicy ?? workflow.retriggerPolicy
 
-        if let existingTask = runningTasks[id] {
+        if runningTasks[id] != nil {
             switch workflowTriggerPolicy {
             case .ignoreNew:
                 return nil
             case .cancelAndRestart:
-                existingTask.cancel()
+                cancelWorkflowTree(id)
                 runningTasks.removeValue(forKey: id)
             case .queueAndExecute:
                 enqueueWorkflow(workflow, change: nil)
                 return nil
             case .cancelOnly:
-                existingTask.cancel()
+                cancelWorkflowTree(id)
                 runningTasks.removeValue(forKey: id)
                 return nil
             }
@@ -339,7 +343,9 @@ actor WorkflowEngine: WorkflowEngineProtocol {
 
         let task = Task { [weak self] () -> WorkflowExecutionLog in
             let result = await self?.executeWorkflow(workflow, change: nil, triggerEvent: triggerEvent, callerContext: context) ?? WorkflowExecutionLog(workflowId: id, workflowName: workflow.name, triggerEvent: triggerEvent)
-            await self?.removeRunning(id)
+            if !Task.isCancelled {
+                await self?.removeRunning(id)
+            }
             return result
         }
         runningTasks[id] = Task {
@@ -376,6 +382,7 @@ actor WorkflowEngine: WorkflowEngineProtocol {
             for childId in children {
                 cancelWorkflowTree(childId)
             }
+            inlineChildren.removeValue(forKey: workflowId)
         }
         // Cancel this workflow's task
         runningTasks[workflowId]?.cancel()
@@ -392,7 +399,11 @@ actor WorkflowEngine: WorkflowEngineProtocol {
         let workflowId = workflow.id
         let task = Task { [weak self] in
             await self?.executeWorkflow(workflow, change: change, triggerEvent: triggerEvent)
-            await self?.removeRunning(workflowId)
+            // Only clean up if not cancelled — cancelled tasks have their entry removed
+            // by the canceller, so calling removeRunning here would remove the replacement task.
+            if !Task.isCancelled {
+                await self?.removeRunning(workflowId)
+            }
         }
         runningTasks[workflowId] = task
     }

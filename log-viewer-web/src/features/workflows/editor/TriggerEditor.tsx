@@ -165,6 +165,7 @@ export function TriggerEditor({ index, draft, onChange, onRemove }: TriggerEdito
                 ? registry.lookupCharacteristic(draft.deviceId, draft.characteristicId)
                 : undefined}
               value={(draft.condition as any)?.value}
+              forceEditable
               onChange={(val) => {
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const current = { ...(draft.condition ?? { type: 'equals' }) } as any;
@@ -182,6 +183,7 @@ export function TriggerEditor({ index, draft, onChange, onRemove }: TriggerEdito
                 value={(draft.condition as any)?.from}
                 label="From"
                 allowAny
+                forceEditable
                 onChange={(val) => {
                   // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   const current = { ...(draft.condition ?? { type: 'transitioned' }) } as any;
@@ -195,6 +197,7 @@ export function TriggerEditor({ index, draft, onChange, onRemove }: TriggerEdito
                   : undefined}
                 value={(draft.condition as any)?.to}
                 label="To"
+                forceEditable
                 onChange={(val) => {
                   // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   const current = { ...(draft.condition ?? { type: 'transitioned' }) } as any;

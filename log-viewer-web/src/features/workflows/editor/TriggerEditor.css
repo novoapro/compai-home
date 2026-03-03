@@ -101,6 +101,12 @@
   gap: var(--spacing-sm);
 }
 
+@media (max-width: 480px) {
+  .editor-field-row {
+    grid-template-columns: 1fr;
+  }
+}
+
 .day-picker-section {
   display: flex;
   flex-direction: column;

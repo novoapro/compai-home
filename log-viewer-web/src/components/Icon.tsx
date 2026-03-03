@@ -56,6 +56,9 @@ const ICON_MAP: Record<string, IconEntry> = {
   'doc-on-doc':              { ms: 'content_copy'                  },
   'arrow-up-circle':         { ms: 'arrow_circle_up'               },
 
+  // Connection status
+  'router':                  { ms: 'bigtop_updates'                 },
+
   // General UI
   'magnifying-glass':        { ms: 'search'                        },
   'sun':                     { ms: 'light_mode',         fill: 1  },

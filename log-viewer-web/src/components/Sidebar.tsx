@@ -82,7 +82,7 @@ export function Sidebar({ isOpen, collapsed, onClose, onToggleCollapse }: Sideba
       >
         {/* Logo */}
         <div className="sidebar-logo">
-          <img src="/logo.png" alt="HomeKit MCP Dashboard" className="sidebar-logo-img" />
+          <img src="/logo-nobg.png" alt="HomeKit MCP Dashboard" className="sidebar-logo-img" />
           <span className="sidebar-logo-text">HomeKit MCP<br />Dashboard</span>
         </div>
 

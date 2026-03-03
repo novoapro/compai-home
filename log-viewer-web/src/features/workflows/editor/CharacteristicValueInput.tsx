@@ -16,6 +16,8 @@ interface CharacteristicValueInputProps {
   placeholder?: string;
   /** Whether to allow an "Any" option (for transition "From" fields) */
   allowAny?: boolean;
+  /** Override read-only detection. Set to false to allow editing even for read-only characteristics (e.g. triggers). */
+  forceEditable?: boolean;
 }
 
 const NUMERIC_FORMATS = new Set(['uint8', 'uint16', 'uint32', 'uint64', 'int', 'float']);
@@ -41,6 +43,7 @@ export function CharacteristicValueInput({
   label = 'Value',
   placeholder,
   allowAny = false,
+  forceEditable = false,
 }: CharacteristicValueInputProps) {
   // Track local text for uncontrolled text inputs
   const [localText, setLocalText] = useState(value != null ? String(value) : '');
@@ -50,7 +53,7 @@ export function CharacteristicValueInput({
     setLocalText(value != null ? String(value) : '');
   }, [value]);
 
-  const isReadOnly = characteristic ? !characteristic.permissions.includes('write') : false;
+  const isReadOnly = forceEditable ? false : (characteristic ? !characteristic.permissions.includes('write') : false);
   const unit = characteristic ? unitSymbol(characteristic.units) : '';
 
   // --- No metadata fallback ---

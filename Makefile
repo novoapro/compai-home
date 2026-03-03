@@ -1,4 +1,6 @@
-.PHONY: generate dev prod test test-swift test-web web-dev web-build web-prod web-install clean kill help
+.PHONY: generate dev dev-all prod test test-swift test-web web-dev web-build web-prod web-install clean kill help
+
+WEB_PORT = 5173
 
 DERIVED_DATA = .build/DerivedData
 XCODEBUILD = xcodebuild -scheme HomeKitMCP -destination 'platform=macOS,variant=Mac Catalyst' -derivedDataPath $(DERIVED_DATA)
@@ -15,6 +17,12 @@ dev: kill generate ## Build and run in Dev config
 	$(XCODEBUILD) -configuration 'Dev Debug' build
 	@echo "Launching HomeKitMCP (Dev)..."
 	@open "$(PRODUCTS)/Dev Debug-maccatalyst/HomeKitMCP.app"
+
+dev-all: dev ## Build and run both apps in Dev mode
+	@echo "Starting web dashboard..."
+	@cd log-viewer-web && npm run dev &
+	@sleep 3
+	@open "http://localhost:$(WEB_PORT)"
 
 prod: kill generate ## Build and run in Prod config
 	$(XCODEBUILD) -configuration 'Prod Debug' build

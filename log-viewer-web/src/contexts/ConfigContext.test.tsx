@@ -37,7 +37,8 @@ describe('ConfigContext', () => {
     expect(getByTestId('configured').textContent).toBe('false');
   });
 
-  it('isConfigured is true when bearer token set in localStorage', () => {
+  it('isConfigured is true when bearer token saved in localStorage', () => {
+    localStorage.setItem('hk-log-viewer:_saved', '1');
     localStorage.setItem('hk-log-viewer:bearerToken', 'my-token');
 
     const { getByTestId } = render(
@@ -56,7 +57,8 @@ describe('ConfigContext', () => {
     expect(getByTestId('baseUrl').textContent).toBe('http://localhost:3000');
   });
 
-  it('loads values from localStorage', () => {
+  it('loads values from localStorage when user has saved', () => {
+    localStorage.setItem('hk-log-viewer:_saved', '1');
     localStorage.setItem('hk-log-viewer:serverAddress', '192.168.1.100');
     localStorage.setItem('hk-log-viewer:serverPort', '8080');
 
@@ -66,6 +68,19 @@ describe('ConfigContext', () => {
 
     expect(getByTestId('address').textContent).toBe('192.168.1.100');
     expect(getByTestId('port').textContent).toBe('8080');
+  });
+
+  it('ignores localStorage when user has not explicitly saved', () => {
+    // Stale localStorage without the _saved flag should be ignored
+    localStorage.setItem('hk-log-viewer:serverAddress', '10.0.0.99');
+    localStorage.setItem('hk-log-viewer:serverPort', '9999');
+
+    const { getByTestId } = render(
+      <ConfigProvider><TestConsumer /></ConfigProvider>
+    );
+
+    expect(getByTestId('address').textContent).toBe('localhost');
+    expect(getByTestId('port').textContent).toBe('3000');
   });
 
   it('throws when useConfig is used outside provider', () => {

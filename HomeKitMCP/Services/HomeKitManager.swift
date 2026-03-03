@@ -964,6 +964,24 @@ extension HomeKitManager: HMAccessoryDelegate {
         Task {
             let value = characteristic.value
 
+            // Look up cached value BEFORE updating cache so we can detect actual changes
+            self.deviceLookupLock.lock()
+            let cachedDevice = self.deviceLookup[deviceId]
+            self.deviceLookupLock.unlock()
+
+            let cachedValue: Any? = cachedDevice?.services
+                .first(where: { $0.id == serviceId })?
+                .characteristics
+                .first(where: { $0.id == charId })?
+                .value?.value
+
+            // Skip broadcast if value hasn't actually changed (HomeKit sometimes emits spurious callbacks)
+            let oldStr = cachedValue.map { "\($0)" } ?? "nil"
+            let newStr = value.map { "\($0)" } ?? "nil"
+            if oldStr == newStr {
+                return
+            }
+
             let formattedName = DeviceNameFormatter.format(
                 deviceName: accessory.name,
                 roomName: accessory.room?.name,
@@ -978,6 +996,7 @@ extension HomeKitManager: HMAccessoryDelegate {
                 roomName: roomName,
                 serviceName: ServiceTypes.displayName(for: service.serviceType),
                 characteristicType: characteristic.characteristicType,
+                oldValue: cachedValue.map { AnyCodable($0) },
                 newValue: value.map { AnyCodable($0) }
             )
 
@@ -993,7 +1012,7 @@ extension HomeKitManager: HMAccessoryDelegate {
                 serviceId: stableServiceId,
                 serviceName: serviceName,
                 characteristicType: characteristic.characteristicType,
-                oldValue: nil,
+                oldValue: cachedValue,
                 newValue: value
             )
 

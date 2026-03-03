@@ -24,9 +24,8 @@ export function TopBar({
       {/* Right: connection status indicators */}
       <div className="topbar-right">
         {websocketEnabled && (
-          <div className={`status-chip ${connectionState === 'connected' ? 'status-ok' : connectionState === 'connecting' ? 'status-warn' : 'status-err'}`}>
-            <span className="status-chip-label">Server </span>
-            <div className={`status-dot ${connectionState === 'connected' ? 'connected' : connectionState === 'connecting' ? 'connecting' : ''}`} />
+          <div className={`status-cloud ${connectionState}`}>
+            <Icon name="router" size={20} className="status-cloud-icon" />
           </div>
         )}
         {lastPollTime && (
@@ -41,7 +40,7 @@ export function TopBar({
         <button className="hamburger-btn" onClick={onMenuClick} aria-label="Open menu">
           <Icon name="menu" size={20} />
         </button>
-        <img src="/logo.png" alt="HomeKit MCP" className="topbar-logo" />
+        <img src="/logo-nobg.png" alt="HomeKit MCP" className="topbar-logo" />
         <span className="topbar-title">{title}</span>
         {badge != null && <span className="topbar-badge">{badge}</span>}
         {showLoading && <span className="topbar-loading-dot" />}

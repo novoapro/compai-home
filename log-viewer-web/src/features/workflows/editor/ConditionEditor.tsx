@@ -129,6 +129,7 @@ export function ConditionEditor({ draft, allowBlockResult = true, allBlocks, cur
                 ? registry.lookupCharacteristic(draft.deviceId, draft.characteristicId)
                 : undefined}
               value={(draft.comparison as any)?.value}
+              forceEditable
               onChange={(val) => {
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const current = { ...(draft.comparison ?? { type: 'equals' }) } as any;

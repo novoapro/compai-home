@@ -115,26 +115,35 @@
   transition: background var(--transition-fast);
 }
 
-.status-chip.status-ok { color: var(--status-active); }
-.status-chip.status-warn { color: var(--status-warning); }
-.status-chip.status-err { color: var(--status-error); }
-
-.status-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--status-error);
-  flex-shrink: 0;
+/* ── Cloud status indicator ── */
+.status-cloud {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  transition: color var(--transition-fast);
 }
+.status-cloud.connected { color: var(--status-active); }
+.status-cloud.connecting { color: var(--status-warning); }
+.status-cloud.disconnected { color: var(--status-error); }
 
-.status-dot.connected {
-  background: var(--status-active);
+.status-cloud.connected .status-cloud-icon {
   animation: statusPulse 2s ease-in-out infinite;
 }
 
-.status-dot.connecting {
-  background: var(--status-warning);
-  animation: statusPulse 1s ease-in-out infinite;
+.status-cloud.connecting .status-cloud-icon {
+  animation: statusPulse 1s ease-in-out infinite, cloudBounce 1s ease-in-out infinite;
+}
+
+@keyframes cloudBounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+
+@keyframes statusPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
 }
 
 @keyframes topbarPulse {

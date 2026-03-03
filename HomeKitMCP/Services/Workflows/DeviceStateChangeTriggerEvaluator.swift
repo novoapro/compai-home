@@ -58,8 +58,10 @@ struct DeviceStateChangeTriggerEvaluator: TriggerEvaluator {
     private func evaluateTriggerCondition(_ condition: TriggerCondition, oldValue: Any?, newValue: Any?) -> Bool {
         switch condition {
         case .changed:
-            // Any value change counts
-            return true
+            // If oldValue is nil (first observation), conservatively treat as changed.
+            // Otherwise verify the value actually changed.
+            if oldValue == nil { return true }
+            return !ConditionEvaluator.valuesEqual(oldValue, newValue)
 
         case .equals(let target):
             return ConditionEvaluator.valuesEqual(newValue, target.value)

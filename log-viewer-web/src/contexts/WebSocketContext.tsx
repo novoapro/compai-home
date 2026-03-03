@@ -115,6 +115,8 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
     wsRef.current = socket;
 
     socket.onopen = () => {
+      // Ignore if this socket was replaced by a newer one
+      if (wsRef.current !== socket) return;
       setConnectionState('connected');
       if (reconnectAttemptsRef.current > 0) {
         reconnectedHandlers.current.forEach(h => h());
@@ -123,6 +125,8 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
     };
 
     socket.onmessage = (event) => {
+      // Ignore messages from stale sockets
+      if (wsRef.current !== socket) return;
       try {
         const msg = JSON.parse(event.data as string) as { type: string; data: unknown };
         switch (msg.type) {
@@ -158,6 +162,8 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
     };
 
     socket.onclose = () => {
+      // Ignore if this socket was already replaced by a newer one
+      if (wsRef.current !== socket) return;
       setConnectionState('disconnected');
       wsRef.current = null;
       if (!intentionalCloseRef.current) {

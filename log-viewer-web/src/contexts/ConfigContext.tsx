@@ -1,6 +1,12 @@
 import { createContext, useContext, useState, useCallback, useMemo, type ReactNode } from 'react';
 
 const STORAGE_PREFIX = 'hk-log-viewer';
+const SAVED_KEY = `${STORAGE_PREFIX}:_saved`;
+
+/** True when the user has explicitly saved settings at least once. */
+function hasUserSaved(): boolean {
+  return localStorage.getItem(SAVED_KEY) === '1';
+}
 
 function loadString(key: string, fallback: string): string {
   return localStorage.getItem(`${STORAGE_PREFIX}:${key}`) ?? fallback;
@@ -14,6 +20,32 @@ function loadNumber(key: string, fallback: number): number {
 function loadBool(key: string, fallback: boolean): boolean {
   const v = localStorage.getItem(`${STORAGE_PREFIX}:${key}`);
   return v !== null ? v === 'true' : fallback;
+}
+
+/** Build defaults from env vars (dev) or hardcoded values (prod). */
+function envDefaults(): ConfigState {
+  return {
+    serverAddress: import.meta.env.VITE_DEFAULT_SERVER_ADDRESS || 'localhost',
+    serverPort: Number(import.meta.env.VITE_DEFAULT_SERVER_PORT) || 3000,
+    bearerToken: import.meta.env.VITE_DEFAULT_BEARER_TOKEN || '',
+    pollingInterval: 300,
+    websocketEnabled: true,
+    useHTTPS: import.meta.env.VITE_DEFAULT_USE_HTTPS === 'true',
+  };
+}
+
+/** Load config: use localStorage if user explicitly saved, otherwise env defaults. */
+function loadConfig(): ConfigState {
+  const defaults = envDefaults();
+  if (!hasUserSaved()) return defaults;
+  return {
+    serverAddress: loadString('serverAddress', defaults.serverAddress),
+    serverPort: loadNumber('serverPort', defaults.serverPort),
+    bearerToken: loadString('bearerToken', defaults.bearerToken),
+    pollingInterval: loadNumber('pollingInterval', defaults.pollingInterval),
+    websocketEnabled: loadBool('websocketEnabled', defaults.websocketEnabled),
+    useHTTPS: loadBool('useHTTPS', defaults.useHTTPS),
+  };
 }
 
 export interface ConfigState {
@@ -31,19 +63,13 @@ interface ConfigContextValue {
   baseUrl: string;
   setConfig: (updates: Partial<ConfigState>) => void;
   save: (state?: ConfigState) => void;
+  reset: () => void;
 }
 
 const ConfigContext = createContext<ConfigContextValue | null>(null);
 
 export function ConfigProvider({ children }: { children: ReactNode }) {
-  const [config, setConfigState] = useState<ConfigState>(() => ({
-    serverAddress: loadString('serverAddress', import.meta.env.VITE_DEFAULT_SERVER_ADDRESS || 'localhost'),
-    serverPort: loadNumber('serverPort', Number(import.meta.env.VITE_DEFAULT_SERVER_PORT) || 3000),
-    bearerToken: loadString('bearerToken', import.meta.env.VITE_DEFAULT_BEARER_TOKEN || ''),
-    pollingInterval: loadNumber('pollingInterval', 300),
-    websocketEnabled: loadBool('websocketEnabled', true),
-    useHTTPS: loadBool('useHTTPS', import.meta.env.VITE_DEFAULT_USE_HTTPS === 'true'),
-  }));
+  const [config, setConfigState] = useState<ConfigState>(loadConfig);
 
   const isConfigured = !!config.bearerToken;
   const httpProtocol = config.useHTTPS ? 'https' : 'http';
@@ -55,6 +81,7 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
 
   const save = useCallback((state?: ConfigState) => {
     const s = state ?? config;
+    localStorage.setItem(SAVED_KEY, '1');
     localStorage.setItem(`${STORAGE_PREFIX}:serverAddress`, s.serverAddress);
     localStorage.setItem(`${STORAGE_PREFIX}:serverPort`, String(s.serverPort));
     localStorage.setItem(`${STORAGE_PREFIX}:bearerToken`, s.bearerToken);
@@ -63,9 +90,16 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
     localStorage.setItem(`${STORAGE_PREFIX}:useHTTPS`, String(s.useHTTPS));
   }, [config]);
 
+  const reset = useCallback(() => {
+    const keys = ['serverAddress', 'serverPort', 'bearerToken', 'pollingInterval', 'websocketEnabled', 'useHTTPS'];
+    keys.forEach(k => localStorage.removeItem(`${STORAGE_PREFIX}:${k}`));
+    localStorage.removeItem(SAVED_KEY);
+    setConfigState(envDefaults());
+  }, []);
+
   const value = useMemo<ConfigContextValue>(
-    () => ({ config, isConfigured, baseUrl, setConfig, save }),
-    [config, isConfigured, baseUrl, setConfig, save],
+    () => ({ config, isConfigured, baseUrl, setConfig, save, reset }),
+    [config, isConfigured, baseUrl, setConfig, save, reset],
   );
 
   return (

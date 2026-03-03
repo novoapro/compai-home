@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef, useReducer } from 'react';
+import { createPortal } from 'react-dom';
 import { useParams, useNavigate } from 'react-router';
 import {
   DndContext,
@@ -104,6 +105,21 @@ export function WorkflowEditorPage() {
   // --- Unsaved changes protection ---
   const [showLeaveDialog, setShowLeaveDialog] = useState(false);
   const pendingNavRef = useRef<(() => void) | null>(null);
+  const footerRef = useRef<HTMLDivElement>(null);
+  const pageRef = useRef<HTMLDivElement>(null);
+
+  // Keep page padding-bottom in sync with footer height
+  useEffect(() => {
+    const footer = footerRef.current;
+    const page = pageRef.current;
+    if (!footer || !page) return;
+    const ro = new ResizeObserver(() => {
+      const h = footer.getBoundingClientRect().height;
+      page.style.paddingBottom = `${h + 16}px`;
+    });
+    ro.observe(footer);
+    return () => ro.disconnect();
+  }, []);
 
   const guardedNavigate = useCallback(
     (navFn: () => void) => {
@@ -633,7 +649,7 @@ export function WorkflowEditorPage() {
   }
 
   return (
-    <div className="wfe-page">
+    <div className="wfe-page" ref={pageRef}>
       <button className="wfe-back-btn" onClick={goBack} type="button">
         <span style={{ transform: 'rotate(90deg)', display: 'inline-flex' }}>
           <Icon name="chevron-down" size={14} />
@@ -837,8 +853,8 @@ export function WorkflowEditorPage() {
         onAdd={handleAddBlock}
       />
 
-      {/* Slide-over Panel */}
-      {panel && (
+      {/* Slide-over Panel (portalled to body to escape stacking context) */}
+      {panel && createPortal(
         <>
           <div className="wfe-panel-overlay" onClick={closePanel} />
           <div className="wfe-panel">
@@ -896,11 +912,12 @@ export function WorkflowEditorPage() {
               </button>
             </div>
           </div>
-        </>
+        </>,
+        document.body,
       )}
 
       {/* Sticky Footer */}
-      <div className="wfe-footer">
+      <div className="wfe-footer" ref={footerRef}>
         <div className="wfe-footer-inner">
           {selectedBlock && (
             <div className="wfe-footer-block" key={selectedBlock.block._draftId}>
@@ -922,7 +939,7 @@ export function WorkflowEditorPage() {
                     title="Move up"
                     type="button"
                   >
-                    <Icon name="chevron-up" size={14} />
+                    <Icon name="chevron-up" size={17} />
                   </button>
                   <button
                     className="wfe-footer-block-btn"
@@ -931,7 +948,7 @@ export function WorkflowEditorPage() {
                     title="Move down"
                     type="button"
                   >
-                    <Icon name="chevron-down" size={14} />
+                    <Icon name="chevron-down" size={17} />
                   </button>
                   <div className="wfe-footer-block-sep" />
                   <button
@@ -940,7 +957,7 @@ export function WorkflowEditorPage() {
                     title="Duplicate"
                     type="button"
                   >
-                    <Icon name="doc-on-doc" size={13} />
+                    <Icon name="doc-on-doc" size={16} />
                   </button>
                   <button
                     className="wfe-footer-block-btn danger"
@@ -948,7 +965,7 @@ export function WorkflowEditorPage() {
                     title="Delete"
                     type="button"
                   >
-                    <Icon name="trash" size={13} />
+                    <Icon name="trash" size={16} />
                   </button>
                 </div>
               </div>

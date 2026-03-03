@@ -53,6 +53,7 @@ In **dev mode**, the bearer token `dev-token-homekit-mcp` is automatically accep
 | `make help` | Show all available commands |
 | `make generate` | Generate the Xcode project from `project.yml` |
 | `make dev` | Build and launch in **Dev** mode (auto-accepts dev token) |
+| `make dev-all` | Build and run **both** apps in Dev mode, opens browser |
 | `make prod` | Build and launch in **Prod** mode (requires real Keychain tokens) |
 | `make test` | Run all tests (Swift + web) |
 | `make test-swift` | Run Swift unit tests only |
