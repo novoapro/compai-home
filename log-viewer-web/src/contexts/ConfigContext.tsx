@@ -37,12 +37,12 @@ const ConfigContext = createContext<ConfigContextValue | null>(null);
 
 export function ConfigProvider({ children }: { children: ReactNode }) {
   const [config, setConfigState] = useState<ConfigState>(() => ({
-    serverAddress: loadString('serverAddress', 'localhost'),
-    serverPort: loadNumber('serverPort', 3000),
-    bearerToken: loadString('bearerToken', ''),
+    serverAddress: loadString('serverAddress', import.meta.env.VITE_DEFAULT_SERVER_ADDRESS || 'localhost'),
+    serverPort: loadNumber('serverPort', Number(import.meta.env.VITE_DEFAULT_SERVER_PORT) || 3000),
+    bearerToken: loadString('bearerToken', import.meta.env.VITE_DEFAULT_BEARER_TOKEN || ''),
     pollingInterval: loadNumber('pollingInterval', 300),
     websocketEnabled: loadBool('websocketEnabled', true),
-    useHTTPS: loadBool('useHTTPS', false),
+    useHTTPS: loadBool('useHTTPS', import.meta.env.VITE_DEFAULT_USE_HTTPS === 'true'),
   }));
 
   const isConfigured = !!config.bearerToken;

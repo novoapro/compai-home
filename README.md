@@ -58,6 +58,8 @@ In **dev mode**, the bearer token `dev-token-homekit-mcp` is automatically accep
 | `make test-swift` | Run Swift unit tests only |
 | `make test-web` | Run web unit tests only |
 | `make web-dev` | Start the web dashboard dev server |
+| `make web-build` | Build the web dashboard for production |
+| `make web-prod` | Build and run web dashboard via Docker |
 | `make web-install` | Install web dashboard npm dependencies |
 | `make clean` | Clean Xcode build artifacts |
 | `make kill` | Kill running HomeKitMCP process |

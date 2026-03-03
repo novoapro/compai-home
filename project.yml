@@ -75,6 +75,10 @@ targets:
       path: HomeKitMCP/Resources/HomeKitMCP.entitlements
       properties:
         com.apple.developer.homekit: true
+        com.apple.developer.icloud-container-identifiers:
+          - iCloud.com.novoa.HomeKitMCP
+        com.apple.developer.icloud-services:
+          - CloudKit
         com.apple.security.network.client: true
         com.apple.security.network.server: true
 
