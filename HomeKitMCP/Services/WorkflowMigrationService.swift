@@ -568,7 +568,8 @@ extension WorkflowMigrationService {
 extension WorkflowMigrationService {
 
     /// Result of validating a single workflow reference against the registry.
-    struct ValidationIssue {
+    struct ValidationIssue: Identifiable {
+        let id = UUID()
         let workflowId: UUID
         let workflowName: String
         let location: String

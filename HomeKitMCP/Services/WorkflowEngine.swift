@@ -6,7 +6,7 @@ actor WorkflowEngine: WorkflowEngineProtocol {
     private let workflowStorageService: WorkflowStorageService
     private let homeKitManager: HomeKitManager
     private let loggingService: LoggingService
-    private let executionLogService: WorkflowExecutionLogService
+    private let executionLogService: LoggingService
     private let storage: StorageService
     private let registry: DeviceRegistryService?
     private var conditionEvaluator: ConditionEvaluator
@@ -56,7 +56,7 @@ actor WorkflowEngine: WorkflowEngineProtocol {
         storageService: WorkflowStorageService,
         homeKitManager: HomeKitManager,
         loggingService: LoggingService,
-        executionLogService: WorkflowExecutionLogService,
+        executionLogService: LoggingService,
         storage: StorageService,
         registry: DeviceRegistryService? = nil,
         conditionEvaluator: ConditionEvaluator? = nil
@@ -489,7 +489,7 @@ actor WorkflowEngine: WorkflowEngineProtocol {
         executionToWorkflow[execLog.id] = workflow.id
 
         // Log immediately as running so it appears in the UI
-        await executionLogService.log(execLog)
+        await executionLogService.logEntry(execLog.toStateChangeLog())
 
         // Set workflow context for orphan logging and reset block results
         conditionEvaluator.workflowId = workflow.id
@@ -500,7 +500,7 @@ actor WorkflowEngine: WorkflowEngineProtocol {
         if let conditions = workflow.conditions, !conditions.isEmpty {
             let (allPassed, condResults) = await conditionEvaluator.evaluateAll(conditions)
             execLog.conditionResults = condResults
-            await executionLogService.update(execLog)
+            await executionLogService.updateEntry(execLog.toStateChangeLog())
 
             if !allPassed {
                 execLog.status = .conditionNotMet
@@ -530,7 +530,7 @@ actor WorkflowEngine: WorkflowEngineProtocol {
                 // Block not yet in the array — append it so the UI can show it immediately
                 logBox.execLog.blockResults.append(updated)
             }
-            await self.executionLogService.update(logBox.execLog)
+            await self.executionLogService.updateEntry(logBox.execLog.toStateChangeLog())
         }
 
         do {
@@ -551,7 +551,7 @@ actor WorkflowEngine: WorkflowEngineProtocol {
                 // but we append it here if it wasn't already in the top-level list.
                 if !logBox.execLog.blockResults.contains(where: { $0.id == result.id }) {
                     logBox.execLog.blockResults.append(result)
-                    await executionLogService.update(logBox.execLog)
+                    await executionLogService.updateEntry(logBox.execLog.toStateChangeLog())
                 }
 
                 // Cancellation always stops immediately, regardless of continueOnError
@@ -604,7 +604,7 @@ actor WorkflowEngine: WorkflowEngineProtocol {
         executionToWorkflow.removeValue(forKey: execLog.id)
 
         // Update the existing running log entry with the final result
-        await executionLogService.update(execLog)
+        await executionLogService.updateEntry(execLog.toStateChangeLog())
 
         // Update workflow metadata
         await workflowStorageService.updateMetadata(

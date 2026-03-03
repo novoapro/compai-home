@@ -163,8 +163,8 @@ struct AIAssistantSettingsView: View {
                     Label("View Interaction History", systemImage: "clock.arrow.circlepath")
                 }
 
-                Button("Clear History", role: .destructive) {
-                    Task { await aiWorkflowService.interactionLog.clearLogs() }
+                Button("Clear AI History", role: .destructive) {
+                    Task { await aiWorkflowService.loggingService.clearLogs(forCategories: [.aiInteraction, .aiInteractionError]) }
                 }
             } header: {
                 Label("Diagnostics", systemImage: "wrench.and.screwdriver")
@@ -177,7 +177,7 @@ struct AIAssistantSettingsView: View {
         .background(Theme.mainBackground)
         .navigationTitle("AI Assistant")
         .sheet(isPresented: $showingDiagnostics) {
-            AIInteractionLogView(interactionLog: aiWorkflowService.interactionLog)
+            AIInteractionLogView(loggingService: aiWorkflowService.loggingService)
         }
     }
 }

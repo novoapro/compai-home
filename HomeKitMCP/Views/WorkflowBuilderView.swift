@@ -51,7 +51,7 @@ struct WorkflowBuilderView: View {
                 }
             }
             .sheet(isPresented: $showingDiagnostics) {
-                AIInteractionLogView(interactionLog: aiWorkflowService.interactionLog)
+                AIInteractionLogView(loggingService: aiWorkflowService.loggingService)
             }
         }
     }

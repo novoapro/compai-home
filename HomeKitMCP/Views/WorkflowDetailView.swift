@@ -254,6 +254,7 @@ private struct WorkflowTriggerRow: View {
     var body: some View {
         switch trigger {
         case let .deviceStateChange(t):
+            let isOrphaned = !t.deviceId.isEmpty && !devices.contains(where: { $0.id == t.deviceId })
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
                     Image(systemName: "bolt.fill")
@@ -262,10 +263,15 @@ private struct WorkflowTriggerRow: View {
                     Text(t.name ?? "Device State Change")
                         .font(.subheadline)
                         .fontWeight(.medium)
+                    if isOrphaned {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.caption)
+                            .foregroundColor(.orange)
+                    }
                 }
                 Text("Device: \(devices.resolvedName(deviceId: t.deviceId, serviceId: t.serviceId))")
                     .font(.footnote)
-                    .foregroundColor(Theme.Text.secondary)
+                    .foregroundColor(isOrphaned ? .orange : Theme.Text.secondary)
                 Text("Characteristic: \(devices.resolvedCharacteristicName(deviceId: t.deviceId, characteristicId: t.characteristicId))")
                     .font(.footnote)
                     .foregroundColor(Theme.Text.secondary)
@@ -406,13 +412,21 @@ private struct WorkflowConditionRow: View {
     private var conditionContent: some View {
         switch condition {
         case let .deviceState(c):
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Device: \(devices.resolvedName(deviceId: c.deviceId, serviceId: c.serviceId))")
-                    .font(.footnote)
-                    .foregroundColor(Theme.Text.secondary)
-                Text("\(devices.resolvedCharacteristicName(deviceId: c.deviceId, characteristicId: c.characteristicId)) \(ConditionEvaluator.comparisonDescription(c.comparison))")
-                    .font(.subheadline)
-                    .fontWeight(.medium)
+            let isOrphaned = !c.deviceId.isEmpty && !devices.contains(where: { $0.id == c.deviceId })
+            HStack(spacing: 4) {
+                if isOrphaned {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.caption)
+                        .foregroundColor(.orange)
+                }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Device: \(devices.resolvedName(deviceId: c.deviceId, serviceId: c.serviceId))")
+                        .font(.footnote)
+                        .foregroundColor(isOrphaned ? .orange : Theme.Text.secondary)
+                    Text("\(devices.resolvedCharacteristicName(deviceId: c.deviceId, characteristicId: c.characteristicId)) \(ConditionEvaluator.comparisonDescription(c.comparison))")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                }
             }
         case let .timeCondition(c):
             HStack(spacing: 6) {
@@ -429,9 +443,15 @@ private struct WorkflowConditionRow: View {
                 }
             }
         case let .sceneActive(c):
+            let isOrphaned = !c.sceneId.isEmpty && !scenes.contains(where: { $0.id == c.sceneId })
             HStack(spacing: 6) {
+                if isOrphaned {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.caption)
+                        .foregroundColor(.orange)
+                }
                 Image(systemName: "play.rectangle.fill")
-                    .foregroundStyle(.green)
+                    .foregroundStyle(isOrphaned ? .orange : .green)
                 let sceneName = scenes.first(where: { $0.id == c.sceneId })?.name ?? c.sceneId
                 Text("Scene \(c.isActive ? "Active" : "Not Active"): \(sceneName)")
                     .font(.subheadline)
@@ -515,6 +535,17 @@ private struct ActionBlockRow: View {
     let devices: [DeviceModel]
     var scenes: [SceneModel] = []
 
+    private var isOrphaned: Bool {
+        switch action {
+        case let .controlDevice(a):
+            return !a.deviceId.isEmpty && !devices.contains(where: { $0.id == a.deviceId })
+        case let .runScene(a):
+            return !a.sceneId.isEmpty && !scenes.contains(where: { $0.id == a.sceneId })
+        default:
+            return false
+        }
+    }
+
     var body: some View {
         HStack(spacing: 4) {
             depthIndicators
@@ -523,14 +554,19 @@ private struct ActionBlockRow: View {
                 HStack {
                     Image(systemName: actionIcon)
                         .font(.footnote)
-                        .foregroundColor(Theme.Tint.main)
+                        .foregroundColor(isOrphaned ? .orange : Theme.Tint.main)
                     Text(actionTitle)
                         .font(.subheadline)
                         .fontWeight(.medium)
+                    if isOrphaned {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.caption)
+                            .foregroundColor(.orange)
+                    }
                 }
                 Text(actionDetail)
                     .font(.footnote)
-                    .foregroundColor(Theme.Text.secondary)
+                    .foregroundColor(isOrphaned ? .orange : Theme.Text.secondary)
                     .lineLimit(2)
             }
         }
@@ -587,6 +623,35 @@ private struct FlowControlBlockRow: View {
     let devices: [DeviceModel]
     var scenes: [SceneModel] = []
 
+    private var hasOrphanedConditionRef: Bool {
+        let deviceIds = Set(devices.map(\.id))
+        switch flowControl {
+        case let .waitForState(b):
+            return Self.conditionHasOrphan(b.condition, deviceIds: deviceIds)
+        case let .conditional(b):
+            return Self.conditionHasOrphan(b.condition, deviceIds: deviceIds)
+        case let .repeatWhile(b):
+            return Self.conditionHasOrphan(b.condition, deviceIds: deviceIds)
+        default:
+            return false
+        }
+    }
+
+    private static func conditionHasOrphan(_ condition: WorkflowCondition, deviceIds: Set<String>) -> Bool {
+        switch condition {
+        case let .deviceState(c):
+            return !c.deviceId.isEmpty && !deviceIds.contains(c.deviceId)
+        case let .and(conditions):
+            return conditions.contains { conditionHasOrphan($0, deviceIds: deviceIds) }
+        case let .or(conditions):
+            return conditions.contains { conditionHasOrphan($0, deviceIds: deviceIds) }
+        case let .not(inner):
+            return conditionHasOrphan(inner, deviceIds: deviceIds)
+        default:
+            return false
+        }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             headerRow
@@ -606,11 +671,16 @@ private struct FlowControlBlockRow: View {
 
             Image(systemName: flowControlIcon)
                 .font(.footnote)
-                .foregroundColor(Theme.Tint.secondary)
+                .foregroundColor(hasOrphanedConditionRef ? .orange : Theme.Tint.secondary)
             Text(flowControlTitle)
                 .font(.subheadline)
                 .fontWeight(.medium)
-                .foregroundColor(Theme.Tint.secondary)
+                .foregroundColor(hasOrphanedConditionRef ? .orange : Theme.Tint.secondary)
+            if hasOrphanedConditionRef {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.caption)
+                    .foregroundColor(.orange)
+            }
         }
     }
 

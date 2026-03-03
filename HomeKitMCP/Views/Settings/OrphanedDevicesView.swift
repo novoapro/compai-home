@@ -8,15 +8,17 @@ struct OrphanedDevicesView: View {
 
     @State private var orphanedDevices: [DeviceRegistryEntry] = []
     @State private var orphanedScenes: [SceneRegistryEntry] = []
-    @State private var unresolvedServiceRefs: [(workflowName: String, deviceName: String, serviceId: String, location: String)] = []
+    @State private var unresolvedServiceRefs: [DeviceRegistryService.UnresolvedServiceRef] = []
+    @State private var remapServiceRef: DeviceRegistryService.UnresolvedServiceRef?
     @State private var replaceDeviceEntry: DeviceRegistryEntry?
     @State private var replaceSceneEntry: SceneRegistryEntry?
     @State private var removeDeviceEntry: DeviceRegistryEntry?
     @State private var removeSceneEntry: SceneRegistryEntry?
     @State private var affectedWorkflowNames: [String] = []
-    @State private var showingResetConfirmation = false
     @State private var isValidating = false
     @State private var lastValidationMessage: String?
+    @State private var unresolvableIssues: [WorkflowMigrationService.ValidationIssue] = []
+    @State private var editingWorkflow: Workflow?
 
     var body: some View {
         Form {
@@ -62,15 +64,6 @@ struct OrphanedDevicesView: View {
                     Text("Periodically reads device states from HomeKit to detect missed callbacks. Logs corrections when actual state differs from cached state.")
                 }
 
-                Section {
-                    Button("Reset Device Settings", role: .destructive) {
-                        showingResetConfirmation = true
-                    }
-                } header: {
-                    Label("Data", systemImage: "externaldrive")
-                } footer: {
-                    Text("Resets all per-characteristic enabled/observed toggles to defaults (enabled: on, observed: off).")
-                }
             }
 
             if orphanedDevices.isEmpty && orphanedScenes.isEmpty && unresolvedServiceRefs.isEmpty {
@@ -121,27 +114,37 @@ struct OrphanedDevicesView: View {
 
             if !unresolvedServiceRefs.isEmpty {
                 Section {
-                    ForEach(Array(unresolvedServiceRefs.enumerated()), id: \.offset) { _, ref in
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(ref.workflowName)
-                                .font(.body)
-                                .foregroundStyle(Theme.Text.primary)
-                            HStack(spacing: 4) {
-                                Text("Device: \(ref.deviceName)")
-                                Text("in \(ref.location)")
+                    ForEach(unresolvedServiceRefs) { ref in
+                        VStack(alignment: .leading, spacing: 8) {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(ref.deviceName)
+                                    .font(.body)
+                                    .foregroundStyle(Theme.Text.primary)
+                                HStack(spacing: 4) {
+                                    Text("Workflow: \(ref.workflowName)")
+                                    Text("in \(ref.location)")
+                                }
+                                .font(.caption)
+                                .foregroundStyle(Theme.Text.secondary)
+                                Text("Orphaned Service ID: \(ref.serviceId)")
+                                    .font(.caption2)
+                                    .foregroundStyle(Theme.Text.tertiary)
                             }
-                            .font(.caption)
-                            .foregroundStyle(Theme.Text.secondary)
-                            Text("Service ID: \(ref.serviceId)")
-                                .font(.caption2)
-                                .foregroundStyle(Theme.Text.tertiary)
+
+                            Button {
+                                remapServiceRef = ref
+                            } label: {
+                                Label("Remap to Service", systemImage: "arrow.triangle.swap")
+                                    .font(.subheadline)
+                            }
+                            .buttonStyle(.borderless)
                         }
-                        .padding(.vertical, 2)
+                        .padding(.vertical, 4)
                     }
                 } header: {
                     Label("Orphaned Service References (\(unresolvedServiceRefs.count))", systemImage: "exclamationmark.triangle")
                 } footer: {
-                    Text("These workflows reference service IDs that don't exist in their device's registry entry. Use \"Validate & Repair\" below to attempt auto-repair.")
+                    Text("These workflows reference service IDs that don't exist in their device's registry entry. Remap them to an existing service or use \"Validate & Repair\" below.")
                 }
             }
 
@@ -166,10 +169,50 @@ struct OrphanedDevicesView: View {
             } footer: {
                 Text("Checks all workflow references against the device registry and auto-repairs mismatched service IDs and characteristic type formats.")
             }
+
+            if !unresolvableIssues.isEmpty {
+                Section {
+                    ForEach(unresolvableIssues) { issue in
+                        Button {
+                            Task {
+                                if let workflow = await workflowStorageService.getWorkflow(id: issue.workflowId) {
+                                    editingWorkflow = workflow
+                                }
+                            }
+                        } label: {
+                            HStack {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(issue.workflowName)
+                                        .font(.body)
+                                        .foregroundStyle(Theme.Text.primary)
+                                    Text(issue.location)
+                                        .font(.caption)
+                                        .foregroundStyle(Theme.Text.secondary)
+                                    Text(issue.detail)
+                                        .font(.caption2)
+                                        .foregroundStyle(Theme.Text.tertiary)
+                                }
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(.caption)
+                                    .foregroundStyle(Theme.Text.tertiary)
+                            }
+                        }
+                        .padding(.vertical, 2)
+                    }
+                } header: {
+                    Label("Unresolvable References (\(unresolvableIssues.count))", systemImage: "xmark.circle")
+                } footer: {
+                    Text("These references could not be auto-repaired. Tap a row to open the workflow and fix it manually.")
+                }
+            }
         }
         .formStyle(.grouped)
         .scrollContentBackground(.hidden)
         .background(Theme.mainBackground)
+        .safeAreaInset(edge: .bottom) {
+            Color.clear.frame(height: 20)
+        }
         .navigationTitle("Device Registry")
         .task { await loadOrphans() }
         .sheet(item: $replaceDeviceEntry) { entry in
@@ -238,15 +281,42 @@ struct OrphanedDevicesView: View {
                 Text("Remove \"\(entry.name)\"? The following workflows reference this scene and will need to be updated:\n\n\(affectedWorkflowNames.joined(separator: "\n"))")
             }
         }
-        .alert("Reset Device Settings?", isPresented: $showingResetConfirmation) {
-            Button("Cancel", role: .cancel) { }
-            Button("Reset", role: .destructive) {
-                Task {
-                    await registryService.resetAllSettings()
+        .sheet(item: $remapServiceRef) { ref in
+            ReplacementServicePickerSheet(
+                ref: ref,
+                onSelect: { targetServiceId in
+                    Task {
+                        await registryService.remapService(
+                            deviceStableId: ref.deviceStableId,
+                            orphanedServiceId: ref.serviceId,
+                            targetServiceId: targetServiceId
+                        )
+                        await loadOrphans()
+                    }
                 }
-            }
-        } message: {
-            Text("This will reset all enabled/observed toggles to their defaults (enabled: on, observed: off).")
+            )
+        }
+        .sheet(item: $editingWorkflow) { workflow in
+            let stableDevices = registryService.stableDevices(homeKitManager.getAllDevices())
+            let stableScenes = registryService.stableScenes(homeKitManager.getAllScenes())
+            WorkflowEditorView(
+                mode: .edit(workflow),
+                devices: stableDevices,
+                scenes: stableScenes,
+                onSave: { draft in
+                    Task {
+                        guard let existing = await workflowStorageService.getWorkflow(id: workflow.id) else { return }
+                        let updated = draft.toWorkflow(
+                            devices: stableDevices,
+                            existingMetadata: existing.metadata,
+                            createdAt: existing.createdAt
+                        )
+                        await workflowStorageService.updateWorkflow(id: workflow.id) { $0 = updated }
+                        await loadOrphans()
+                        unresolvableIssues = []
+                    }
+                }
+            )
         }
     }
 
@@ -377,12 +447,13 @@ struct OrphanedDevicesView: View {
 
         let fixedCount = validation.autoFixed.count
         let unresolvedCount = validation.unresolvable.count
+        unresolvableIssues = validation.unresolvable
         if fixedCount == 0 && unresolvedCount == 0 {
             lastValidationMessage = "All workflow references are valid."
         } else {
             var parts: [String] = []
             if fixedCount > 0 { parts.append("Auto-fixed \(fixedCount) issue(s).") }
-            if unresolvedCount > 0 { parts.append("\(unresolvedCount) issue(s) need manual reconfiguration.") }
+            if unresolvedCount > 0 { parts.append("\(unresolvedCount) issue(s) need manual reconfiguration — see list below.") }
             lastValidationMessage = parts.joined(separator: " ")
         }
 
@@ -540,6 +611,85 @@ private struct ReplacementDevicePickerSheet: View {
         case "sprinkler": return "sprinkler.and.droplets.fill"
         case "programmable-switch": return "button.programmable"
         default: return "house.fill"
+        }
+    }
+}
+
+// MARK: - Replacement Service Picker Sheet
+
+private struct ReplacementServicePickerSheet: View {
+    let ref: DeviceRegistryService.UnresolvedServiceRef
+    let onSelect: (String) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack(spacing: 8) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundStyle(.orange)
+                            Text("Remap Orphaned Service")
+                                .font(.subheadline.bold())
+                        }
+                        Text("Device: \(ref.deviceName)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Text("Orphaned ID: \(ref.serviceId)")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                        Text("Referenced in: \(ref.workflowName) — \(ref.location)")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+
+                Section("Available Services") {
+                    if ref.availableServices.isEmpty {
+                        Text("No services available on this device.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(ref.availableServices, id: \.stableServiceId) { service in
+                            Button {
+                                onSelect(service.stableServiceId)
+                                dismiss()
+                            } label: {
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(service.customName ?? service.serviceType)
+                                            .font(.body)
+                                            .foregroundColor(Theme.Text.primary)
+                                        HStack(spacing: 8) {
+                                            Text(service.serviceType)
+                                                .font(.caption)
+                                            Text("\(service.characteristics.count) characteristic\(service.characteristics.count == 1 ? "" : "s")")
+                                                .font(.caption)
+                                        }
+                                        .foregroundStyle(Theme.Text.secondary)
+                                        Text(service.stableServiceId)
+                                            .font(.caption2)
+                                            .foregroundStyle(Theme.Text.tertiary)
+                                    }
+                                    Spacer()
+                                    Image(systemName: "chevron.right")
+                                        .font(.caption)
+                                        .foregroundStyle(Theme.Text.tertiary)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Select Service")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+            }
         }
     }
 }

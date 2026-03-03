@@ -20,6 +20,7 @@ class HomeKitViewModel: ObservableObject {
     @Published var searchText = ""
     @Published var selectedRooms: Set<String> = []
     @Published var selectedServiceTypes: Set<String> = []
+    @Published var selectedCharacteristicTypes: Set<String> = []
     @Published var enabledFilter: TriStateFilter = .all
     @Published var observedFilter: TriStateFilter = .all
 
@@ -44,9 +45,10 @@ class HomeKitViewModel: ObservableObject {
 
     @Published private(set) var availableRooms: [String] = []
     @Published private(set) var availableServiceTypes: [String] = []
+    @Published private(set) var availableCharacteristicTypes: [String] = []
 
     var hasActiveFilters: Bool {
-        !selectedRooms.isEmpty || !selectedServiceTypes.isEmpty || enabledFilter != .all || observedFilter != .all
+        !selectedRooms.isEmpty || !selectedServiceTypes.isEmpty || !selectedCharacteristicTypes.isEmpty || enabledFilter != .all || observedFilter != .all
     }
 
     @Published var filteredDevicesByRoom: [(roomName: String, devices: [DeviceModel])] = []
@@ -67,14 +69,15 @@ class HomeKitViewModel: ObservableObject {
             $selectedRooms,
             $selectedServiceTypes
         )
-        .combineLatest($enabledFilter, $observedFilter, $deviceConfigCache)
+        .combineLatest($selectedCharacteristicTypes, $enabledFilter)
+        .combineLatest($observedFilter, $deviceConfigCache)
         .handleEvents(receiveOutput: { [weak self] _ in
             self?.isUpdating = true
         })
         .debounce(for: .milliseconds(200), scheduler: DispatchQueue.main) // Debounce UI updates
         .receive(on: DispatchQueue.global(qos: .userInitiated)) // Process on background thread
-        .map { inputs, enabledFilter, observedFilter, configCache -> [(roomName: String, devices: [DeviceModel])] in
-            let (devicesByRoom, searchText, selectedRooms, selectedServiceTypes) = inputs
+        .map { lhs, observedFilter, configCache -> [(roomName: String, devices: [DeviceModel])] in
+            let ((devicesByRoom, searchText, selectedRooms, selectedServiceTypes), selectedCharacteristicTypes, enabledFilter) = lhs
 
             var groups = devicesByRoom
 
@@ -83,7 +86,7 @@ class HomeKitViewModel: ObservableObject {
                 groups = groups.filter { selectedRooms.contains($0.roomName) }
             }
 
-            // Apply search + Enabled/Observed/ServiceType filters to devices within groups
+            // Apply search + Enabled/Observed/ServiceType/CharacteristicType filters to devices within groups
             return groups.compactMap { group in
                 let filteredDevices = group.devices.filter { device in
                     // Search filter
@@ -97,6 +100,16 @@ class HomeKitViewModel: ObservableObject {
                             selectedServiceTypes.contains(ServiceTypes.displayName(for: service.type))
                         }
                         if !hasServiceType { return false }
+                    }
+
+                    // Characteristic type filter
+                    if !selectedCharacteristicTypes.isEmpty {
+                        let hasCharType = device.services.contains { service in
+                            service.characteristics.contains { char in
+                                selectedCharacteristicTypes.contains(CharacteristicTypes.displayName(for: char.type))
+                            }
+                        }
+                        if !hasCharType { return false }
                     }
 
                     // Enabled filter
@@ -190,6 +203,12 @@ class HomeKitViewModel: ObservableObject {
         }
         availableServiceTypes = Array(Set(allTypes)).sorted()
 
+        let allCharTypes: [String] = devicesByRoom.flatMap(\.devices)
+            .flatMap(\.services)
+            .flatMap(\.characteristics)
+            .map { CharacteristicTypes.displayName(for: $0.type) }
+        availableCharacteristicTypes = Array(Set(allCharTypes)).sorted()
+
         refreshConfigCacheSync()
     }
 
@@ -204,6 +223,7 @@ class HomeKitViewModel: ObservableObject {
     func clearFilters() {
         selectedRooms.removeAll()
         selectedServiceTypes.removeAll()
+        selectedCharacteristicTypes.removeAll()
         enabledFilter = .all
         observedFilter = .all
     }
@@ -321,6 +341,44 @@ class HomeKitViewModel: ObservableObject {
             }
             homeKitManager.refreshNotificationRegistrations()
         }
+    }
+
+    /// Bulk enable/disable characteristics matching the selected characteristic type filters.
+    func setBulkCharacteristicEnabled(_ enabled: Bool) {
+        let charTypes = resolveSelectedCharacteristicTypes()
+        guard !charTypes.isEmpty else { return }
+        Task {
+            await registryService.setBulkEnabled(forCharacteristicTypes: charTypes, enabled: enabled)
+            if !enabled {
+                homeKitManager.refreshNotificationRegistrations()
+            }
+        }
+    }
+
+    /// Bulk observe/unobserve characteristics matching the selected characteristic type filters.
+    func setBulkCharacteristicObserved(_ observed: Bool) {
+        let charTypes = resolveSelectedCharacteristicTypes()
+        guard !charTypes.isEmpty else { return }
+        // Collect all notifiable HomeKit characteristic IDs for the matching types
+        let allDevices = filteredDevicesByRoom.flatMap(\.devices)
+        let notifiableIds = Set(allDevices.flatMap(\.services).flatMap(\.characteristics)
+            .filter { $0.permissions.contains("notify") }
+            .map(\.id))
+        Task {
+            await registryService.setBulkObserved(forCharacteristicTypes: charTypes, observed: observed, notifiableHomeKitCharIds: notifiableIds)
+            homeKitManager.refreshNotificationRegistrations()
+        }
+    }
+
+    /// Resolves selected display names ("Battery Level", "Power", etc.) to HomeKit characteristic type UUIDs.
+    private func resolveSelectedCharacteristicTypes() -> Set<String> {
+        var result: Set<String> = []
+        for displayName in selectedCharacteristicTypes {
+            if let hkType = CharacteristicTypes.characteristicType(forName: displayName) {
+                result.insert(hkType)
+            }
+        }
+        return result
     }
 
     func getRoomName(for deviceId: String) -> String? {

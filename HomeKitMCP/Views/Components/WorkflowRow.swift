@@ -5,6 +5,7 @@ struct WorkflowRow: View {
     let recentLogs: [WorkflowExecutionLog]
     let onToggle: () -> Void
     var onClone: (() -> Void)?
+    var hasOrphanedReferences: Bool = false
 
     @State private var isEnabled: Bool = false
     @State private var isHovered = false
@@ -60,6 +61,21 @@ struct WorkflowRow: View {
                             .background(Color(.systemGray5))
                             .foregroundColor(Theme.Text.secondary)
                             .cornerRadius(4)
+                    }
+
+                    if hasOrphanedReferences {
+                        HStack(spacing: 3) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .font(.caption2)
+                            Text("Refs")
+                                .font(.footnote)
+                                .fontWeight(.medium)
+                        }
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.orange.opacity(0.15))
+                        .foregroundColor(.orange)
+                        .cornerRadius(4)
                     }
                 }
 

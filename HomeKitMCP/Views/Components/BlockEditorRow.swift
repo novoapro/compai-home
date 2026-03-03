@@ -89,7 +89,12 @@ struct BlockEditorRow: View {
 
                 Image(systemName: block.blockType.icon)
                     .font(.footnote)
-                    .foregroundColor(block.blockType.isFlowControl ? Theme.Tint.secondary : Theme.Tint.main)
+                    .foregroundColor(block.hasOrphanedReference(devices: devices, scenes: scenes) ? .orange : (block.blockType.isFlowControl ? Theme.Tint.secondary : Theme.Tint.main))
+                if block.hasOrphanedReference(devices: devices, scenes: scenes) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.caption2)
+                        .foregroundColor(.orange)
+                }
                 VStack(alignment: .leading, spacing: 2) {
                     Text(block.blockType.displayName)
                         .font(.subheadline)
@@ -288,7 +293,7 @@ extension BlockEditorRow {
     }
 
     private var repeatContent: some View {
-        RepeatEditor(block: $block, allowNesting: allowNesting, onEditNestedBlocks: onEditNestedBlocks)
+        RepeatEditor(block: $block, devices: devices, scenes: scenes, allowNesting: allowNesting, onEditNestedBlocks: onEditNestedBlocks)
     }
 
     private var repeatWhileContent: some View {
@@ -296,7 +301,7 @@ extension BlockEditorRow {
     }
 
     private var groupContent: some View {
-        GroupEditor(block: $block, allowNesting: allowNesting, onEditNestedBlocks: onEditNestedBlocks)
+        GroupEditor(block: $block, devices: devices, scenes: scenes, allowNesting: allowNesting, onEditNestedBlocks: onEditNestedBlocks)
     }
 
     private var stopContent: some View {
@@ -565,13 +570,20 @@ private struct ConditionalEditor: View {
     }
 
     private var nestedBlockButtons: some View {
-        VStack(spacing: 0) {
+        let thenHasOrphans = draft.wrappedValue.thenBlocks.contains { $0.hasOrphanedReference(devices: devices, scenes: scenes) }
+        let elseHasOrphans = draft.wrappedValue.elseBlocks.contains { $0.hasOrphanedReference(devices: devices, scenes: scenes) }
+        return VStack(spacing: 0) {
             Button {
                 onEditNestedBlocks?("then", draft.wrappedValue.thenBlocks)
             } label: {
                 HStack {
                     Label("Edit Then Blocks", systemImage: "arrow.right.circle")
                         .foregroundColor(Theme.Tint.main)
+                    if thenHasOrphans {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.caption2)
+                            .foregroundColor(.orange)
+                    }
                     Spacer()
                     Text("\(draft.wrappedValue.thenBlocks.count)")
                         .foregroundColor(Theme.Text.secondary)
@@ -592,6 +604,11 @@ private struct ConditionalEditor: View {
                 HStack {
                     Label("Edit Else Blocks", systemImage: "arrow.uturn.right.circle")
                         .foregroundColor(Theme.Tint.secondary)
+                    if elseHasOrphans {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.caption2)
+                            .foregroundColor(.orange)
+                    }
                     Spacer()
                     Text("\(draft.wrappedValue.elseBlocks.count)")
                         .foregroundColor(Theme.Text.secondary)
@@ -611,6 +628,8 @@ private struct ConditionalEditor: View {
 
 private struct RepeatEditor: View {
     @Binding var block: BlockDraft
+    var devices: [DeviceModel] = []
+    var scenes: [SceneModel] = []
     let allowNesting: Bool
     let onEditNestedBlocks: ((String, [BlockDraft]) -> Void)?
 
@@ -638,11 +657,17 @@ private struct RepeatEditor: View {
         }
 
         if allowNesting {
+            let hasOrphans = draft.wrappedValue.blocks.contains { $0.hasOrphanedReference(devices: devices, scenes: scenes) }
             Button {
                 onEditNestedBlocks?("blocks", draft.wrappedValue.blocks)
             } label: {
                 HStack {
                     Label("Edit Blocks", systemImage: "square.stack.3d.up")
+                    if hasOrphans {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.caption2)
+                            .foregroundColor(.orange)
+                    }
                     Spacer()
                     Text("\(draft.wrappedValue.blocks.count)")
                         .foregroundColor(Theme.Text.secondary)
@@ -705,11 +730,17 @@ private struct RepeatWhileEditor: View {
         }
 
         if allowNesting {
+            let hasOrphans = draft.wrappedValue.blocks.contains { $0.hasOrphanedReference(devices: devices, scenes: scenes) }
             Button {
                 onEditNestedBlocks?("blocks", draft.wrappedValue.blocks)
             } label: {
                 HStack {
                     Label("Edit Blocks", systemImage: "square.stack.3d.up")
+                    if hasOrphans {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.caption2)
+                            .foregroundColor(.orange)
+                    }
                     Spacer()
                     Text("\(draft.wrappedValue.blocks.count)")
                         .foregroundColor(Theme.Text.secondary)
@@ -727,6 +758,8 @@ private struct RepeatWhileEditor: View {
 
 private struct GroupEditor: View {
     @Binding var block: BlockDraft
+    var devices: [DeviceModel] = []
+    var scenes: [SceneModel] = []
     let allowNesting: Bool
     let onEditNestedBlocks: ((String, [BlockDraft]) -> Void)?
 
@@ -744,11 +777,17 @@ private struct GroupEditor: View {
         TextField("Group Label (optional)", text: draft.label)
 
         if allowNesting {
+            let hasOrphans = draft.wrappedValue.blocks.contains { $0.hasOrphanedReference(devices: devices, scenes: scenes) }
             Button {
                 onEditNestedBlocks?("blocks", draft.wrappedValue.blocks)
             } label: {
                 HStack {
                     Label("Edit Blocks", systemImage: "square.stack.3d.up")
+                    if hasOrphans {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.caption2)
+                            .foregroundColor(.orange)
+                    }
                     Spacer()
                     Text("\(draft.wrappedValue.blocks.count)")
                         .foregroundColor(Theme.Text.secondary)

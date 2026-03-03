@@ -64,11 +64,20 @@ private struct TriggerRow: View {
 
     // MARK: - Label
 
+    private var triggerHasOrphanedRef: Bool {
+        trigger.triggerType == .deviceStateChange && !trigger.deviceId.isEmpty && !devices.contains(where: { $0.id == trigger.deviceId })
+    }
+
     private var triggerLabel: some View {
         HStack(spacing: 8) {
             Image(systemName: trigger.triggerType.icon)
                 .font(.footnote)
-                .foregroundColor(trigger.triggerType == .deviceStateChange ? Theme.Tint.main : trigger.triggerType == .sunEvent ? .orange : .indigo)
+                .foregroundColor(triggerHasOrphanedRef ? .orange : (trigger.triggerType == .deviceStateChange ? Theme.Tint.main : trigger.triggerType == .sunEvent ? .orange : .indigo))
+            if triggerHasOrphanedRef {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.caption2)
+                    .foregroundColor(.orange)
+            }
             VStack(alignment: .leading, spacing: 2) {
                 Text(trigger.triggerType.displayName)
                     .font(.subheadline)

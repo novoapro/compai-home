@@ -14,6 +14,8 @@ enum LogCategory: String, Codable {
     case sceneExecution = "scene_execution"
     case sceneError = "scene_error"
     case backupRestore = "backup_restore"
+    case aiInteraction = "ai_interaction"
+    case aiInteractionError = "ai_interaction_error"
 }
 
 // MARK: - Payload Types
@@ -68,6 +70,18 @@ struct BackupRestorePayload: Codable {
     let summary: String
 }
 
+struct AIInteractionPayload: Codable, Hashable {
+    let provider: String
+    let model: String
+    let operation: String
+    let systemPrompt: String
+    let userMessage: String
+    let rawResponse: String?
+    let parsedSuccessfully: Bool
+    let errorMessage: String?
+    let durationSeconds: Double
+}
+
 // MARK: - Log Payload Enum
 
 enum LogPayload {
@@ -84,6 +98,8 @@ enum LogPayload {
     case sceneExecution(ScenePayload)
     case sceneError(ScenePayload)
     case backupRestore(BackupRestorePayload)
+    case aiInteraction(AIInteractionPayload)
+    case aiInteractionError(AIInteractionPayload)
 }
 
 // MARK: - StateChangeLog
@@ -252,6 +268,30 @@ extension StateChangeLog {
             ))
         )
     }
+
+    static func aiInteraction(
+        provider: String,
+        model: String,
+        operation: String,
+        systemPrompt: String,
+        userMessage: String,
+        rawResponse: String?,
+        parsedSuccessfully: Bool,
+        errorMessage: String?,
+        durationSeconds: Double
+    ) -> StateChangeLog {
+        let p = AIInteractionPayload(
+            provider: provider, model: model, operation: operation,
+            systemPrompt: systemPrompt, userMessage: userMessage,
+            rawResponse: rawResponse, parsedSuccessfully: parsedSuccessfully,
+            errorMessage: errorMessage, durationSeconds: durationSeconds
+        )
+        let category: LogCategory = (errorMessage != nil && !parsedSuccessfully) ? .aiInteractionError : .aiInteraction
+        return StateChangeLog(
+            id: UUID(), timestamp: Date(), category: category,
+            payload: category == .aiInteractionError ? .aiInteractionError(p) : .aiInteraction(p)
+        )
+    }
 }
 
 // MARK: - Convenience Accessors
@@ -270,6 +310,8 @@ extension StateChangeLog {
         case .sceneExecution(let p): return p.sceneId
         case .sceneError(let p): return p.sceneId
         case .backupRestore: return "backup-restore"
+        case .aiInteraction(let p): return "ai-\(p.provider)"
+        case .aiInteractionError(let p): return "ai-\(p.provider)"
         }
     }
 
@@ -286,6 +328,8 @@ extension StateChangeLog {
         case .sceneExecution(let p): return p.sceneName
         case .sceneError(let p): return p.sceneName
         case .backupRestore: return "Backup Restore"
+        case .aiInteraction(let p): return "AI (\(p.model))"
+        case .aiInteractionError(let p): return "AI (\(p.model))"
         }
     }
 
@@ -329,6 +373,8 @@ extension StateChangeLog {
         case .sceneExecution: return "scene_execution"
         case .sceneError: return "scene_execution"
         case .backupRestore(let p): return p.subtype
+        case .aiInteraction(let p): return p.operation
+        case .aiInteractionError(let p): return p.operation
         }
     }
 
@@ -350,6 +396,8 @@ extension StateChangeLog {
         case .sceneError(let p): return AnyCodable(p.succeeded)
         case .workflowExecution(let e): return AnyCodable(e.status.rawValue)
         case .workflowError(let e): return AnyCodable(e.status.rawValue)
+        case .aiInteraction(let p): return AnyCodable(p.parsedSuccessfully)
+        case .aiInteractionError(let p): return AnyCodable(p.parsedSuccessfully)
         default: return nil
         }
     }
@@ -362,6 +410,7 @@ extension StateChangeLog {
         case .workflowError(let e): return e.errorMessage
         case .sceneError(let p): return p.errorDetails
         case .backupRestore(let p): return p.summary
+        case .aiInteractionError(let p): return p.errorMessage
         default: return nil
         }
     }
@@ -376,6 +425,8 @@ extension StateChangeLog {
         case .workflowError(let e): return e.triggerEvent?.triggerDescription
         case .sceneExecution(let p): return p.summary
         case .sceneError(let p): return p.summary
+        case .aiInteraction(let p): return String(p.userMessage.prefix(200))
+        case .aiInteractionError(let p): return String(p.userMessage.prefix(200))
         default: return nil
         }
     }
@@ -387,6 +438,8 @@ extension StateChangeLog {
         case .mcpCall(let p): return p.result
         case .restCall(let p): return p.result
         case .sceneError(let p): return p.errorDetails
+        case .aiInteraction(let p): return p.rawResponse
+        case .aiInteractionError(let p): return p.rawResponse
         default: return nil
         }
     }
@@ -406,6 +459,15 @@ extension StateChangeLog {
         switch payload {
         case .workflowExecution(let e): return e
         case .workflowError(let e): return e
+        default: return nil
+        }
+    }
+
+    /// The AI interaction payload; non-nil for `.aiInteraction` and `.aiInteractionError` entries.
+    var aiInteraction: AIInteractionPayload? {
+        switch payload {
+        case .aiInteraction(let p): return p
+        case .aiInteractionError(let p): return p
         default: return nil
         }
     }
@@ -474,6 +536,26 @@ extension StateChangeLog {
             truncatedPayload = .backupRestore(BackupRestorePayload(
                 subtype: p.subtype, summary: Self.truncate(p.summary)
             ))
+        case .aiInteraction(let p):
+            truncatedPayload = .aiInteraction(AIInteractionPayload(
+                provider: p.provider, model: p.model, operation: p.operation,
+                systemPrompt: Self.truncate(p.systemPrompt),
+                userMessage: Self.truncate(p.userMessage),
+                rawResponse: p.rawResponse.map { Self.truncate($0) },
+                parsedSuccessfully: p.parsedSuccessfully,
+                errorMessage: p.errorMessage.map { Self.truncate($0) },
+                durationSeconds: p.durationSeconds
+            ))
+        case .aiInteractionError(let p):
+            truncatedPayload = .aiInteractionError(AIInteractionPayload(
+                provider: p.provider, model: p.model, operation: p.operation,
+                systemPrompt: Self.truncate(p.systemPrompt),
+                userMessage: Self.truncate(p.userMessage),
+                rawResponse: p.rawResponse.map { Self.truncate($0) },
+                parsedSuccessfully: p.parsedSuccessfully,
+                errorMessage: p.errorMessage.map { Self.truncate($0) },
+                durationSeconds: p.durationSeconds
+            ))
         }
         return StateChangeLog(id: id, timestamp: timestamp, category: category, payload: truncatedPayload)
     }
@@ -493,6 +575,7 @@ extension StateChangeLog: Codable {
         case characteristicType, oldValue, newValue
         case errorDetails, requestBody, responseBody, detailedRequestBody
         case workflowExecution
+        case aiInteractionPayload
     }
 
     func encode(to encoder: Encoder) throws {
@@ -515,6 +598,10 @@ extension StateChangeLog: Codable {
         // Workflow entries: encode the full execution log for rich API consumers.
         if let execLog = workflowExecution {
             try container.encode(execLog, forKey: .workflowExecution)
+        }
+        // AI interaction entries: encode the full payload.
+        if let aiPayload = aiInteraction {
+            try container.encode(aiPayload, forKey: .aiInteractionPayload)
         }
     }
 
@@ -609,6 +696,18 @@ extension StateChangeLog: Codable {
                 subtype: characteristicType,
                 summary: errorDetails ?? ""
             ))
+        case .aiInteraction:
+            if let aiPayload = try? container.decode(AIInteractionPayload.self, forKey: .aiInteractionPayload) {
+                payload = .aiInteraction(aiPayload)
+            } else {
+                payload = .serverError(ServerErrorPayload(errorDetails: errorDetails ?? "legacy AI interaction log"))
+            }
+        case .aiInteractionError:
+            if let aiPayload = try? container.decode(AIInteractionPayload.self, forKey: .aiInteractionPayload) {
+                payload = .aiInteractionError(aiPayload)
+            } else {
+                payload = .serverError(ServerErrorPayload(errorDetails: errorDetails ?? "legacy AI interaction log"))
+            }
         }
     }
 }

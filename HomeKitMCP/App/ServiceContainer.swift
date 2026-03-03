@@ -18,8 +18,6 @@ final class ServiceContainer {
     lazy var loggingService: LoggingService = LoggingService(storage: storageService)
     let deviceRegistryService: DeviceRegistryService = DeviceRegistryService()
     let workflowStorageService: WorkflowStorageService = WorkflowStorageService()
-    let workflowExecutionLogService: WorkflowExecutionLogService = WorkflowExecutionLogService()
-    let aiInteractionLogService: AIInteractionLogService = AIInteractionLogService()
     let scheduleTriggerManager: ScheduleTriggerManager = ScheduleTriggerManager()
 
     lazy var webhookService: WebhookService = WebhookService(
@@ -38,7 +36,7 @@ final class ServiceContainer {
         storageService: workflowStorageService,
         homeKitManager: homeKitManager,
         loggingService: loggingService,
-        executionLogService: workflowExecutionLogService,
+        executionLogService: loggingService,
         storage: storageService,
         registry: deviceRegistryService
     )
@@ -47,7 +45,7 @@ final class ServiceContainer {
         storage: storageService,
         homeKitManager: homeKitManager,
         keychainService: keychainService,
-        interactionLog: aiInteractionLogService,
+        loggingService: loggingService,
         registry: deviceRegistryService
     )
 
@@ -57,7 +55,6 @@ final class ServiceContainer {
         storage: storageService,
         workflowStorageService: workflowStorageService,
         workflowEngine: workflowEngine,
-        workflowExecutionLogService: workflowExecutionLogService,
         keychainService: keychainService,
         registry: deviceRegistryService,
         aiWorkflowService: aiWorkflowService,
@@ -101,7 +98,6 @@ final class ServiceContainer {
 
     lazy var logViewModel: LogViewModel = LogViewModel(
         loggingService: loggingService,
-        executionLogService: workflowExecutionLogService,
         storage: storageService
     )
 
@@ -121,7 +117,7 @@ final class ServiceContainer {
 
     lazy var workflowViewModel: WorkflowViewModel = WorkflowViewModel(
         storageService: workflowStorageService,
-        executionLogService: workflowExecutionLogService,
+        executionLogService: loggingService,
         workflowEngine: workflowEngine,
         homeKitManager: homeKitManager
     )

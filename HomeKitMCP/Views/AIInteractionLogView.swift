@@ -3,10 +3,11 @@ import SwiftUI
 // MARK: - List View
 
 struct AIInteractionLogView: View {
-    let interactionLog: AIInteractionLogService
+    let loggingService: LoggingService
 
     @Environment(\.dismiss) private var dismiss
-    @State private var logs: [AIInteractionLog] = []
+    @State private var logs: [AIInteractionPayload] = []
+    @State private var logTimestamps: [AIInteractionPayload: Date] = [:]
 
     var body: some View {
         NavigationStack {
@@ -24,11 +25,11 @@ struct AIInteractionLogView: View {
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
-                    List(logs) { log in
+                    List(Array(logs.enumerated()), id: \.offset) { index, log in
                         NavigationLink {
-                            AIInteractionDetailView(log: log)
+                            AIInteractionDetailView(log: log, timestamp: logTimestamps[log])
                         } label: {
-                            AIInteractionLogRow(log: log)
+                            AIInteractionLogRow(log: log, timestamp: logTimestamps[log])
                         }
                         .listRowBackground(Theme.contentBackground)
                     }
@@ -45,7 +46,14 @@ struct AIInteractionLogView: View {
                 }
             }
             .task {
-                logs = await interactionLog.getLogs()
+                let allLogs = await loggingService.getLogs()
+                let aiLogs = allLogs.filter { $0.category == .aiInteraction || $0.category == .aiInteractionError }
+                logs = aiLogs.compactMap(\.aiInteraction)
+                for entry in aiLogs {
+                    if let payload = entry.aiInteraction {
+                        logTimestamps[payload] = entry.timestamp
+                    }
+                }
             }
         }
     }
@@ -54,7 +62,8 @@ struct AIInteractionLogView: View {
 // MARK: - Row
 
 private struct AIInteractionLogRow: View {
-    let log: AIInteractionLog
+    let log: AIInteractionPayload
+    var timestamp: Date?
 
     var body: some View {
         HStack(spacing: 10) {
@@ -67,7 +76,7 @@ private struct AIInteractionLogRow: View {
                     Text(log.operation.capitalized)
                         .font(.subheadline)
                         .fontWeight(.medium)
-                    Text("·")
+                    Text("\u{00B7}")
                         .foregroundColor(.secondary)
                     Text(log.provider)
                         .font(.footnote)
@@ -79,11 +88,13 @@ private struct AIInteractionLogRow: View {
                 }
 
                 HStack(spacing: 6) {
-                    Text(log.timestamp, style: .relative)
-                        .font(.footnote)
-                        .foregroundColor(.secondary)
-                    Text("·")
-                        .foregroundColor(.secondary)
+                    if let ts = timestamp {
+                        Text(ts, style: .relative)
+                            .font(.footnote)
+                            .foregroundColor(.secondary)
+                        Text("\u{00B7}")
+                            .foregroundColor(.secondary)
+                    }
                     Text(String(format: "%.1fs", log.durationSeconds))
                         .font(.footnote)
                         .foregroundColor(.secondary)
@@ -106,7 +117,8 @@ private struct AIInteractionLogRow: View {
 // MARK: - Detail View
 
 struct AIInteractionDetailView: View {
-    let log: AIInteractionLog
+    let log: AIInteractionPayload
+    var timestamp: Date?
 
     var body: some View {
         List {
@@ -123,8 +135,10 @@ struct AIInteractionDetailView: View {
                     )
                     .foregroundColor(log.parsedSuccessfully ? .green : .red)
                 }
-                LabeledContent("Time") {
-                    Text(log.timestamp, format: .dateTime)
+                if let ts = timestamp {
+                    LabeledContent("Time") {
+                        Text(ts, format: .dateTime)
+                    }
                 }
             } header: {
                 Text("Summary")
@@ -218,8 +232,4 @@ private struct CopyButton: View {
                 .font(.footnote)
         }
     }
-}
-
-#Preview {
-    AIInteractionLogView(interactionLog: AIInteractionLogService())
 }

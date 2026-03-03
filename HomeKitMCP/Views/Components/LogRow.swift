@@ -31,6 +31,8 @@ struct LogRow: View {
         case .workflowExecution: return Theme.Status.active
         case .sceneExecution: return Theme.Tint.main
         case .backupRestore: return Color.orange
+        case .aiInteraction: return Color.purple
+        case .aiInteractionError: return Theme.Status.error
         }
     }
 
@@ -177,6 +179,10 @@ struct LogRow: View {
             Image(systemName: "play.circle.fill")
         case .backupRestore:
             Image(systemName: "arrow.triangle.2.circlepath.circle.fill")
+        case .aiInteraction:
+            Image(systemName: "brain.head.profile")
+        case .aiInteractionError:
+            Image(systemName: "exclamationmark.circle.fill")
         }
     }
 
@@ -207,6 +213,10 @@ struct LogRow: View {
             sceneErrorContent(p)
         case .backupRestore(let p):
             backupRestoreContent(p)
+        case .aiInteraction(let p):
+            aiInteractionContent(p)
+        case .aiInteractionError(let p):
+            aiInteractionContent(p)
         }
     }
 
@@ -351,6 +361,31 @@ struct LogRow: View {
                 .font(.footnote)
                 .foregroundColor(p.subtype == "orphan-detection" ? Theme.Status.error : Theme.Text.secondary)
                 .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private func aiInteractionContent(_ p: AIInteractionPayload) -> some View {
+        HStack(spacing: 4) {
+            Text(p.operation.capitalized)
+                .font(.subheadline)
+                .foregroundColor(Theme.Text.secondary)
+            Text("\u{00B7}")
+                .foregroundColor(.secondary)
+            Text(p.model)
+                .font(.footnote)
+                .foregroundColor(.secondary)
+                .lineLimit(1)
+            Text("\u{00B7}")
+                .foregroundColor(.secondary)
+            Text(String(format: "%.1fs", p.durationSeconds))
+                .font(.footnote)
+                .foregroundColor(.secondary)
+            if let error = p.errorMessage {
+                Text(error)
+                    .font(.footnote)
+                    .foregroundColor(.red)
+                    .lineLimit(1)
+            }
         }
     }
 

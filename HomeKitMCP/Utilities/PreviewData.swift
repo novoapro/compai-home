@@ -240,10 +240,8 @@ enum PreviewData {
 
     // MARK: - AI Interaction Logs
 
-    static let sampleAIInteractionLogs: [AIInteractionLog] = [
-        AIInteractionLog(
-            id: UUID(),
-            timestamp: Date().addingTimeInterval(-600),
+    static let sampleAIInteractionLogs: [StateChangeLog] = [
+        .aiInteraction(
             provider: "anthropic",
             model: "claude-sonnet-4-20250514",
             operation: "generate",
@@ -254,9 +252,7 @@ enum PreviewData {
             errorMessage: nil,
             durationSeconds: 3.2
         ),
-        AIInteractionLog(
-            id: UUID(),
-            timestamp: Date().addingTimeInterval(-1800),
+        .aiInteraction(
             provider: "anthropic",
             model: "claude-sonnet-4-20250514",
             operation: "refine",
@@ -477,9 +473,8 @@ enum PreviewData {
     static var logViewModel: LogViewModel {
         let storage = StorageService()
         let loggingService = LoggingService(storage: storage)
-        let executionLogService = WorkflowExecutionLogService()
 
-        let vm = LogViewModel(loggingService: loggingService, executionLogService: executionLogService, storage: storage)
+        let vm = LogViewModel(loggingService: loggingService, storage: storage)
 
         // For preview, manually populate groupedLogs with sample data
         let calendar = Calendar.current
@@ -487,14 +482,14 @@ enum PreviewData {
         formatter.dateStyle = .medium
         formatter.timeStyle = .none
 
-        // Convert to UnifiedLog format: combine state change logs and workflow execution logs
-        var unifiedLogs: [UnifiedLog] = sampleLogs.map { .stateChange($0) }
-        unifiedLogs.append(contentsOf: sampleWorkflowLogs.map { .workflowExecution($0) })
+        // Combine state change logs and workflow execution logs (converted to StateChangeLog)
+        var allLogs: [StateChangeLog] = sampleLogs
+        allLogs.append(contentsOf: sampleWorkflowLogs.map { $0.toStateChangeLog() })
 
         // Sort by timestamp descending (newest first)
-        unifiedLogs.sort { $0.timestamp > $1.timestamp }
+        allLogs.sort { $0.timestamp > $1.timestamp }
 
-        let grouped = Dictionary(grouping: unifiedLogs) { log in
+        let grouped = Dictionary(grouping: allLogs) { log in
             calendar.startOfDay(for: log.timestamp)
         }
 
@@ -514,7 +509,7 @@ enum PreviewData {
                 return (date: date.ISO8601Format(), label: label, logs: sortedLogs)
             }
 
-        vm.filteredLogCount = unifiedLogs.count
+        vm.filteredLogCount = allLogs.count
         return vm
     }
 
@@ -525,15 +520,13 @@ enum PreviewData {
         let webhookService = WebhookService(storage: storage, loggingService: loggingService, keychainService: keychainService)
         let manager = HomeKitManager(loggingService: loggingService, webhookService: webhookService, storage: storage)
         let workflowStorage = WorkflowStorageService()
-        let workflowLogService = WorkflowExecutionLogService()
-        let workflowEngine = WorkflowEngine(storageService: workflowStorage, homeKitManager: manager, loggingService: loggingService, executionLogService: workflowLogService, storage: storage)
+        let workflowEngine = WorkflowEngine(storageService: workflowStorage, homeKitManager: manager, loggingService: loggingService, executionLogService: loggingService, storage: storage)
         let mcpServer = MCPServer(
             homeKitManager: manager, loggingService: loggingService, storage: storage,
-            workflowStorageService: workflowStorage, workflowEngine: workflowEngine, workflowExecutionLogService: workflowLogService,
+            workflowStorageService: workflowStorage, workflowEngine: workflowEngine,
             keychainService: keychainService
         )
-        let aiInteractionLogService = AIInteractionLogService()
-        let aiWorkflowService = AIWorkflowService(storage: storage, homeKitManager: manager, keychainService: keychainService, interactionLog: aiInteractionLogService)
+        let aiWorkflowService = AIWorkflowService(storage: storage, homeKitManager: manager, keychainService: keychainService, loggingService: loggingService)
         let registryService = DeviceRegistryService()
         let backupService = BackupService(storage: storage, keychainService: keychainService, workflowStorageService: workflowStorage, homeKitManager: manager, loggingService: loggingService, deviceRegistryService: registryService)
         let cloudBackupService = CloudBackupService(backupService: backupService, storage: storage, workflowStorageService: workflowStorage)
@@ -552,17 +545,16 @@ enum PreviewData {
         let loggingService = LoggingService(storage: storage)
         let keychainService = KeychainService()
         let workflowStorage = WorkflowStorageService()
-        let workflowLogService = WorkflowExecutionLogService()
         let webhookService = WebhookService(storage: storage, loggingService: loggingService, keychainService: keychainService)
         let manager = HomeKitManager(loggingService: loggingService, webhookService: webhookService, storage: storage)
         let engine = WorkflowEngine(
             storageService: workflowStorage,
             homeKitManager: manager,
             loggingService: loggingService,
-            executionLogService: workflowLogService,
+            executionLogService: loggingService,
             storage: storage
         )
-        let vm = WorkflowViewModel(storageService: workflowStorage, executionLogService: workflowLogService, workflowEngine: engine, homeKitManager: manager)
+        let vm = WorkflowViewModel(storageService: workflowStorage, executionLogService: loggingService, workflowEngine: engine, homeKitManager: manager)
         vm.workflows = sampleWorkflows
         vm.executionLogs = sampleWorkflowLogs
         return vm
@@ -584,8 +576,8 @@ enum PreviewData {
         let storage = StorageService()
         let keychainService = KeychainService()
         let manager = previewHomeKitManager
-        let interactionLog = AIInteractionLogService()
-        return AIWorkflowService(storage: storage, homeKitManager: manager, keychainService: keychainService, interactionLog: interactionLog)
+        let loggingService = LoggingService(storage: storage)
+        return AIWorkflowService(storage: storage, homeKitManager: manager, keychainService: keychainService, loggingService: loggingService)
     }
 
     static var previewCloudBackupService: CloudBackupService {

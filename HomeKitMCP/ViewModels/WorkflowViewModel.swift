@@ -9,7 +9,7 @@ class WorkflowViewModel: ObservableObject {
     @Published var showClonedToast = false
 
     private let storageService: WorkflowStorageService
-    private let executionLogService: WorkflowExecutionLogService
+    private let executionLogService: LoggingService
     private let workflowEngine: WorkflowEngine
     let homeKitManager: HomeKitManager
     private var cancellables = Set<AnyCancellable>()
@@ -44,7 +44,7 @@ class WorkflowViewModel: ObservableObject {
         workflows.filter(\.isEnabled).count
     }
 
-    init(storageService: WorkflowStorageService, executionLogService: WorkflowExecutionLogService, workflowEngine: WorkflowEngine, homeKitManager: HomeKitManager) {
+    init(storageService: WorkflowStorageService, executionLogService: LoggingService, workflowEngine: WorkflowEngine, homeKitManager: HomeKitManager) {
         self.storageService = storageService
         self.executionLogService = executionLogService
         self.workflowEngine = workflowEngine
@@ -58,21 +58,22 @@ class WorkflowViewModel: ObservableObject {
             }
             .store(in: &cancellables)
 
-        // Subscribe to execution log changes
+        // Subscribe to execution log changes (filter to workflow categories)
         executionLogService.logsSubject
             .receive(on: DispatchQueue.main)
             .sink { [weak self] logs in
-                self?.executionLogs = logs
+                self?.executionLogs = logs.compactMap(\.workflowExecution)
             }
             .store(in: &cancellables)
 
         // Initial fetch
         Task {
             let existingWorkflows = await storageService.getAllWorkflows()
-            let existingLogs = await executionLogService.getLogs()
+            let allLogs = await executionLogService.getLogs()
+            let wfLogs = allLogs.compactMap(\.workflowExecution)
             await MainActor.run {
                 self.workflows = existingWorkflows
-                self.executionLogs = existingLogs
+                self.executionLogs = wfLogs
             }
         }
     }

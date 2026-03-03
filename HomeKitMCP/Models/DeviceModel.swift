@@ -143,16 +143,5 @@ extension Array where Element == DeviceModel {
     }
 }
 
-// MARK: - Characteristic Display Filtering
 
-extension CharacteristicModel {
-    /// Metadata-only characteristics that should be hidden from user-facing lists.
-    /// Their info is surfaced elsewhere (e.g., Name is shown in the service header via `effectiveDisplayName`).
-    static let hiddenDisplayNames: Set<String> = ["Name", "Is Configured", "Status Active"]
-
-    /// Whether this characteristic should appear in user-facing lists (pickers, device rows, MCP output, AI context).
-    var isUserFacing: Bool {
-        !Self.hiddenDisplayNames.contains(CharacteristicTypes.displayName(for: type))
-    }
-}
 

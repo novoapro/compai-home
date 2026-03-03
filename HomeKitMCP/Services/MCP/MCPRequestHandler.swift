@@ -8,18 +8,16 @@ final class MCPRequestHandler: Sendable {
     private let storage: StorageService
     private let workflowStorageService: WorkflowStorageService
     private let workflowEngine: WorkflowEngine
-    private let workflowExecutionLogService: WorkflowExecutionLogService
     private let registry: DeviceRegistryService?
 
     init(homeKitManager: HomeKitManager, loggingService: LoggingService, storage: StorageService,
-         workflowStorageService: WorkflowStorageService, workflowEngine: WorkflowEngine, workflowExecutionLogService: WorkflowExecutionLogService,
+         workflowStorageService: WorkflowStorageService, workflowEngine: WorkflowEngine,
          registry: DeviceRegistryService? = nil) {
         self.homeKitManager = homeKitManager
         self.loggingService = loggingService
         self.storage = storage
         self.workflowStorageService = workflowStorageService
         self.workflowEngine = workflowEngine
-        self.workflowExecutionLogService = workflowExecutionLogService
         self.registry = registry
     }
 
@@ -419,7 +417,6 @@ final class MCPRequestHandler: Sendable {
                         lines.append("  ### \(service.effectiveDisplayName) (service_id: \(service.id))")
                     }
                     for char in service.characteristics {
-                        guard char.isUserFacing else { continue }
                         let charName = CharacteristicTypes.displayName(for: char.type)
                         let val = char.value.map { CharacteristicTypes.formatValue($0.value, characteristicType: char.type) } ?? "--"
                         let hint = Self.metadataHint(for: char)
@@ -537,13 +534,8 @@ final class MCPRequestHandler: Sendable {
     }
 
     private func handleGetLogs(id: JSONRPCId?, arguments: [String: Any]) async -> JSONRPCResponse {
-        // Merge state change logs with workflow execution logs (converted on-the-fly).
-        // WorkflowExecutionLogService is the single source for workflow logs; LoggingService
-        // no longer persists workflow entries. Running executions are included.
-        let stateChangeLogs = await loggingService.getLogs()
-        let workflowExecLogs = await workflowExecutionLogService.getLogs()
-        let convertedWorkflowLogs = workflowExecLogs.map { $0.toStateChangeLog() }
-        var logs = (stateChangeLogs + convertedWorkflowLogs).sorted { $0.timestamp > $1.timestamp }
+        // All log types are now in the unified LoggingService.
+        var logs = await loggingService.getLogs()
         let allCount = logs.count
 
         // Category filtering
@@ -862,9 +854,9 @@ final class MCPRequestHandler: Sendable {
         var logs: [WorkflowExecutionLog]
         if let workflowIdStr = arguments["workflow_id"] as? String,
            let workflowId = UUID(uuidString: workflowIdStr) {
-            logs = await workflowExecutionLogService.getLogs(forWorkflow: workflowId)
+            logs = await loggingService.getLogs(forWorkflowId: workflowId).compactMap(\.workflowExecution)
         } else {
-            logs = await workflowExecutionLogService.getLogs()
+            logs = await loggingService.getLogs().compactMap(\.workflowExecution)
         }
 
         logs = Array(logs.prefix(limit))

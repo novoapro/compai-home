@@ -11,9 +11,7 @@ struct DeviceRow: View {
 
     private var displayCharacteristics: [(service: ServiceModel, char: CharacteristicModel)] {
         device.services.flatMap { service in
-            service.characteristics
-                .filter { shouldDisplay($0) }
-                .map { (service: service, char: $0) }
+            service.characteristics.map { (service: service, char: $0) }
         }
     }
 
@@ -281,10 +279,7 @@ struct DeviceRow: View {
         .task {
             await loadSettings()
         }
-        .onChange(of: viewModel.deviceConfigCache[device.id]?.enabled) { _ in
-            Task { await loadSettings() }
-        }
-        .onChange(of: viewModel.deviceConfigCache[device.id]?.observed) { _ in
+        .onReceive(viewModel.registryService.registrySyncSubject.receive(on: DispatchQueue.main)) { _ in
             Task { await loadSettings() }
         }
     }
@@ -390,9 +385,7 @@ struct DeviceRow: View {
         UserDefaults.standard.bool(forKey: "useServiceTypeAsName")
     }
 
-    private func shouldDisplay(_ char: CharacteristicModel) -> Bool {
-        char.isUserFacing
-    }
+
 
     private var deviceIcon: String {
         switch device.categoryType {

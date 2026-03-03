@@ -612,13 +612,11 @@ class HomeKitManager: NSObject, ObservableObject, HomeKitManaging {
                 newValue: newValue
             )
 
-            if self.storage.readDeviceStateLoggingEnabled() {
-                if !self.storage.readLogOnlyWebhookDevices() || isObserved {
+            if isObserved {
+                if self.storage.readDeviceStateLoggingEnabled() {
                     await self.loggingService.logEntry(logEntry)
                 }
-            }
 
-            if isObserved {
                 await self.webhookService.sendStateChange(change)
 
                 let stableCharId = self.deviceRegistryService?.readStableCharacteristicId(charId) ?? charId
@@ -745,6 +743,14 @@ class HomeKitManager: NSObject, ObservableObject, HomeKitManaging {
     /// Call after changing observed settings to dynamically toggle subscriptions.
     func refreshNotificationRegistrations() {
         registerForNotifications()
+    }
+
+    /// Triggers a full rebuild of device and scene caches, which in turn
+    /// syncs them to the device registry. Use after clearing the registry
+    /// to re-import all devices with new stable IDs.
+    func resyncAllDevices() {
+        rebuildDeviceCache()
+        rebuildSceneCache()
     }
 
     /// Read current values for all readable characteristics on all accessories.
@@ -991,13 +997,11 @@ extension HomeKitManager: HMAccessoryDelegate {
                 newValue: value
             )
 
-            if self.storage.readDeviceStateLoggingEnabled() {
-                if !self.storage.readLogOnlyWebhookDevices() || isObserved {
+            if isObserved {
+                if self.storage.readDeviceStateLoggingEnabled() {
                     await loggingService.logEntry(logEntry)
                 }
-            }
 
-            if isObserved {
                 await webhookService.sendStateChange(change)
 
                 let stableCharId = self.deviceRegistryService?.readStableCharacteristicId(charId) ?? charId

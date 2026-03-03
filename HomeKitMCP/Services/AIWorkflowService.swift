@@ -190,13 +190,13 @@ actor AIWorkflowService {
     private let homeKitManager: HomeKitManager
     private let keychainService: KeychainService
     private let registry: DeviceRegistryService?
-    let interactionLog: AIInteractionLogService
+    let loggingService: LoggingService
 
-    init(storage: StorageService, homeKitManager: HomeKitManager, keychainService: KeychainService, interactionLog: AIInteractionLogService, registry: DeviceRegistryService? = nil) {
+    init(storage: StorageService, homeKitManager: HomeKitManager, keychainService: KeychainService, loggingService: LoggingService, registry: DeviceRegistryService? = nil) {
         self.storage = storage
         self.homeKitManager = homeKitManager
         self.keychainService = keychainService
-        self.interactionLog = interactionLog
+        self.loggingService = loggingService
         self.registry = registry
     }
 
@@ -217,8 +217,7 @@ actor AIWorkflowService {
             response = try await client.complete(systemPrompt: systemPrompt, userMessage: userMessage, apiKey: apiKey, model: model)
         } catch {
             let duration = CFAbsoluteTimeGetCurrent() - startTime
-            await interactionLog.log(AIInteractionLog(
-                id: UUID(), timestamp: Date(),
+            await loggingService.logEntry(.aiInteraction(
                 provider: provider.rawValue, model: model,
                 operation: "generate",
                 systemPrompt: systemPrompt, userMessage: userMessage,
@@ -232,8 +231,7 @@ actor AIWorkflowService {
         let duration = CFAbsoluteTimeGetCurrent() - startTime
         do {
             let workflow = try parseWorkflowFromResponse(response)
-            await interactionLog.log(AIInteractionLog(
-                id: UUID(), timestamp: Date(),
+            await loggingService.logEntry(.aiInteraction(
                 provider: provider.rawValue, model: model,
                 operation: "generate",
                 systemPrompt: systemPrompt, userMessage: userMessage,
@@ -242,8 +240,7 @@ actor AIWorkflowService {
             ))
             return workflow
         } catch {
-            await interactionLog.log(AIInteractionLog(
-                id: UUID(), timestamp: Date(),
+            await loggingService.logEntry(.aiInteraction(
                 provider: provider.rawValue, model: model,
                 operation: "generate",
                 systemPrompt: systemPrompt, userMessage: userMessage,
@@ -272,8 +269,7 @@ actor AIWorkflowService {
             response = try await client.complete(systemPrompt: systemPrompt, userMessage: userMessage, apiKey: apiKey, model: model)
         } catch {
             let duration = CFAbsoluteTimeGetCurrent() - startTime
-            await interactionLog.log(AIInteractionLog(
-                id: UUID(), timestamp: Date(),
+            await loggingService.logEntry(.aiInteraction(
                 provider: provider.rawValue, model: model,
                 operation: "refine",
                 systemPrompt: systemPrompt, userMessage: userMessage,
@@ -287,8 +283,7 @@ actor AIWorkflowService {
         let duration = CFAbsoluteTimeGetCurrent() - startTime
         do {
             let refined = try parseWorkflowFromResponse(response)
-            await interactionLog.log(AIInteractionLog(
-                id: UUID(), timestamp: Date(),
+            await loggingService.logEntry(.aiInteraction(
                 provider: provider.rawValue, model: model,
                 operation: "refine",
                 systemPrompt: systemPrompt, userMessage: userMessage,
@@ -297,8 +292,7 @@ actor AIWorkflowService {
             ))
             return refined
         } catch {
-            await interactionLog.log(AIInteractionLog(
-                id: UUID(), timestamp: Date(),
+            await loggingService.logEntry(.aiInteraction(
                 provider: provider.rawValue, model: model,
                 operation: "refine",
                 systemPrompt: systemPrompt, userMessage: userMessage,
@@ -742,7 +736,6 @@ actor AIWorkflowService {
             for service in device.services {
                 lines.append("  - Service: \(service.effectiveDisplayName) (id: \(service.id))")
                 for char in service.characteristics {
-                    guard char.isUserFacing else { continue }
                     let name = CharacteristicTypes.displayName(for: char.type)
                     let val = char.value.map { "\($0.value)" } ?? "nil"
                     var meta: [String] = []

@@ -297,18 +297,20 @@ actor DeviceRegistryService {
                 deviceIdRemapping[entry.stableId] = resolved.stableId
                 deviceIdsToRemove.append(entry.stableId)
 
-                // Build service and characteristic remapping
-                let orphanServicesByKey = Dictionary(
-                    entry.services.map { ("\($0.serviceType):\($0.serviceIndex)", $0) },
-                    uniquingKeysWith: { first, _ in first }
-                )
-                let resolvedServicesByKey = Dictionary(
-                    resolved.services.map { ("\($0.serviceType):\($0.serviceIndex)", $0) },
-                    uniquingKeysWith: { first, _ in first }
-                )
+                // Build service and characteristic remapping (match by type, prefer same index)
+                var resolvedServicesByType: [String: [ServiceRegistryEntry]] = [:]
+                for svc in resolved.services {
+                    resolvedServicesByType[svc.serviceType, default: []].append(svc)
+                }
+                var consumedResolvedServiceIds = Set<String>()
 
-                for (key, orphanService) in orphanServicesByKey {
-                    if let resolvedService = resolvedServicesByKey[key] {
+                for orphanService in entry.services {
+                    let candidates = resolvedServicesByType[orphanService.serviceType] ?? []
+                    let unconsumed = candidates.filter { !consumedResolvedServiceIds.contains($0.stableServiceId) }
+                    let resolvedService = unconsumed.first(where: { $0.serviceIndex == orphanService.serviceIndex }) ?? unconsumed.first
+
+                    if let resolvedService {
+                        consumedResolvedServiceIds.insert(resolvedService.stableServiceId)
                         serviceIdRemapping[orphanService.stableServiceId] = resolvedService.stableServiceId
                         let orphanCharsByType = Dictionary(
                             orphanService.characteristics.map { ($0.characteristicType, $0) },
@@ -550,6 +552,56 @@ actor DeviceRegistryService {
         return result
     }
 
+    /// Sets `enabled` for all characteristics matching the given HomeKit characteristic types.
+    /// When disabling, also clears `observed`.
+    func setBulkEnabled(forCharacteristicTypes charTypes: Set<String>, enabled: Bool) {
+        var changed = false
+        for (deviceId, entry) in devices {
+            for svcIdx in entry.services.indices {
+                for charIdx in entry.services[svcIdx].characteristics.indices {
+                    let char = devices[deviceId]!.services[svcIdx].characteristics[charIdx]
+                    if charTypes.contains(char.characteristicType) && char.enabled != enabled {
+                        devices[deviceId]!.services[svcIdx].characteristics[charIdx].enabled = enabled
+                        if !enabled {
+                            devices[deviceId]!.services[svcIdx].characteristics[charIdx].observed = false
+                        }
+                        changed = true
+                    }
+                }
+            }
+        }
+        if changed {
+            rebuildReverseLookups()
+            debouncedSave()
+            registrySyncSubject.send()
+        }
+    }
+
+    /// Sets `observed` for all characteristics matching the given HomeKit characteristic types.
+    /// Only affects characteristics that are enabled and notifiable.
+    func setBulkObserved(forCharacteristicTypes charTypes: Set<String>, observed: Bool, notifiableHomeKitCharIds: Set<String>) {
+        var changed = false
+        for (deviceId, entry) in devices {
+            for svcIdx in entry.services.indices {
+                for charIdx in entry.services[svcIdx].characteristics.indices {
+                    let char = devices[deviceId]!.services[svcIdx].characteristics[charIdx]
+                    guard charTypes.contains(char.characteristicType) else { continue }
+                    guard char.enabled else { continue }
+                    if let hkId = char.homeKitCharacteristicId, !notifiableHomeKitCharIds.contains(hkId) { continue }
+                    if char.observed != observed {
+                        devices[deviceId]!.services[svcIdx].characteristics[charIdx].observed = observed
+                        changed = true
+                    }
+                }
+            }
+        }
+        if changed {
+            rebuildReverseLookups()
+            debouncedSave()
+            registrySyncSubject.send()
+        }
+    }
+
     // MARK: - Service Name Customization
 
     /// Sets or clears the custom name for a service. Pass nil or empty string to clear.
@@ -748,10 +800,22 @@ actor DeviceRegistryService {
     func unresolvedDevices() -> [DeviceRegistryEntry] { devices.values.filter { !$0.isResolved } }
     func unresolvedScenes() -> [SceneRegistryEntry] { scenes.values.filter { !$0.isResolved } }
 
+    /// An orphaned service reference found in a workflow.
+    struct UnresolvedServiceRef: Identifiable {
+        var id: String { "\(deviceStableId)-\(serviceId)-\(workflowName)-\(location)" }
+        let workflowName: String
+        let deviceStableId: String
+        let deviceName: String
+        let serviceId: String
+        let location: String
+        let availableServices: [ServiceRegistryEntry]
+    }
+
     /// Returns workflow service references that point to a serviceId not present in the registry.
     /// Only checks resolved devices (unresolved devices are handled by existing orphan detection).
-    func unresolvedServiceReferences(in workflows: [Workflow]) -> [(workflowName: String, deviceName: String, serviceId: String, location: String)] {
-        var results: [(workflowName: String, deviceName: String, serviceId: String, location: String)] = []
+    func unresolvedServiceReferences(in workflows: [Workflow]) -> [UnresolvedServiceRef] {
+        var results: [UnresolvedServiceRef] = []
+        var seen = Set<String>()
 
         for workflow in workflows {
             let refs = WorkflowMigrationService.collectDeviceReferences(from: workflow)
@@ -762,11 +826,17 @@ actor DeviceRegistryService {
 
                 let serviceExists = deviceEntry.services.contains { $0.stableServiceId == serviceId }
                 if !serviceExists {
-                    results.append((
+                    let dedupeKey = "\(ref.deviceId)-\(serviceId)"
+                    guard !seen.contains(dedupeKey) else { continue }
+                    seen.insert(dedupeKey)
+
+                    results.append(UnresolvedServiceRef(
                         workflowName: workflow.name,
+                        deviceStableId: ref.deviceId,
                         deviceName: deviceEntry.name,
                         serviceId: serviceId,
-                        location: ref.location
+                        location: ref.location,
+                        availableServices: deviceEntry.services
                     ))
                 }
             }
@@ -815,6 +885,32 @@ actor DeviceRegistryService {
         rebuildReverseLookups()
         debouncedSave()
         AppLogger.registry.info("Removed scene '\(entry.name)' (stableId \(stableId)) from registry")
+    }
+
+    /// Remaps an orphaned service stable ID to an existing service on the same device.
+    /// The target service adopts the orphaned stable ID so workflow references continue to resolve.
+    func remapService(
+        deviceStableId: String,
+        orphanedServiceId: String,
+        targetServiceId: String
+    ) {
+        guard var entry = devices[deviceStableId] else { return }
+        guard let targetIndex = entry.services.firstIndex(where: { $0.stableServiceId == targetServiceId }) else { return }
+
+        let old = entry.services[targetIndex]
+        entry.services[targetIndex] = ServiceRegistryEntry(
+            stableServiceId: orphanedServiceId,
+            homeKitServiceId: old.homeKitServiceId,
+            serviceType: old.serviceType,
+            serviceIndex: old.serviceIndex,
+            customName: old.customName,
+            characteristics: old.characteristics
+        )
+
+        devices[deviceStableId] = entry
+        rebuildReverseLookups()
+        debouncedSave()
+        AppLogger.registry.info("Remapped orphaned service '\(orphanedServiceId)' → service '\(old.serviceType)' on device '\(entry.name)'")
     }
 
     // MARK: - Workflow Reconciliation
@@ -1157,22 +1253,36 @@ actor DeviceRegistryService {
     // MARK: - Private Helpers
 
     private func buildDeviceEntry(stableId: String, from device: DeviceModel, existing: DeviceRegistryEntry?) -> DeviceRegistryEntry {
-        // Build service+characteristic entries, preserving existing stable IDs where possible
-        let existingServicesByTypeIndex: [String: ServiceRegistryEntry] = {
-            guard let existing else { return [:] }
-            return Dictionary(uniqueKeysWithValues: existing.services.map {
-                ("\($0.serviceType):\($0.serviceIndex)", $0)
-            })
-        }()
+        // Group existing services by type (supports multiple services of same type)
+        var existingServicesByType: [String: [ServiceRegistryEntry]] = [:]
+        if let existing {
+            for service in existing.services {
+                existingServicesByType[service.serviceType, default: []].append(service)
+            }
+        }
+        // Track consumed services to prevent double-assignment
+        var consumedServiceIds = Set<String>()
 
         let services: [ServiceRegistryEntry] = device.services.enumerated().map { index, service in
-            let typeIndexKey = "\(service.type):\(index)"
-            let existingService = existingServicesByTypeIndex[typeIndexKey]
+            let candidates = existingServicesByType[service.type] ?? []
+            let unconsumed = candidates.filter { !consumedServiceIds.contains($0.stableServiceId) }
 
-            // Build characteristic entries, preserving existing stable IDs
+            // Prefer exact index match, then fall back to first unused of same type
+            let matchedService: ServiceRegistryEntry?
+            if let exactIndex = unconsumed.first(where: { $0.serviceIndex == index }) {
+                matchedService = exactIndex
+            } else {
+                matchedService = unconsumed.first
+            }
+
+            if let matched = matchedService {
+                consumedServiceIds.insert(matched.stableServiceId)
+            }
+
+            // Build characteristic entries, preserving existing stable IDs by type
             let existingCharsByType: [String: CharacteristicRegistryEntry] = {
-                guard let existingService else { return [:] }
-                return Dictionary(uniqueKeysWithValues: existingService.characteristics.map {
+                guard let matched = matchedService else { return [:] }
+                return Dictionary(uniqueKeysWithValues: matched.characteristics.map {
                     ($0.characteristicType, $0)
                 })
             }()
@@ -1198,11 +1308,11 @@ actor DeviceRegistryService {
             }
 
             return ServiceRegistryEntry(
-                stableServiceId: existingService?.stableServiceId ?? UUID().uuidString,
+                stableServiceId: matchedService?.stableServiceId ?? UUID().uuidString,
                 homeKitServiceId: service.id,
                 serviceType: service.type,
                 serviceIndex: index,
-                customName: existingService?.customName,
+                customName: matchedService?.customName,
                 characteristics: chars
             )
         }
@@ -1352,12 +1462,12 @@ actor DeviceRegistryService {
         }
     }
 
-    /// Resets all characteristic settings to defaults (enabled: true, observed: false).
+    /// Resets all characteristic settings by disabling everything (enabled: false, observed: false).
     func resetAllSettings() {
         for (deviceId, device) in devices {
             for svcIdx in device.services.indices {
                 for charIdx in devices[deviceId]!.services[svcIdx].characteristics.indices {
-                    devices[deviceId]!.services[svcIdx].characteristics[charIdx].enabled = true
+                    devices[deviceId]!.services[svcIdx].characteristics[charIdx].enabled = false
                     devices[deviceId]!.services[svcIdx].characteristics[charIdx].observed = false
                 }
             }
@@ -1365,7 +1475,18 @@ actor DeviceRegistryService {
         rebuildReverseLookups()
         saveNow()
         registrySyncSubject.send()
-        AppLogger.registry.info("Reset all characteristic settings to defaults")
+        AppLogger.registry.info("Reset all characteristic settings — all disabled")
+    }
+
+    /// Clears the entire device and scene registry. After calling this,
+    /// trigger a HomeKit re-sync to re-import all devices with new stable IDs.
+    func clearRegistry() {
+        devices.removeAll()
+        scenes.removeAll()
+        rebuildReverseLookups()
+        saveNow()
+        registrySyncSubject.send()
+        AppLogger.registry.info("Cleared entire device registry — next sync will re-import all devices")
     }
 
     // MARK: - Persistence

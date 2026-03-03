@@ -24,7 +24,6 @@ class MCPServer: ObservableObject, MCPServerProtocol, @unchecked Sendable {
     private let connectionTracker = ConnectionTracker()
     private let workflowStorageService: WorkflowStorageService
     private let workflowEngine: WorkflowEngine
-    private let workflowExecutionLogService: WorkflowExecutionLogService
     private let keychainService: KeychainService
     private let registry: DeviceRegistryService?
     private let aiWorkflowService: AIWorkflowService?
@@ -37,7 +36,6 @@ class MCPServer: ObservableObject, MCPServerProtocol, @unchecked Sendable {
         storage: StorageService,
         workflowStorageService: WorkflowStorageService,
         workflowEngine: WorkflowEngine,
-        workflowExecutionLogService: WorkflowExecutionLogService,
         keychainService: KeychainService,
         registry: DeviceRegistryService? = nil,
         aiWorkflowService: AIWorkflowService? = nil,
@@ -50,7 +48,6 @@ class MCPServer: ObservableObject, MCPServerProtocol, @unchecked Sendable {
         self.port = port
         self.workflowStorageService = workflowStorageService
         self.workflowEngine = workflowEngine
-        self.workflowExecutionLogService = workflowExecutionLogService
         self.keychainService = keychainService
         self.registry = registry
         self.aiWorkflowService = aiWorkflowService
@@ -60,7 +57,6 @@ class MCPServer: ObservableObject, MCPServerProtocol, @unchecked Sendable {
             storage: storage,
             workflowStorageService: workflowStorageService,
             workflowEngine: workflowEngine,
-            workflowExecutionLogService: workflowExecutionLogService,
             registry: registry
         )
     }
@@ -181,7 +177,9 @@ class MCPServer: ObservableObject, MCPServerProtocol, @unchecked Sendable {
             .store(in: &wsCancellables)
 
         // Broadcast new workflow execution logs
-        workflowExecutionLogService.logAddedSubject
+        loggingService.logEntrySubject
+            .filter { $0.category == .workflowExecution || $0.category == .workflowError }
+            .compactMap(\.workflowExecution)
             .receive(on: DispatchQueue.global(qos: .utility))
             .sink { [weak self] entry in
                 guard self != nil else { return }
@@ -193,7 +191,9 @@ class MCPServer: ObservableObject, MCPServerProtocol, @unchecked Sendable {
             .store(in: &wsCancellables)
 
         // Broadcast updated workflow execution logs
-        workflowExecutionLogService.logUpdatedSubject
+        loggingService.logUpdatedSubject
+            .filter { $0.category == .workflowExecution || $0.category == .workflowError }
+            .compactMap(\.workflowExecution)
             .receive(on: DispatchQueue.global(qos: .utility))
             .sink { [weak self] entry in
                 guard self != nil else { return }
@@ -204,9 +204,8 @@ class MCPServer: ObservableObject, MCPServerProtocol, @unchecked Sendable {
             }
             .store(in: &wsCancellables)
 
-        // Broadcast logs_cleared when either log store is cleared
+        // Broadcast logs_cleared when log store is cleared
         loggingService.logsClearedSubject
-            .merge(with: workflowExecutionLogService.logsClearedSubject)
             .receive(on: DispatchQueue.global(qos: .utility))
             .sink { _ in
                 Task {
@@ -542,7 +541,6 @@ class MCPServer: ObservableObject, MCPServerProtocol, @unchecked Sendable {
             try self.guardRestApiEnabled()
             guard self.storage.readLogAccessEnabled() else { throw Abort(.notFound) }
             await self.loggingService.clearLogs()
-            await self.workflowExecutionLogService.clearLogs()
             let body = try JSONSerialization.data(withJSONObject: ["cleared": true])
             return Response(status: .ok, headers: ["Content-Type": "application/json"], body: .init(data: body))
         }
@@ -644,17 +642,8 @@ class MCPServer: ObservableObject, MCPServerProtocol, @unchecked Sendable {
     // MARK: - Log REST Handler
 
     private func handleRestGetLogs(_ req: Request) async throws -> Response {
-        // Fetch both log sources
-        let stateChangeLogs = await loggingService.getLogs()
-        let workflowExecLogs = await workflowExecutionLogService.getLogs()
-
-        // Convert all workflow execution logs (including running ones) on-the-fly and merge.
-        // WorkflowExecutionLogService is the single source for workflow logs; LoggingService
-        // no longer persists workflow entries.
-        let convertedWorkflowLogs = workflowExecLogs.map { $0.toStateChangeLog() }
-
-        var logs = (stateChangeLogs + convertedWorkflowLogs)
-            .sorted { $0.timestamp > $1.timestamp }
+        // All log types are now in the unified LoggingService.
+        var logs = await loggingService.getLogs()
 
         // Category filtering: ?categories=mcp_call,rest_call
         if let categoriesParam = req.query[String.self, at: "categories"] {
@@ -1014,7 +1003,7 @@ class MCPServer: ObservableObject, MCPServerProtocol, @unchecked Sendable {
         }
 
         let limit = req.query[Int.self, at: "limit"] ?? 50
-        var logs = await workflowExecutionLogService.getLogs(forWorkflow: workflowId)
+        var logs = await loggingService.getLogs(forWorkflowId: workflowId).compactMap(\.workflowExecution)
         logs = Array(logs.prefix(limit))
 
         let data = try JSONEncoder.iso8601.encode(logs)

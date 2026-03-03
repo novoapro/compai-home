@@ -117,10 +117,55 @@ struct DeviceListView: View {
             if filteredDeviceCount > 0 {
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
-                        let allEnabled = viewModel.filteredDevicesByRoom.flatMap(\.devices).allSatisfy { viewModel.isEnabled(for: $0) }
-                        let allObserved = viewModel.filteredDevicesByRoom.flatMap(\.devices).allSatisfy { viewModel.isObserved(for: $0) }
+                        // Characteristic-level bulk actions (when characteristic filter is active)
+                        if !viewModel.selectedCharacteristicTypes.isEmpty {
+                            let charLabel = viewModel.selectedCharacteristicTypes.count == 1
+                                ? viewModel.selectedCharacteristicTypes.first!
+                                : "\(viewModel.selectedCharacteristicTypes.count) characteristic types"
 
-                        Section("Enabled") {
+                            Section("Characteristics: \(charLabel)") {
+                                Button {
+                                    confirmBulkAction(message: "Enable all \(charLabel) characteristics across \(filteredDeviceCount) devices?") {
+                                        viewModel.setBulkCharacteristicEnabled(true)
+                                    }
+                                } label: {
+                                    Label("Enable Matching", systemImage: "checkmark.circle")
+                                }
+
+                                Button {
+                                    confirmBulkAction(message: "Disable all \(charLabel) characteristics across \(filteredDeviceCount) devices?") {
+                                        viewModel.setBulkCharacteristicEnabled(false)
+                                    }
+                                } label: {
+                                    Label("Disable Matching", systemImage: "xmark.circle")
+                                }
+
+                                Button {
+                                    confirmBulkAction(message: "Observe all \(charLabel) characteristics across \(filteredDeviceCount) devices?") {
+                                        viewModel.setBulkCharacteristicObserved(true)
+                                    }
+                                } label: {
+                                    Label("Observe Matching", systemImage: "eye")
+                                }
+
+                                Button {
+                                    confirmBulkAction(message: "Stop observing all \(charLabel) characteristics across \(filteredDeviceCount) devices?") {
+                                        viewModel.setBulkCharacteristicObserved(false)
+                                    }
+                                } label: {
+                                    Label("Unobserve Matching", systemImage: "eye.slash")
+                                }
+                            }
+                        }
+
+                        // Device-level bulk actions
+                        let devices = viewModel.filteredDevicesByRoom.flatMap(\.devices)
+                        let allEnabled = devices.allSatisfy { viewModel.isEnabled(for: $0) }
+                        let noneEnabled = !devices.contains { viewModel.isEnabled(for: $0) }
+                        let allObserved = devices.allSatisfy { viewModel.isObserved(for: $0) }
+                        let noneObserved = !devices.contains { viewModel.isObserved(for: $0) }
+
+                        Section("Devices") {
                             Button {
                                 confirmBulkAction(message: "Enable \(filteredDeviceCount) devices?") {
                                     viewModel.setBulkEnabled(true)
@@ -135,12 +180,10 @@ struct DeviceListView: View {
                                     viewModel.setBulkEnabled(false)
                                 }
                             } label: {
-                                Label("Disable All", systemImage: !allEnabled ? "xmark.circle" : "circle")
+                                Label("Disable All", systemImage: noneEnabled ? "xmark.circle" : "circle")
                             }
-                            .disabled(!allEnabled)
-                        }
+                            .disabled(noneEnabled)
 
-                        Section("Observed") {
                             Button {
                                 confirmBulkAction(message: "Observe \(filteredDeviceCount) devices?") {
                                     viewModel.setBulkObserved(true)
@@ -155,9 +198,9 @@ struct DeviceListView: View {
                                     viewModel.setBulkObserved(false)
                                 }
                             } label: {
-                                Label("Stop All", systemImage: !allObserved ? "xmark.circle" : "circle")
+                                Label("Stop All", systemImage: noneObserved ? "xmark.circle" : "circle")
                             }
-                            .disabled(!allObserved)
+                            .disabled(noneObserved)
                         }
                     } label: {
                         Image(systemName: "ellipsis.circle")
@@ -226,6 +269,11 @@ struct DeviceListView: View {
 
                 // Service type filter
                 serviceTypeFilterChip
+
+                // Characteristic type filter
+                if !viewModel.availableCharacteristicTypes.isEmpty {
+                    characteristicTypeFilterChip
+                }
 
                 // Enabled filter
                 enabledFilterChip
@@ -357,6 +405,63 @@ struct DeviceListView: View {
                                     viewModel.selectedServiceTypes.remove(serviceType)
                                 } else {
                                     viewModel.selectedServiceTypes.insert(serviceType)
+                                }
+                            }
+                        }
+                    }
+                }
+                .frame(maxHeight: 300)
+            }
+            .frame(width: 230)
+            .padding(.vertical, 4)
+        }
+    }
+
+    private var characteristicTypeFilterChip: some View {
+        FilterDropdown {
+            let isActive = !viewModel.selectedCharacteristicTypes.isEmpty
+            HStack(spacing: 4) {
+                Image(systemName: "slider.horizontal.3")
+                    .font(.caption2)
+                let text: String = {
+                    if viewModel.selectedCharacteristicTypes.isEmpty { return "All Characteristics" }
+                    if viewModel.selectedCharacteristicTypes.count == 1 { return viewModel.selectedCharacteristicTypes.first! }
+                    return "\(viewModel.selectedCharacteristicTypes.count) Characteristics"
+                }()
+                Text(text)
+                    .font(.footnote)
+                    .fontWeight(.medium)
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 10, weight: .bold))
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(
+                Capsule()
+                    .fill(isActive ? Theme.Tint.main.opacity(0.15) : Theme.Colors.chipInactive)
+            )
+            .overlay(
+                Capsule()
+                    .strokeBorder(isActive ? Theme.Tint.main : Color.clear, lineWidth: 1)
+            )
+            .foregroundColor(isActive ? Theme.Tint.main : Theme.Text.primary)
+        } content: {
+            VStack(alignment: .leading, spacing: 0) {
+                menuRow(title: "All Characteristics", isSelected: viewModel.selectedCharacteristicTypes.isEmpty) {
+                    withAnimation { viewModel.selectedCharacteristicTypes.removeAll() }
+                }
+
+                Divider()
+                    .padding(.vertical, 4)
+
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 0) {
+                        ForEach(viewModel.availableCharacteristicTypes, id: \.self) { charType in
+                            menuRow(title: charType, isSelected: viewModel.selectedCharacteristicTypes.contains(charType)) {
+                                if viewModel.selectedCharacteristicTypes.contains(charType) {
+                                    viewModel.selectedCharacteristicTypes.remove(charType)
+                                } else {
+                                    viewModel.selectedCharacteristicTypes.insert(charType)
                                 }
                             }
                         }

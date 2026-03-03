@@ -177,7 +177,6 @@ struct DeviceCharacteristicPicker: View {
     private func flattenedCharacteristics(for device: DeviceModel) -> [CharacteristicItem] {
         device.services.flatMap { service in
             service.characteristics.compactMap { characteristic in
-                guard characteristic.isUserFacing else { return nil }
                 if let perm = requiredPermission, !characteristic.permissions.contains(perm) { return nil }
                 return CharacteristicItem(
                     serviceId: service.id,
@@ -215,7 +214,7 @@ private struct DevicePickerSheet: View {
         // Only show devices that have at least one characteristic with the required permission
         if let perm = requiredPermission {
             candidates = candidates.filter { device in
-                device.services.flatMap(\.characteristics).contains { $0.isUserFacing && $0.permissions.contains(perm) }
+                device.services.flatMap(\.characteristics).contains { $0.permissions.contains(perm) }
             }
         }
 

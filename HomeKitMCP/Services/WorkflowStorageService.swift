@@ -88,6 +88,10 @@ actor WorkflowStorageService: WorkflowStorageServiceProtocol {
         publishAndSave()
     }
 
+    func deleteAllWorkflows() {
+        replaceAll(workflows: [])
+    }
+
     // MARK: - Persistence
 
     private func publishAndSave() {

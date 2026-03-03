@@ -38,30 +38,27 @@ struct LogViewerView: View {
                                 .padding(.vertical, 8)
                                 .textCase(nil)
                         ) {
-                            ForEach(group.logs) { unifiedLog in
-                                switch unifiedLog {
-                                case .stateChange(let log):
-                                    if log.category == .backupRestore,
-                                       let registry = registryService,
-                                       let hkManager = homeKitManager,
-                                       let wfStorage = workflowStorageService {
-                                        NavigationLink {
-                                            OrphanedDevicesView(registryService: registry, homeKitManager: hkManager, workflowStorageService: wfStorage)
-                                        } label: {
-                                            LogRow(log: log, detailedLogsEnabled: viewModel.detailedLogsEnabled)
-                                        }
-                                        .listRowBackground(Theme.contentBackground)
-                                    } else {
-                                        LogRow(log: log, detailedLogsEnabled: viewModel.detailedLogsEnabled)
-                                            .listRowBackground(Theme.contentBackground)
-                                    }
-                                case .workflowExecution(let log):
+                            ForEach(group.logs) { log in
+                                if let wfLog = log.workflowExecution {
                                     NavigationLink {
-                                        WorkflowExecutionLogDetailView(logId: log.id, viewModel: viewModel, onCancel: onCancelExecution)
+                                        WorkflowExecutionLogDetailView(logId: wfLog.id, viewModel: viewModel, onCancel: onCancelExecution)
                                     } label: {
-                                        WorkflowExecutionLogRow(log: log)
+                                        WorkflowExecutionLogRow(log: wfLog)
                                     }
                                     .listRowBackground(Theme.contentBackground)
+                                } else if log.category == .backupRestore,
+                                          let registry = registryService,
+                                          let hkManager = homeKitManager,
+                                          let wfStorage = workflowStorageService {
+                                    NavigationLink {
+                                        OrphanedDevicesView(registryService: registry, homeKitManager: hkManager, workflowStorageService: wfStorage)
+                                    } label: {
+                                        LogRow(log: log, detailedLogsEnabled: viewModel.detailedLogsEnabled)
+                                    }
+                                    .listRowBackground(Theme.contentBackground)
+                                } else {
+                                    LogRow(log: log, detailedLogsEnabled: viewModel.detailedLogsEnabled)
+                                        .listRowBackground(Theme.contentBackground)
                                 }
                             }
                         }
@@ -71,6 +68,9 @@ struct LogViewerView: View {
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
             .background(Theme.mainBackground)
+            .safeAreaInset(edge: .bottom) {
+                Color.clear.frame(height: 20)
+            }
         }
         .background(Theme.mainBackground)
         .searchable(text: $viewModel.searchText, placement: .navigationBarDrawer, prompt: "Search by device, service or characteristic")

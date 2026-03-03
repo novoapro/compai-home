@@ -326,11 +326,21 @@ struct NestedBlockEditorSheet: View {
     var scenes: [SceneModel] = []
     var blockOrdinals: [UUID: Int] = [:]
     @Environment(\.dismiss) private var dismiss
+    @State private var nestedEditState: NestedEditState?
 
     var body: some View {
         NavigationStack {
             Form {
-                BlockEditorSection(blocks: $blocks, devices: devices, scenes: scenes, allowNesting: false, blockOrdinals: blockOrdinals)
+                BlockEditorSection(
+                    blocks: $blocks,
+                    devices: devices,
+                    scenes: scenes,
+                    allowNesting: true,
+                    blockOrdinals: blockOrdinals,
+                    onRequestNestedEdit: { state in
+                        nestedEditState = state
+                    }
+                )
             }
             .formStyle(.grouped)
             .scrollContentBackground(.hidden)
@@ -341,6 +351,15 @@ struct NestedBlockEditorSheet: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
                 }
+            }
+            .sheet(item: $nestedEditState) { state in
+                NestedBlockEditorSheet(
+                    title: BlockEditorSection.nestedSheetTitle(for: state, blocks: blocks),
+                    blocks: BlockEditorSection.nestedBlocksBinding(for: state, blocks: $blocks),
+                    devices: devices,
+                    scenes: scenes,
+                    blockOrdinals: blockOrdinals
+                )
             }
         }
     }

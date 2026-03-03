@@ -12,6 +12,7 @@ actor LoggingService: LoggingServiceProtocol {
 
     nonisolated let logsSubject = PassthroughSubject<[StateChangeLog], Never>()
     nonisolated let logEntrySubject = PassthroughSubject<StateChangeLog, Never>()
+    nonisolated let logUpdatedSubject = PassthroughSubject<StateChangeLog, Never>()
     nonisolated let logsClearedSubject = PassthroughSubject<Void, Never>()
 
     init(storage: StorageService) {
@@ -34,6 +35,23 @@ actor LoggingService: LoggingServiceProtocol {
         appendEntry(entry.truncatingLargeFields())
     }
 
+    /// Updates an existing log entry by ID (e.g., when a running workflow completes).
+    /// If not found, appends as a new entry.
+    func updateEntry(_ entry: StateChangeLog) {
+        let truncated = entry.truncatingLargeFields()
+        if let index = logs.firstIndex(where: { $0.id == truncated.id }) {
+            logs[index] = truncated
+        } else {
+            logs.append(truncated)
+            if logs.count > maxLogs {
+                logs.removeFirst()
+            }
+        }
+        logsSubject.send(logs.reversed())
+        logUpdatedSubject.send(truncated)
+        debouncedSave()
+    }
+
     /// O(1) append; trims oldest entry when the buffer is full.
     private func appendEntry(_ entry: StateChangeLog) {
         logs.append(entry)
@@ -50,11 +68,38 @@ actor LoggingService: LoggingServiceProtocol {
         return logs.reversed()
     }
 
+    /// Returns workflow execution logs for a specific workflow, newest-first.
+    func getLogs(forWorkflowId id: UUID) -> [StateChangeLog] {
+        logs.reversed().filter {
+            ($0.category == .workflowExecution || $0.category == .workflowError) &&
+            $0.workflowExecution?.workflowId == id
+        }
+    }
+
     func clearLogs() {
         logs.removeAll()
         logsSubject.send(logs)
         logsClearedSubject.send()
         saveNow()
+    }
+
+    /// Clears logs matching any of the given categories.
+    func clearLogs(forCategories categories: Set<LogCategory>) {
+        logs.removeAll { categories.contains($0.category) }
+        logsSubject.send(logs.reversed())
+        logsClearedSubject.send()
+        debouncedSave()
+    }
+
+    /// Clears workflow execution logs for a specific workflow.
+    func clearLogs(forWorkflowId id: UUID) {
+        logs.removeAll {
+            ($0.category == .workflowExecution || $0.category == .workflowError) &&
+            $0.workflowExecution?.workflowId == id
+        }
+        logsSubject.send(logs.reversed())
+        logsClearedSubject.send()
+        debouncedSave()
     }
 
     /// Debounce saves: wait 2 seconds of inactivity before writing to disk.

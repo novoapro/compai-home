@@ -14,13 +14,16 @@ struct WorkflowListView: View {
                 if viewModel.workflows.isEmpty {
                     emptyState
                 } else {
+                    let devices = viewModel.devices
+                    let scenes = viewModel.scenes
                     ForEach(viewModel.filteredWorkflows) { workflow in
                         NavigationLink(value: workflow.id) {
                             WorkflowRow(
                                 workflow: workflow,
                                 recentLogs: viewModel.executionLogs(for: workflow.id),
                                 onToggle: { viewModel.toggleEnabled(id: workflow.id) },
-                                onClone: { viewModel.cloneWorkflow(id: workflow.id) }
+                                onClone: { viewModel.cloneWorkflow(id: workflow.id) },
+                                hasOrphanedReferences: Self.workflowHasOrphanedRefs(workflow, devices: devices, scenes: scenes)
                             )
                         }
                         .listRowBackground(Theme.contentBackground)
@@ -114,6 +117,20 @@ struct WorkflowListView: View {
                 )
             }
         }
+    }
+
+    private static func workflowHasOrphanedRefs(_ workflow: Workflow, devices: [DeviceModel], scenes: [SceneModel]) -> Bool {
+        let deviceIds = Set(devices.map(\.id))
+        let sceneIds = Set(scenes.map(\.id))
+        let deviceRefs = WorkflowMigrationService.collectDeviceReferences(from: workflow)
+        for ref in deviceRefs {
+            if !deviceIds.contains(ref.deviceId) { return true }
+        }
+        let sceneRefs = WorkflowMigrationService.collectSceneReferences(from: workflow)
+        for ref in sceneRefs {
+            if !sceneIds.contains(ref.sceneId) { return true }
+        }
+        return false
     }
 
     private var emptyState: some View {

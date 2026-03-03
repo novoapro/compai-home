@@ -489,6 +489,63 @@ private extension ControlDeviceDraft {
     }
 }
 
+extension BlockDraft {
+    /// Returns `true` when this block (or any nested child block) references a
+    /// device or scene that is not present in the provided arrays.
+    func hasOrphanedReference(devices: [DeviceModel], scenes: [SceneModel]) -> Bool {
+        let deviceIds = Set(devices.map(\.id))
+        let sceneIds = Set(scenes.map(\.id))
+        return _hasOrphan(deviceIds: deviceIds, sceneIds: sceneIds)
+    }
+
+    fileprivate func _hasOrphan(deviceIds: Set<String>, sceneIds: Set<String>) -> Bool {
+        switch blockType {
+        case let .controlDevice(d):
+            return !d.deviceId.isEmpty && !deviceIds.contains(d.deviceId)
+        case let .runScene(d):
+            return !d.sceneId.isEmpty && !sceneIds.contains(d.sceneId)
+        case let .waitForState(d):
+            return d.conditionRoot.hasOrphanedDeviceRef(deviceIds: deviceIds, sceneIds: sceneIds)
+        case let .conditional(d):
+            if d.conditionRoot.hasOrphanedDeviceRef(deviceIds: deviceIds, sceneIds: sceneIds) { return true }
+            if d.thenBlocks.contains(where: { $0._hasOrphan(deviceIds: deviceIds, sceneIds: sceneIds) }) { return true }
+            if d.elseBlocks.contains(where: { $0._hasOrphan(deviceIds: deviceIds, sceneIds: sceneIds) }) { return true }
+            return false
+        case let .repeatWhile(d):
+            if d.conditionRoot.hasOrphanedDeviceRef(deviceIds: deviceIds, sceneIds: sceneIds) { return true }
+            return d.blocks.contains { $0._hasOrphan(deviceIds: deviceIds, sceneIds: sceneIds) }
+        case let .repeatBlock(d):
+            return d.blocks.contains { $0._hasOrphan(deviceIds: deviceIds, sceneIds: sceneIds) }
+        case let .group(d):
+            return d.blocks.contains { $0._hasOrphan(deviceIds: deviceIds, sceneIds: sceneIds) }
+        case .webhook, .log, .delay, .stop, .executeWorkflow:
+            return false
+        }
+    }
+}
+
+extension ConditionGroupDraft {
+    /// Returns `true` when any leaf condition in this group references an unknown device or scene.
+    func hasOrphanedDeviceRef(deviceIds: Set<String>, sceneIds: Set<String>) -> Bool {
+        for child in children {
+            switch child {
+            case let .leaf(c):
+                switch c.conditionDraftType {
+                case .deviceState:
+                    if !c.deviceId.isEmpty && !deviceIds.contains(c.deviceId) { return true }
+                case .sceneActive:
+                    if !c.sceneId.isEmpty && !sceneIds.contains(c.sceneId) { return true }
+                case .timeCondition, .blockResult:
+                    break
+                }
+            case let .group(g):
+                if g.hasOrphanedDeviceRef(deviceIds: deviceIds, sceneIds: sceneIds) { return true }
+            }
+        }
+        return false
+    }
+}
+
 private extension WebhookDraft {
     func autoName() -> String {
         guard !url.isEmpty else { return "Webhook" }
