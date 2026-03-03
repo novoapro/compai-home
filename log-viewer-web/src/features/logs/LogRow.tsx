@@ -41,7 +41,7 @@ const STATUS_COLOR_MAP: Record<ExecutionStatus, string> = {
   success: 'var(--status-active)',
   failure: 'var(--status-error)',
   skipped: 'var(--text-secondary)',
-  conditionNotMet: 'var(--status-warning)',
+  conditionNotMet: 'var(--text-secondary)',
   cancelled: 'var(--status-warning)',
 };
 

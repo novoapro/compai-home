@@ -139,6 +139,9 @@ class StorageService: ObservableObject, StorageServiceProtocol {
     @Published var websocketEnabled: Bool {
         didSet { defaults.set(websocketEnabled, forKey: Keys.websocketEnabled) }
     }
+    @Published var hideSkippedWorkflowLogs: Bool {
+        didSet { defaults.set(hideSkippedWorkflowLogs, forKey: Keys.hideSkippedWorkflowLogs) }
+    }
     @Published var webhookPrivateIPAllowlist: [String] {
         didSet {
             if let data = try? JSONEncoder().encode(webhookPrivateIPAllowlist) {
@@ -177,7 +180,8 @@ class StorageService: ObservableObject, StorageServiceProtocol {
             Keys.workflowSyncEnabled: false,
             Keys.logAccessEnabled: true,
             Keys.logCacheSize: 500,
-            Keys.websocketEnabled: true
+            Keys.websocketEnabled: true,
+            Keys.hideSkippedWorkflowLogs: false
         ])
 
         // Migrate webhook URL from UserDefaults to Keychain (one-time)
@@ -225,6 +229,7 @@ class StorageService: ObservableObject, StorageServiceProtocol {
         self.workflowSyncEnabled = defaults.bool(forKey: Keys.workflowSyncEnabled)
         self.logAccessEnabled = defaults.bool(forKey: Keys.logAccessEnabled)
         self.websocketEnabled = defaults.bool(forKey: Keys.websocketEnabled)
+        self.hideSkippedWorkflowLogs = defaults.bool(forKey: Keys.hideSkippedWorkflowLogs)
         let rawCacheSize = defaults.integer(forKey: Keys.logCacheSize)
         self.logCacheSize = rawCacheSize > 0 ? rawCacheSize : 500
         if let data = defaults.data(forKey: Keys.webhookPrivateIPAllowlist),
@@ -361,6 +366,10 @@ class StorageService: ObservableObject, StorageServiceProtocol {
         UserDefaults.standard.bool(forKey: Keys.websocketEnabled)
     }
 
+    nonisolated func readHideSkippedWorkflowLogs() -> Bool {
+        UserDefaults.standard.bool(forKey: Keys.hideSkippedWorkflowLogs)
+    }
+
     nonisolated func readLogCacheSize() -> Int {
         let val = UserDefaults.standard.integer(forKey: Keys.logCacheSize)
         return val > 0 ? val : 500
@@ -400,5 +409,6 @@ class StorageService: ObservableObject, StorageServiceProtocol {
         static let logAccessEnabled = "logAccessEnabled"
         static let logCacheSize = "logCacheSize"
         static let websocketEnabled = "websocketEnabled"
+        static let hideSkippedWorkflowLogs = "hideSkippedWorkflowLogs"
     }
 }

@@ -534,8 +534,8 @@
   gap: 6px;
   padding: 8px 10px;
   border-radius: var(--radius-sm);
-  background: var(--bg-detail);
-  border: 1px solid color-mix(in srgb, var(--border-color) 60%, transparent);
+  background: color-mix(in srgb, var(--tint-main) 8%, var(--bg-detail));
+  border: 1px solid color-mix(in srgb, var(--tint-main) 25%, transparent);
   animation: footerBlockIn 0.2s ease-out;
 }
 
@@ -614,15 +614,15 @@
   height: 30px;
   border-radius: var(--radius-sm);
   border: none;
-  background: none;
-  color: var(--text-tertiary);
+  background: color-mix(in srgb, var(--text-secondary) 10%, transparent);
+  color: var(--text-secondary);
   cursor: pointer;
   padding: 0;
   font-family: inherit;
   transition: background var(--transition-fast), color var(--transition-fast);
 }
 .wfe-footer-block-btn:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--text-tertiary) 10%, transparent);
+  background: color-mix(in srgb, var(--text-secondary) 18%, transparent);
   color: var(--text-primary);
 }
 .wfe-footer-block-btn:disabled {

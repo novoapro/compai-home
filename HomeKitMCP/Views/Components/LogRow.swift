@@ -20,6 +20,16 @@ struct LogRow: View {
         }
     }
 
+    private func executionStatusColor(_ status: ExecutionStatus) -> Color {
+        switch status {
+        case .success: return Theme.Status.active
+        case .skipped, .conditionNotMet: return Theme.Status.inactive
+        case .running: return .blue
+        case .failure: return Theme.Status.error
+        case .cancelled: return Theme.Status.inactive
+        }
+    }
+
     private var categoryColor: Color {
         switch log.payload {
         case .stateChange: return Theme.Tint.main
@@ -108,7 +118,7 @@ struct LogRow: View {
                 if let roomName = p.roomName { roomBadge(roomName) }
                 if let serviceName = p.serviceName { serviceBadge(serviceName) }
             case .workflowExecution(let e):
-                statusBadge(e.status.rawValue, color: Theme.Status.active)
+                statusBadge(e.status.displayName, color: executionStatusColor(e.status))
             case .workflowError(let e):
                 statusBadge(e.status.rawValue, color: workflowStatusColor)
             default:

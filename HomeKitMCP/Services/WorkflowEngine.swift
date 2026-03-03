@@ -516,6 +516,11 @@ actor WorkflowEngine: WorkflowEngineProtocol {
             if !allPassed {
                 execLog.status = .conditionNotMet
                 execLog.completedAt = Date()
+                if storage.readHideSkippedWorkflowLogs() {
+                    await executionLogService.removeEntry(id: execLog.id)
+                    executionToWorkflow.removeValue(forKey: execLog.id)
+                    return execLog
+                }
                 await finalizeExecution(execLog, workflow: workflow, succeeded: false)
                 return execLog
             }

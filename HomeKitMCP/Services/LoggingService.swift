@@ -52,6 +52,13 @@ actor LoggingService: LoggingServiceProtocol {
         debouncedSave()
     }
 
+    /// Removes a log entry by its ID (e.g., to suppress a "running" entry for a skipped workflow).
+    func removeEntry(id: UUID) {
+        logs.removeAll { $0.id == id }
+        logsSubject.send(logs.reversed())
+        debouncedSave()
+    }
+
     /// O(1) append; trims oldest entry when the buffer is full.
     private func appendEntry(_ entry: StateChangeLog) {
         logs.append(entry)

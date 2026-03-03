@@ -60,6 +60,9 @@ class SettingsViewModel: ObservableObject {
     @Published var logCacheSize: Int {
         didSet { storage.logCacheSize = logCacheSize }
     }
+    @Published var hideSkippedWorkflowLogs: Bool {
+        didSet { storage.hideSkippedWorkflowLogs = hideSkippedWorkflowLogs }
+    }
     @Published var webhookPrivateIPAllowlist: [String] {
         didSet { storage.webhookPrivateIPAllowlist = webhookPrivateIPAllowlist }
     }
@@ -163,6 +166,7 @@ class SettingsViewModel: ObservableObject {
         self.logOnlyWebhookDevices = storage.logOnlyWebhookDevices
         self.logAccessEnabled = storage.logAccessEnabled
         self.logCacheSize = storage.logCacheSize
+        self.hideSkippedWorkflowLogs = storage.hideSkippedWorkflowLogs
         self.webhookPrivateIPAllowlist = storage.webhookPrivateIPAllowlist
         self.sunEventLatitude = storage.sunEventLatitude
         self.sunEventLongitude = storage.sunEventLongitude

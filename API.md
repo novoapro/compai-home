@@ -1249,7 +1249,7 @@ Embedded in `StateChangeLog` entries with `workflow_execution` or `workflow_erro
 | `success` | Completed successfully |
 | `failure` | Failed with an error |
 | `skipped` | Skipped (e.g. condition not met for a block) |
-| `conditionNotMet` | Workflow-level guard conditions not met |
+| `conditionNotMet` | Workflow-level guard conditions not met; displayed as inactive/skipped. When the "Hide Skipped Workflow Logs" setting is enabled, workflows with this status are not logged. |
 | `cancelled` | Cancelled (by retrigger policy or return block) |
 
 #### TriggerEvent
