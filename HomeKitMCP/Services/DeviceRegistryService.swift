@@ -137,6 +137,18 @@ actor DeviceRegistryService {
         }
     }
 
+    /// Testable initializer that accepts a custom file URL for persistence.
+    init(fileURL: URL) {
+        self.fileURL = fileURL
+
+        if let data = try? Data(contentsOf: fileURL),
+           let saved = try? JSONDecoder.iso8601.decode(RegistrySnapshot.self, from: data) {
+            self.devices = saved.devices
+            self.scenes = saved.scenes
+            rebuildReverseLookups()
+        }
+    }
+
     // MARK: - Sync Devices with HomeKit
 
     /// Synchronizes the device registry with the current HomeKit device list.

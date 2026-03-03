@@ -21,20 +21,6 @@
                ReferencedContainer = "container:HomeKitMCP.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
-         <BuildActionEntry
-            buildForTesting = "YES"
-            buildForRunning = "NO"
-            buildForProfiling = "NO"
-            buildForArchiving = "NO"
-            buildForAnalyzing = "NO">
-            <BuildableReference
-               BuildableIdentifier = "primary"
-               BlueprintIdentifier = "F2E461DD054BC36EFC9236EE"
-               BuildableName = "HomeKitMCPTests.xctest"
-               BlueprintName = "HomeKitMCPTests"
-               ReferencedContainer = "container:HomeKitMCP.xcodeproj">
-            </BuildableReference>
-         </BuildActionEntry>
       </BuildActionEntries>
    </BuildAction>
    <TestAction
@@ -53,23 +39,10 @@
          </BuildableReference>
       </MacroExpansion>
       <Testables>
-         <TestableReference
-            skipped = "NO"
-            parallelizable = "NO">
-            <BuildableReference
-               BuildableIdentifier = "primary"
-               BlueprintIdentifier = "F2E461DD054BC36EFC9236EE"
-               BuildableName = "HomeKitMCPTests.xctest"
-               BlueprintName = "HomeKitMCPTests"
-               ReferencedContainer = "container:HomeKitMCP.xcodeproj">
-            </BuildableReference>
-         </TestableReference>
       </Testables>
-      <CommandLineArguments>
-      </CommandLineArguments>
    </TestAction>
    <LaunchAction
-      buildConfiguration = "Dev Debug"
+      buildConfiguration = "Prod Debug"
       selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"
       selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
       launchStyle = "0"

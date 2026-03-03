@@ -147,7 +147,11 @@ extension KeychainService {
 
     /// Returns the set of valid token strings for middleware validation.
     func getValidTokenStrings() -> Set<String> {
-        Set(getAPITokens().map(\.token))
+        var tokens = Set(getAPITokens().map(\.token))
+        #if DEV_ENVIRONMENT
+        tokens.insert(AppEnvironment.devDefaultToken)
+        #endif
+        return tokens
     }
 
     private func saveAPITokens(_ tokens: [APIToken]) {

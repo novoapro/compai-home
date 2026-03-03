@@ -6,12 +6,16 @@ struct HomeKitMCPApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
-                .environmentObject(appDelegate.homeKitViewModel)
-                .environmentObject(appDelegate.logViewModel)
-                .environmentObject(appDelegate.settingsViewModel)
-                .environmentObject(appDelegate.workflowViewModel)
-                .tint(Theme.Tint.main)
+            if ProcessInfo.processInfo.isRunningTests {
+                Color.clear
+            } else {
+                ContentView()
+                    .environmentObject(appDelegate.homeKitViewModel)
+                    .environmentObject(appDelegate.logViewModel)
+                    .environmentObject(appDelegate.settingsViewModel)
+                    .environmentObject(appDelegate.workflowViewModel)
+                    .tint(Theme.Tint.main)
+            }
         }
     }
 }

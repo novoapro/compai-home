@@ -4,7 +4,8 @@ import Combine
 class AppDelegate: UIResponder, UIApplicationDelegate {
 
     /// Single source of truth for all service and view model creation.
-    let container = ServiceContainer()
+    /// Created lazily so the test host can skip full initialization.
+    lazy var container = ServiceContainer()
 
     private var cancellables = Set<AnyCancellable>()
 
@@ -25,6 +26,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
+        // Skip heavy initialization when running as a test host
+        guard !ProcessInfo.processInfo.isRunningTests else { return true }
+
         installSignalHandlers()
         setupWorkflowEngine()
         startMCPServerIfEnabled()
