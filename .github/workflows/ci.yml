@@ -10,6 +10,13 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  # Disable code signing in CI (no Apple Developer identity on runners)
+  CI_XCODEBUILD_FLAGS: >-
+    CODE_SIGN_IDENTITY=""
+    CODE_SIGNING_REQUIRED=NO
+    CODE_SIGNING_ALLOWED=NO
+
 jobs:
   swift:
     name: Swift Build & Test
@@ -29,21 +36,24 @@ jobs:
           xcodebuild -scheme HomeKitMCP \
             -destination 'platform=macOS,variant=Mac Catalyst' \
             -configuration 'Dev Debug' \
-            -resolvePackageDependencies
+            -resolvePackageDependencies \
+            $CI_XCODEBUILD_FLAGS
 
       - name: Build
         run: |
           xcodebuild -scheme HomeKitMCP \
             -destination 'platform=macOS,variant=Mac Catalyst' \
             -configuration 'Dev Debug' \
-            build
+            build \
+            $CI_XCODEBUILD_FLAGS
 
       - name: Test
         run: |
           xcodebuild -scheme HomeKitMCP \
             -destination 'platform=macOS,variant=Mac Catalyst' \
             -configuration 'Dev Debug' \
-            test
+            test \
+            $CI_XCODEBUILD_FLAGS
 
   web:
     name: Web App Test & Build
