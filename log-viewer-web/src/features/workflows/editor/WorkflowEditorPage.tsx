@@ -108,18 +108,23 @@ export function WorkflowEditorPage() {
   const footerRef = useRef<HTMLDivElement>(null);
   const pageRef = useRef<HTMLDivElement>(null);
 
-  // Keep page padding-bottom in sync with footer height
+  // Keep page padding-bottom in sync with footer height so content isn't hidden
   useEffect(() => {
     const footer = footerRef.current;
     const page = pageRef.current;
     if (!footer || !page) return;
-    const ro = new ResizeObserver(() => {
+    const apply = () => {
       const h = footer.getBoundingClientRect().height;
-      page.style.paddingBottom = `${h + 16}px`;
-    });
+      page.style.paddingBottom = `${h + 32}px`;
+    };
+    apply(); // set immediately
+    const ro = new ResizeObserver(apply);
     ro.observe(footer);
-    return () => ro.disconnect();
-  }, []);
+    return () => {
+      ro.disconnect();
+      page.style.paddingBottom = '';
+    };
+  }, [isLoading]); // re-run when loading completes so refs are available
 
   const guardedNavigate = useCallback(
     (navFn: () => void) => {

@@ -42,7 +42,7 @@ function formatValue(char: RESTCharacteristic): string {
     const match = char.validValues.find(
       vv => vv.value === val || String(vv.value) === String(val),
     );
-    if (match?.description) return match.description;
+    if (match?.label) return match.label;
   }
 
   // Numeric with units

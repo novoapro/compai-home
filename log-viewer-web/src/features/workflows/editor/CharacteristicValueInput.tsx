@@ -112,8 +112,54 @@ export function CharacteristicValueInput({
     );
   }
 
-  // --- Valid values dropdown ---
+  // --- Valid values: toggle for 2 options, dropdown for 3+ ---
   if (characteristic.validValues && characteristic.validValues.length > 0) {
+    if (characteristic.validValues.length === 2) {
+      const optA = characteristic.validValues[0]!;
+      const optB = characteristic.validValues[1]!;
+      const isAny = allowAny && value === undefined;
+
+      return (
+        <div className="editor-field">
+          <label>{label}{unit && <span className="char-unit">{unit}</span>}</label>
+          <div className="char-toggle-wrap">
+            {allowAny && (
+              <button
+                type="button"
+                className={`char-toggle-option${isAny ? ' active' : ''}`}
+                disabled={isReadOnly}
+                onClick={() => onChange(undefined)}
+              >
+                Any
+              </button>
+            )}
+            <button
+              type="button"
+              className={`char-toggle-option${!isAny && String(value) === String(optA.value) ? ' active' : ''}`}
+              disabled={isReadOnly}
+              onClick={() => {
+                const num = Number(optA.value);
+                onChange(isNaN(num) ? optA.value : num);
+              }}
+            >
+              {optA.label ?? String(optA.value)}
+            </button>
+            <button
+              type="button"
+              className={`char-toggle-option${!isAny && String(value) === String(optB.value) ? ' active' : ''}`}
+              disabled={isReadOnly}
+              onClick={() => {
+                const num = Number(optB.value);
+                onChange(isNaN(num) ? optB.value : num);
+              }}
+            >
+              {optB.label ?? String(optB.value)}
+            </button>
+          </div>
+        </div>
+      );
+    }
+
     const selectValue = value != null ? String(value) : (allowAny ? '__any__' : '');
 
     return (
@@ -135,7 +181,7 @@ export function CharacteristicValueInput({
           {allowAny && <option value="__any__">Any</option>}
           {characteristic.validValues.map((vv) => (
             <option key={String(vv.value)} value={String(vv.value)}>
-              {vv.description ?? String(vv.value)}
+              {vv.label ?? String(vv.value)}
             </option>
           ))}
         </select>

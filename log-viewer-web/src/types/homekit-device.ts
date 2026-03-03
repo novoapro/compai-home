@@ -1,6 +1,6 @@
 export interface RESTValidValue {
   value: unknown;
-  description?: string;
+  label?: string;
 }
 
 export interface RESTCharacteristic {

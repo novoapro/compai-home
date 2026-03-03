@@ -1,9 +1,8 @@
 .wfe-page {
   max-width: 700px;
   margin: 0 auto;
-  padding: var(--spacing-md) var(--spacing-md) 120px;
-  height: 100%;
-  overflow-y: auto;
+  padding: var(--spacing-md);
+  padding-bottom: 160px;
   box-sizing: border-box;
 }
 
@@ -373,7 +372,7 @@
   display: flex;
   align-items: center;
   gap: var(--spacing-sm);
-  padding: var(--spacing-md) var(--spacing-lg);
+  padding: calc(var(--spacing-md) + env(safe-area-inset-top, 0px)) var(--spacing-lg) var(--spacing-md);
   border-bottom: 1px solid var(--border-color);
   flex-shrink: 0;
 }
@@ -692,7 +691,7 @@
 @media (max-width: 768px) {
   .wfe-page {
     padding: var(--spacing-md);
-    padding-bottom: 120px;
+    padding-bottom: 160px;
   }
   .wfe-section {
     padding: var(--spacing-md);
