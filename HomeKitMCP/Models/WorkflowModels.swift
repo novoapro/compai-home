@@ -193,10 +193,10 @@ enum WorkflowAction: Codable {
 
     private enum CodingKeys: String, CodingKey {
         case type, name
-        case deviceId, serviceId, characteristicId, characteristicType, value
+        case deviceId, deviceName, roomName, serviceId, characteristicId, characteristicType, value
         case url, method, headers, body
         case message
-        case sceneId
+        case sceneId, sceneName
     }
 
     init(from decoder: Decoder) throws {
@@ -209,6 +209,8 @@ enum WorkflowAction: Codable {
                 ?? container.decode(String.self, forKey: .characteristicType)
             self = try .controlDevice(ControlDeviceAction(
                 deviceId: container.decode(String.self, forKey: .deviceId),
+                deviceName: container.decodeIfPresent(String.self, forKey: .deviceName),
+                roomName: container.decodeIfPresent(String.self, forKey: .roomName),
                 serviceId: container.decodeIfPresent(String.self, forKey: .serviceId),
                 characteristicId: charId,
                 value: container.decode(AnyCodable.self, forKey: .value),
@@ -230,6 +232,7 @@ enum WorkflowAction: Codable {
         case .runScene, .activateScene:
             self = try .runScene(RunSceneAction(
                 sceneId: container.decode(String.self, forKey: .sceneId),
+                sceneName: container.decodeIfPresent(String.self, forKey: .sceneName),
                 name: name
             ))
         }
@@ -242,6 +245,8 @@ enum WorkflowAction: Codable {
             try container.encode(ActionType.controlDevice, forKey: .type)
             try container.encodeIfPresent(action.name, forKey: .name)
             try container.encode(action.deviceId, forKey: .deviceId)
+            try container.encodeIfPresent(action.deviceName, forKey: .deviceName)
+            try container.encodeIfPresent(action.roomName, forKey: .roomName)
             try container.encodeIfPresent(action.serviceId, forKey: .serviceId)
             try container.encode(action.characteristicId, forKey: .characteristicId)
             try container.encode(action.value, forKey: .value)
@@ -260,6 +265,7 @@ enum WorkflowAction: Codable {
             try container.encode(ActionType.runScene, forKey: .type)
             try container.encodeIfPresent(action.name, forKey: .name)
             try container.encode(action.sceneId, forKey: .sceneId)
+            try container.encodeIfPresent(action.sceneName, forKey: .sceneName)
         }
     }
 
@@ -275,13 +281,17 @@ enum WorkflowAction: Codable {
 
 struct ControlDeviceAction {
     let deviceId: String
+    let deviceName: String?
+    let roomName: String?
     let serviceId: String?
     let characteristicId: String
     let value: AnyCodable
     let name: String?
 
-    init(deviceId: String, serviceId: String? = nil, characteristicId: String, value: AnyCodable, name: String? = nil) {
+    init(deviceId: String, deviceName: String? = nil, roomName: String? = nil, serviceId: String? = nil, characteristicId: String, value: AnyCodable, name: String? = nil) {
         self.deviceId = deviceId
+        self.deviceName = deviceName
+        self.roomName = roomName
         self.serviceId = serviceId
         self.characteristicId = characteristicId
         self.value = value
@@ -317,10 +327,12 @@ struct LogAction {
 
 struct RunSceneAction {
     let sceneId: String
+    let sceneName: String?
     let name: String?
 
-    init(sceneId: String, name: String? = nil) {
+    init(sceneId: String, sceneName: String? = nil, name: String? = nil) {
         self.sceneId = sceneId
+        self.sceneName = sceneName
         self.name = name
     }
 }
@@ -677,7 +689,7 @@ enum WorkflowTrigger: Codable {
 
     private enum CodingKeys: String, CodingKey {
         case type, name
-        case deviceId, serviceId, characteristicId, characteristicType, condition
+        case deviceId, deviceName, roomName, serviceId, characteristicId, characteristicType, condition
         case scheduleType, token
         case event, offsetMinutes
         case retriggerPolicy
@@ -694,6 +706,8 @@ enum WorkflowTrigger: Codable {
                 ?? container.decode(String.self, forKey: .characteristicType)
             self = try .deviceStateChange(DeviceStateTrigger(
                 deviceId: container.decode(String.self, forKey: .deviceId),
+                deviceName: container.decodeIfPresent(String.self, forKey: .deviceName),
+                roomName: container.decodeIfPresent(String.self, forKey: .roomName),
                 serviceId: container.decodeIfPresent(String.self, forKey: .serviceId),
                 characteristicId: charId,
                 condition: container.decode(TriggerCondition.self, forKey: .condition),
@@ -731,6 +745,8 @@ enum WorkflowTrigger: Codable {
             try container.encode(TriggerType.deviceStateChange, forKey: .type)
             try container.encodeIfPresent(trigger.name, forKey: .name)
             try container.encode(trigger.deviceId, forKey: .deviceId)
+            try container.encodeIfPresent(trigger.deviceName, forKey: .deviceName)
+            try container.encodeIfPresent(trigger.roomName, forKey: .roomName)
             try container.encodeIfPresent(trigger.serviceId, forKey: .serviceId)
             try container.encode(trigger.characteristicId, forKey: .characteristicId)
             try container.encode(trigger.condition, forKey: .condition)
@@ -778,7 +794,8 @@ enum WorkflowTrigger: Codable {
         switch self {
         case .deviceStateChange(let t):
             return .deviceStateChange(DeviceStateTrigger(
-                deviceId: t.deviceId, serviceId: t.serviceId,
+                deviceId: t.deviceId, deviceName: t.deviceName, roomName: t.roomName,
+                serviceId: t.serviceId,
                 characteristicId: t.characteristicId, condition: t.condition,
                 name: t.name, retriggerPolicy: policy
             ))
@@ -805,14 +822,18 @@ enum WorkflowTrigger: Codable {
 
 struct DeviceStateTrigger {
     let deviceId: String
+    let deviceName: String?
+    let roomName: String?
     let serviceId: String?
     let characteristicId: String
     let condition: TriggerCondition
     let name: String?
     let retriggerPolicy: ConcurrentExecutionPolicy?
 
-    init(deviceId: String, serviceId: String? = nil, characteristicId: String, condition: TriggerCondition, name: String? = nil, retriggerPolicy: ConcurrentExecutionPolicy? = nil) {
+    init(deviceId: String, deviceName: String? = nil, roomName: String? = nil, serviceId: String? = nil, characteristicId: String, condition: TriggerCondition, name: String? = nil, retriggerPolicy: ConcurrentExecutionPolicy? = nil) {
         self.deviceId = deviceId
+        self.deviceName = deviceName
+        self.roomName = roomName
         self.serviceId = serviceId
         self.characteristicId = characteristicId
         self.condition = condition
@@ -1137,12 +1158,12 @@ indirect enum WorkflowCondition: Codable {
 
     private enum CodingKeys: String, CodingKey {
         case type, conditions, condition
-        case deviceId, serviceId, characteristicId, characteristicType, comparison
+        case deviceId, deviceName, roomName, serviceId, characteristicId, characteristicType, comparison
         // timeCondition fields
         case mode, startTime, endTime
         // legacy sunEvent fields (decode only)
         case event, sunComparison
-        case sceneId, isActive
+        case sceneId, sceneName, isActive
         // blockResult fields
         case blockResultScope, expectedStatus
     }
@@ -1156,6 +1177,8 @@ indirect enum WorkflowCondition: Codable {
                 ?? container.decode(String.self, forKey: .characteristicType)
             self = try .deviceState(DeviceStateCondition(
                 deviceId: container.decode(String.self, forKey: .deviceId),
+                deviceName: container.decodeIfPresent(String.self, forKey: .deviceName),
+                roomName: container.decodeIfPresent(String.self, forKey: .roomName),
                 serviceId: container.decodeIfPresent(String.self, forKey: .serviceId),
                 characteristicId: charId,
                 comparison: container.decode(ComparisonOperator.self, forKey: .comparison)
@@ -1181,6 +1204,7 @@ indirect enum WorkflowCondition: Codable {
         case .sceneActive:
             self = try .sceneActive(SceneActiveCondition(
                 sceneId: container.decode(String.self, forKey: .sceneId),
+                sceneName: container.decodeIfPresent(String.self, forKey: .sceneName),
                 isActive: container.decodeIfPresent(Bool.self, forKey: .isActive) ?? true
             ))
         case .blockResult:
@@ -1203,6 +1227,8 @@ indirect enum WorkflowCondition: Codable {
         case let .deviceState(cond):
             try container.encode(ConditionType.deviceState, forKey: .type)
             try container.encode(cond.deviceId, forKey: .deviceId)
+            try container.encodeIfPresent(cond.deviceName, forKey: .deviceName)
+            try container.encodeIfPresent(cond.roomName, forKey: .roomName)
             try container.encodeIfPresent(cond.serviceId, forKey: .serviceId)
             try container.encode(cond.characteristicId, forKey: .characteristicId)
             try container.encode(cond.comparison, forKey: .comparison)
@@ -1213,6 +1239,7 @@ indirect enum WorkflowCondition: Codable {
             try container.encodeIfPresent(cond.endTime, forKey: .endTime)
         case let .sceneActive(cond):
             try container.encode(ConditionType.sceneActive, forKey: .type)
+            try container.encodeIfPresent(cond.sceneName, forKey: .sceneName)
             try container.encode(cond.sceneId, forKey: .sceneId)
             try container.encode(cond.isActive, forKey: .isActive)
         case let .blockResult(cond):
@@ -1234,12 +1261,16 @@ indirect enum WorkflowCondition: Codable {
 
 struct DeviceStateCondition {
     let deviceId: String
+    let deviceName: String?
+    let roomName: String?
     let serviceId: String?
     let characteristicId: String
     let comparison: ComparisonOperator
 
-    init(deviceId: String, serviceId: String? = nil, characteristicId: String, comparison: ComparisonOperator) {
+    init(deviceId: String, deviceName: String? = nil, roomName: String? = nil, serviceId: String? = nil, characteristicId: String, comparison: ComparisonOperator) {
         self.deviceId = deviceId
+        self.deviceName = deviceName
+        self.roomName = roomName
         self.serviceId = serviceId
         self.characteristicId = characteristicId
         self.comparison = comparison
@@ -1320,10 +1351,12 @@ struct TimeCondition: Codable {
 
 struct SceneActiveCondition: Codable {
     let sceneId: String
+    let sceneName: String?
     let isActive: Bool
 
-    init(sceneId: String, isActive: Bool = true) {
+    init(sceneId: String, sceneName: String? = nil, isActive: Bool = true) {
         self.sceneId = sceneId
+        self.sceneName = sceneName
         self.isActive = isActive
     }
 }
@@ -1448,7 +1481,7 @@ struct WorkflowExecutionLog: Identifiable, Codable {
     /// The full `WorkflowExecutionLog` is embedded in the payload so clients receive the complete
     /// block execution tree without a second request.
     func toStateChangeLog() -> StateChangeLog {
-        let category: LogCategory = (status == .failure || status == .cancelled) ? .workflowError : .workflowExecution
+        let category: LogCategory = (status == .failure) ? .workflowError : .workflowExecution
         return StateChangeLog(
             id: id,
             timestamp: triggeredAt,
@@ -1530,7 +1563,7 @@ enum ExecutionStatus: String, Codable {
         case .success: return "Success"
         case .failure: return "Failure"
         case .skipped: return "Skipped"
-        case .conditionNotMet: return "Condition Not Met"
+        case .conditionNotMet: return "Skipped"
         case .cancelled: return "Cancelled"
         }
     }

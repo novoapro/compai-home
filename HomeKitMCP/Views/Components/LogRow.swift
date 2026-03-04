@@ -10,16 +10,6 @@ struct LogRow: View {
         log.detailedRequestBody != nil || (log.workflowExecution?.blockResults.isEmpty == false)
     }
 
-    private var workflowStatusColor: Color {
-        guard let e = log.workflowExecution else { return Theme.Status.active }
-        switch e.status {
-        case .success: return Theme.Status.active
-        case .cancelled: return Theme.Status.warning
-        case .running: return Theme.Status.active
-        default: return Theme.Status.error
-        }
-    }
-
     private func executionStatusColor(_ status: ExecutionStatus) -> Color {
         switch status {
         case .success: return Theme.Status.active
@@ -37,7 +27,7 @@ struct LogRow: View {
         case .restCall: return Color.indigo
         case .webhookCall: return Theme.Tint.secondary
         case .webhookError, .serverError, .sceneError: return Theme.Status.error
-        case .workflowError: return workflowStatusColor
+        case .workflowError: return Theme.Status.error
         case .workflowExecution: return Theme.Status.active
         case .sceneExecution: return Theme.Tint.main
         case .backupRestore: return Color.orange
@@ -120,7 +110,7 @@ struct LogRow: View {
             case .workflowExecution(let e):
                 statusBadge(e.status.displayName, color: executionStatusColor(e.status))
             case .workflowError(let e):
-                statusBadge(e.status.rawValue, color: workflowStatusColor)
+                statusBadge(e.status.displayName, color: executionStatusColor(e.status))
             default:
                 EmptyView()
             }
@@ -314,7 +304,7 @@ struct LogRow: View {
     }
 
     private func workflowContent(_ e: WorkflowExecutionLog, isError: Bool) -> some View {
-        let messageColor = isError ? workflowStatusColor : Theme.Text.secondary
+        let messageColor = isError ? Theme.Status.error : Theme.Text.secondary
         return VStack(alignment: .leading, spacing: 4) {
             if let trigger = e.triggerEvent {
                 let desc = trigger.triggerDescription ?? {

@@ -10,7 +10,7 @@ const STATUS_COLORS: Record<string, string> = {
   success: 'var(--status-active)',
   failure: 'var(--status-error)',
   skipped: 'var(--status-inactive)',
-  conditionNotMet: 'var(--status-warning)',
+  conditionNotMet: 'var(--status-inactive)',
   cancelled: 'var(--status-inactive)',
 };
 

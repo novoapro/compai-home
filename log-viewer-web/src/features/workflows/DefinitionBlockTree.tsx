@@ -83,7 +83,6 @@ export function DefinitionBlockTree({ block, depth = 0, index }: DefinitionBlock
         return block.message || undefined;
       case 'repeat':
         return block.count ? `${block.count} times` : undefined;
-      case 'stop':
       case 'return':
         return block.outcome || undefined;
       case 'executeWorkflow':

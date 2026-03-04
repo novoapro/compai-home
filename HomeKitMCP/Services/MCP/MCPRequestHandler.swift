@@ -419,9 +419,10 @@ final class MCPRequestHandler: Sendable {
                     for char in service.characteristics {
                         let charName = CharacteristicTypes.displayName(for: char.type)
                         let val = char.value.map { CharacteristicTypes.formatValue($0.value, characteristicType: char.type) } ?? "--"
+                        let perms = Self.compactPermissions(char.permissions)
                         let hint = Self.metadataHint(for: char)
                         let indent = device.services.count > 1 ? "      " : "    "
-                        lines.append("\(indent)\(charName): \(val)\(hint)")
+                        lines.append("\(indent)\(charName) (id: \(char.id)): \(val) [\(perms)]\(hint)")
                     }
                 }
             }
@@ -1102,9 +1103,15 @@ final class MCPRequestHandler: Sendable {
 
     /// Builds an inline metadata hint string for a characteristic, e.g. ` (int, 0–100, %)`.
     /// Only shown for writable characteristics.
-    private static func metadataHint(for char: CharacteristicModel) -> String {
-        guard char.permissions.contains("write") else { return "" }
+    private static func compactPermissions(_ permissions: [String]) -> String {
+        var parts: [String] = []
+        if permissions.contains("read") { parts.append("r") }
+        if permissions.contains("write") { parts.append("w") }
+        if permissions.contains("notify") { parts.append("n") }
+        return parts.joined(separator: "/")
+    }
 
+    private static func metadataHint(for char: CharacteristicModel) -> String {
         // Enum-style characteristics with valid values
         if let validValues = char.validValues, !validValues.isEmpty {
             let options = CharacteristicInputConfig.buildPickerOptions(for: char.type, values: validValues)

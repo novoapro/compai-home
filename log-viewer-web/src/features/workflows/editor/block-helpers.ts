@@ -21,7 +21,7 @@ export function newBlockDraft(type: string): WorkflowBlockDraft {
     case 'repeat': base.count = 1; base.blocks = []; break;
     case 'repeatWhile': base.condition = newConditionDraft(); base.blocks = []; base.maxIterations = 10; break;
     case 'group': base.label = ''; base.blocks = []; break;
-    case 'stop': base.outcome = 'success'; break;
+    case 'return': base.outcome = 'success'; break;
     case 'executeWorkflow': base.executionMode = 'inline'; break;
   }
   return base;
@@ -31,13 +31,13 @@ export const BLOCK_ICONS: Record<string, string> = {
   controlDevice: 'house', runScene: 'sparkles', webhook: 'link', log: 'doc-text',
   delay: 'clock', waitForState: 'clock', conditional: 'arrow-triangle-branch',
   repeat: 'arrow-2-squarepath', repeatWhile: 'arrow-2-squarepath',
-  group: 'folder', stop: 'xmark-circle', executeWorkflow: 'arrow-right-circle',
+  group: 'folder', return: 'arrow-uturn-left', executeWorkflow: 'arrow-right-circle',
 };
 
 export const BLOCK_TYPE_LABELS: Record<string, string> = {
   controlDevice: 'Control Device', runScene: 'Run Scene', webhook: 'Webhook', log: 'Log',
   delay: 'Delay', waitForState: 'Wait for State', conditional: 'If / Else',
-  repeat: 'Repeat', repeatWhile: 'Repeat While', group: 'Group', stop: 'Stop',
+  repeat: 'Repeat', repeatWhile: 'Repeat While', group: 'Group', return: 'Return',
   executeWorkflow: 'Execute Workflow',
 };
 
@@ -143,8 +143,8 @@ export const HTTP_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'];
 
 export const OUTCOMES = [
   { value: 'success', label: 'Success' },
-  { value: 'failure', label: 'Failure' },
-  { value: 'skipped', label: 'Skipped' },
+  { value: 'error', label: 'Error' },
+  { value: 'cancelled', label: 'Cancelled' },
 ];
 
 export const EXEC_MODES = [

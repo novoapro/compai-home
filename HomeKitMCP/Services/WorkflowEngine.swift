@@ -18,6 +18,8 @@ actor WorkflowEngine: WorkflowEngineProtocol {
     /// Tracks parent → children workflow IDs for inline executions,
     /// so cancelling a parent also cancels its inline children.
     private var inlineChildren: [UUID: Set<UUID>] = [:]
+    /// Stores the reason a workflow was cancelled (set before calling cancelWorkflowTree).
+    private var cancellationReasons: [UUID: String] = [:]
     /// Maximum number of workflows executing concurrently. When the limit is reached,
     /// additional triggered workflows are evaluated and then queued (not dropped).
     private let maxConcurrentExecutions = 20
@@ -134,6 +136,7 @@ actor WorkflowEngine: WorkflowEngineProtocol {
                     continue
                 case .cancelAndRestart:
                     AppLogger.workflow.debug("[\(workflow.name)] Cancelling running execution — restarting (cancelAndRestart policy)")
+                    cancellationReasons[workflow.id] = "Cancelled and restarted — new device state trigger fired while running (cancelAndRestart policy)"
                     cancelWorkflowTree(workflow.id)
                     runningTasks.removeValue(forKey: workflow.id)
                 case .queueAndExecute:
@@ -141,6 +144,7 @@ actor WorkflowEngine: WorkflowEngineProtocol {
                     continue
                 case .cancelOnly:
                     AppLogger.workflow.debug("[\(workflow.name)] Cancelling running execution — no restart (cancelOnly policy)")
+                    cancellationReasons[workflow.id] = "Cancelled — new device state trigger fired while running (cancelOnly policy)"
                     cancelWorkflowTree(workflow.id)
                     runningTasks.removeValue(forKey: workflow.id)
                     continue
@@ -162,12 +166,14 @@ actor WorkflowEngine: WorkflowEngineProtocol {
             case .ignoreNew:
                 return nil
             case .cancelAndRestart:
+                cancellationReasons[id] = "Cancelled and restarted — manual trigger while running (cancelAndRestart policy)"
                 cancelWorkflowTree(id)
                 runningTasks.removeValue(forKey: id)
             case .queueAndExecute:
                 enqueueWorkflow(workflow, change: nil)
                 return nil
             case .cancelOnly:
+                cancellationReasons[id] = "Cancelled — manual trigger while running (cancelOnly policy)"
                 cancelWorkflowTree(id)
                 runningTasks.removeValue(forKey: id)
                 return nil
@@ -209,12 +215,14 @@ actor WorkflowEngine: WorkflowEngineProtocol {
             case .ignoreNew:
                 return nil
             case .cancelAndRestart:
+                cancellationReasons[id] = "Cancelled and restarted — new trigger fired while running (cancelAndRestart policy)"
                 cancelWorkflowTree(id)
                 runningTasks.removeValue(forKey: id)
             case .queueAndExecute:
                 enqueueWorkflow(workflow, change: nil)
                 return nil
             case .cancelOnly:
+                cancellationReasons[id] = "Cancelled — new trigger fired while running (cancelOnly policy)"
                 cancelWorkflowTree(id)
                 runningTasks.removeValue(forKey: id)
                 return nil
@@ -250,6 +258,7 @@ actor WorkflowEngine: WorkflowEngineProtocol {
             case .ignoreNew:
                 return .ignored(workflowId: id, workflowName: workflow.name)
             case .cancelAndRestart:
+                cancellationReasons[id] = "Cancelled and restarted — manual schedule trigger while running (cancelAndRestart policy)"
                 cancelWorkflowTree(id)
                 runningTasks.removeValue(forKey: id)
                 startExecution(workflow, change: nil)
@@ -258,6 +267,7 @@ actor WorkflowEngine: WorkflowEngineProtocol {
                 enqueueWorkflow(workflow, change: nil)
                 return .queued(workflowId: id, workflowName: workflow.name)
             case .cancelOnly:
+                cancellationReasons[id] = "Cancelled — manual schedule trigger while running (cancelOnly policy)"
                 cancelWorkflowTree(id)
                 runningTasks.removeValue(forKey: id)
                 return .cancelled(workflowId: id, workflowName: workflow.name)
@@ -286,6 +296,7 @@ actor WorkflowEngine: WorkflowEngineProtocol {
             case .ignoreNew:
                 return .ignored(workflowId: id, workflowName: workflow.name)
             case .cancelAndRestart:
+                cancellationReasons[id] = "Cancelled and restarted — new trigger fired while running (cancelAndRestart policy)"
                 cancelWorkflowTree(id)
                 runningTasks.removeValue(forKey: id)
                 startExecution(workflow, change: nil, triggerEvent: triggerEvent)
@@ -294,6 +305,7 @@ actor WorkflowEngine: WorkflowEngineProtocol {
                 enqueueWorkflow(workflow, change: nil, triggerEvent: triggerEvent)
                 return .queued(workflowId: id, workflowName: workflow.name)
             case .cancelOnly:
+                cancellationReasons[id] = "Cancelled — new trigger fired while running (cancelOnly policy)"
                 cancelWorkflowTree(id)
                 runningTasks.removeValue(forKey: id)
                 return .cancelled(workflowId: id, workflowName: workflow.name)
@@ -326,12 +338,14 @@ actor WorkflowEngine: WorkflowEngineProtocol {
             case .ignoreNew:
                 return nil
             case .cancelAndRestart:
+                cancellationReasons[id] = "Cancelled and restarted — called by executeWorkflow block while running (cancelAndRestart policy)"
                 cancelWorkflowTree(id)
                 runningTasks.removeValue(forKey: id)
             case .queueAndExecute:
                 enqueueWorkflow(workflow, change: nil)
                 return nil
             case .cancelOnly:
+                cancellationReasons[id] = "Cancelled — called by executeWorkflow block while running (cancelOnly policy)"
                 cancelWorkflowTree(id)
                 runningTasks.removeValue(forKey: id)
                 return nil
@@ -364,12 +378,14 @@ actor WorkflowEngine: WorkflowEngineProtocol {
     func cancelExecution(executionId: UUID) {
         guard let workflowId = executionToWorkflow[executionId] else { return }
         AppLogger.workflow.info("Cancelling execution \(executionId) for workflow \(workflowId)")
+        cancellationReasons[workflowId] = "Cancelled by user request"
         cancelWorkflowTree(workflowId)
     }
 
     /// Cancel all running executions for a specific workflow.
     func cancelRunningExecutions(forWorkflow workflowId: UUID) {
         AppLogger.workflow.info("Cancelling running execution for workflow \(workflowId)")
+        cancellationReasons[workflowId] = "Cancelled by user request"
         cancelWorkflowTree(workflowId)
         // Also remove any pending queue entries for this workflow
         pendingQueue.removeAll { $0.workflow.id == workflowId }
@@ -386,6 +402,11 @@ actor WorkflowEngine: WorkflowEngineProtocol {
         }
         // Cancel this workflow's task
         runningTasks[workflowId]?.cancel()
+    }
+
+    /// Retrieve and remove the cancellation reason for a workflow.
+    private func consumeCancellationReason(for workflowId: UUID) -> String? {
+        cancellationReasons.removeValue(forKey: workflowId)
     }
 
     // MARK: - Execution Slot Management
@@ -496,35 +517,38 @@ actor WorkflowEngine: WorkflowEngineProtocol {
             triggerEvent: event
         )
 
-        // Track execution → workflow mapping for cancellation by execution ID
-        executionToWorkflow[execLog.id] = workflow.id
-
-        // Log immediately as running so it appears in the UI
-        await executionLogService.logEntry(execLog.toStateChangeLog())
-
         // Set workflow context for orphan logging and reset block results
         conditionEvaluator.workflowId = workflow.id
         conditionEvaluator.workflowName = workflow.name
         conditionEvaluator.blockResults = [:]
 
-        // Evaluate guard conditions
+        // Evaluate guard conditions BEFORE logging — a triggered workflow is not yet "running"
         if let conditions = workflow.conditions, !conditions.isEmpty {
             let (allPassed, condResults) = await conditionEvaluator.evaluateAll(conditions)
             execLog.conditionResults = condResults
-            await executionLogService.updateEntry(execLog.toStateChangeLog())
 
             if !allPassed {
                 execLog.status = .conditionNotMet
+                let failedDescriptions = condResults.filter { !$0.passed }.map { $0.conditionDescription }
+                execLog.errorMessage = "Guard condition not met: \(failedDescriptions.joined(separator: "; "))"
                 execLog.completedAt = Date()
-                if storage.readHideSkippedWorkflowLogs() {
-                    await executionLogService.removeEntry(id: execLog.id)
-                    executionToWorkflow.removeValue(forKey: execLog.id)
-                    return execLog
+                if storage.readLogSkippedWorkflows() {
+                    // Log the skipped execution as a completed entry (never "running")
+                    await executionLogService.logEntry(execLog.toStateChangeLog())
+                    await workflowStorageService.updateMetadata(
+                        id: workflow.id,
+                        lastTriggered: execLog.triggeredAt,
+                        incrementExecutions: true,
+                        resetFailures: false
+                    )
                 }
-                await finalizeExecution(execLog, workflow: workflow, succeeded: false)
                 return execLog
             }
         }
+
+        // Guard conditions passed (or none) — now the workflow is truly running
+        executionToWorkflow[execLog.id] = workflow.id
+        await executionLogService.logEntry(execLog.toStateChangeLog())
 
         // Create a reference box so the @Sendable closure can mutate the log
         class LogBox {
@@ -553,6 +577,7 @@ actor WorkflowEngine: WorkflowEngineProtocol {
             for (index, block) in workflow.blocks.enumerated() {
                 if Task.isCancelled {
                     logBox.execLog.status = .cancelled
+                    logBox.execLog.errorMessage = consumeCancellationReason(for: workflow.id) ?? "Cancelled"
                     logBox.execLog.completedAt = Date()
                     await finalizeExecution(logBox.execLog, workflow: workflow, succeeded: false)
                     return logBox.execLog
@@ -573,6 +598,7 @@ actor WorkflowEngine: WorkflowEngineProtocol {
                 // Cancellation always stops immediately, regardless of continueOnError
                 if result.status == .cancelled || Task.isCancelled {
                     logBox.execLog.status = .cancelled
+                    logBox.execLog.errorMessage = consumeCancellationReason(for: workflow.id) ?? "Cancelled"
                     logBox.execLog.completedAt = Date()
                     await finalizeExecution(logBox.execLog, workflow: workflow, succeeded: false)
                     return logBox.execLog
@@ -602,6 +628,7 @@ actor WorkflowEngine: WorkflowEngineProtocol {
         // Check for cancellation after the loop — don't overwrite with failure/success
         if Task.isCancelled {
             logBox.execLog.status = .cancelled
+            logBox.execLog.errorMessage = consumeCancellationReason(for: workflow.id) ?? "Cancelled"
             logBox.execLog.completedAt = Date()
             await finalizeExecution(logBox.execLog, workflow: workflow, succeeded: false)
             return logBox.execLog
@@ -1298,8 +1325,17 @@ actor WorkflowEngine: WorkflowEngineProtocol {
         }
 
         guard !keys.isEmpty else {
-            // No device state refs in condition — cannot wait for state changes
-            AppLogger.workflow.warning("[\(workflowName)] waitForState has no device state conditions to wait on")
+            // No device state refs in condition — poll periodically until timeout
+            AppLogger.workflow.info("[\(workflowName)] waitForState has no device state keys — polling every 2s until timeout (\(block.timeoutSeconds)s)")
+            let deadline = Date().addingTimeInterval(block.timeoutSeconds)
+            while Date() < deadline {
+                try? await Task.sleep(nanoseconds: 2_000_000_000)
+                guard !Task.isCancelled else { return false }
+                let retryResult = await conditionEvaluator.evaluate(block.condition)
+                if retryResult.passed { return true }
+                let elapsed = block.timeoutSeconds - deadline.timeIntervalSinceNow
+                await onProgress?(elapsed)
+            }
             return false
         }
 

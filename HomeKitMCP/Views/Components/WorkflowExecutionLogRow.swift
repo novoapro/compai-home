@@ -121,7 +121,7 @@ struct WorkflowExecutionLogRow: View {
         case .failure: return Theme.Status.error
         case .running: return .blue
         case .skipped: return Theme.Status.inactive
-        case .conditionNotMet: return Theme.Status.warning
+        case .conditionNotMet: return Theme.Status.inactive
         case .cancelled: return Theme.Status.inactive
         }
     }

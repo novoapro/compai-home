@@ -485,7 +485,16 @@ List all HomeKit devices grouped by room.
 |---|---|---|---|
 | *(none)* | | | |
 
-Returns markdown-formatted text with device names, status, IDs, services, and characteristics.
+Returns markdown-formatted text with devices grouped by room. Each device shows its name, online/offline status, and stable device ID. For multi-service devices, each service shows its display name and service ID. Each characteristic includes its stable characteristic ID, current value, compact permissions (`[r/w/n]` where r=read, w=write, n=notify), and metadata (format, range, units, or enum labels).
+
+Example output:
+```
+## Living Room
+- Living Room Light [online] (id: abc-123)
+    Power (id: def-456): On [r/w/n]
+    Brightness (id: ghi-789): 75 [r/w] (uint8, 0–100, percentage)
+    Current Temperature (id: jkl-012): 22.5 [r] (float, celsius)
+```
 
 ---
 
@@ -1218,8 +1227,8 @@ Serialized as flat JSON for all log categories.
 | `mcp_call` | MCP tool/resource call |
 | `rest_call` | REST API call |
 | `server_error` | Server error |
-| `workflow_execution` | Workflow executed |
-| `workflow_error` | Workflow execution failed |
+| `workflow_execution` | Workflow executed (includes success, running, skipped/conditionNotMet, and cancelled statuses) |
+| `workflow_error` | Workflow execution failed (only `failure` status) |
 | `scene_execution` | Scene executed |
 | `scene_error` | Scene execution failed |
 | `backup_restore` | Backup/restore operation |
@@ -1249,8 +1258,8 @@ Embedded in `StateChangeLog` entries with `workflow_execution` or `workflow_erro
 | `success` | Completed successfully |
 | `failure` | Failed with an error |
 | `skipped` | Skipped (e.g. condition not met for a block) |
-| `conditionNotMet` | Workflow-level guard conditions not met; displayed as inactive/skipped. When the "Hide Skipped Workflow Logs" setting is enabled, workflows with this status are not logged. |
-| `cancelled` | Cancelled (by retrigger policy or return block) |
+| `conditionNotMet` | Workflow-level guard conditions not met (displayed as "Skipped"). The `errorMessage` field describes which conditions failed. When the "Log Skipped Workflows" setting is disabled, workflows with this status are not logged. |
+| `cancelled` | Cancelled (by retrigger policy, return block, or user request). The `errorMessage` field describes the cancellation reason. |
 
 #### TriggerEvent
 

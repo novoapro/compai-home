@@ -309,8 +309,8 @@ export function BlockEditor({
         </>
       )}
 
-      {/* stop */}
-      {draft.type === 'stop' && (
+      {/* return */}
+      {draft.type === 'return' && (
         <div className="editor-field">
           <label>Outcome</label>
           <select className="editor-select" value={draft.outcome || 'success'} onChange={(e) => patch({ outcome: e.target.value })}>

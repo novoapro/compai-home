@@ -17,7 +17,7 @@ const STATUS_ICONS: Record<ExecutionStatus, { name: string; color: string }> = {
   failure: { name: 'xmark-circle-fill', color: 'var(--status-error)' },
   running: { name: 'refresh-circle-fill', color: 'var(--status-running)' },
   skipped: { name: 'forward-circle-fill', color: 'var(--status-inactive)' },
-  conditionNotMet: { name: 'slash-circle-fill', color: 'var(--status-warning)' },
+  conditionNotMet: { name: 'forward-circle-fill', color: 'var(--status-inactive)' },
   cancelled: { name: 'xmark-circle-fill', color: 'var(--status-inactive)' },
 };
 

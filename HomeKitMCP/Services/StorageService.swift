@@ -139,8 +139,8 @@ class StorageService: ObservableObject, StorageServiceProtocol {
     @Published var websocketEnabled: Bool {
         didSet { defaults.set(websocketEnabled, forKey: Keys.websocketEnabled) }
     }
-    @Published var hideSkippedWorkflowLogs: Bool {
-        didSet { defaults.set(hideSkippedWorkflowLogs, forKey: Keys.hideSkippedWorkflowLogs) }
+    @Published var logSkippedWorkflows: Bool {
+        didSet { defaults.set(logSkippedWorkflows, forKey: Keys.logSkippedWorkflows) }
     }
     @Published var webhookPrivateIPAllowlist: [String] {
         didSet {
@@ -181,7 +181,7 @@ class StorageService: ObservableObject, StorageServiceProtocol {
             Keys.logAccessEnabled: true,
             Keys.logCacheSize: 500,
             Keys.websocketEnabled: true,
-            Keys.hideSkippedWorkflowLogs: false
+            Keys.logSkippedWorkflows: true
         ])
 
         // Migrate webhook URL from UserDefaults to Keychain (one-time)
@@ -190,6 +190,13 @@ class StorageService: ObservableObject, StorageServiceProtocol {
                 keychainService.save(key: KeychainService.Keys.webhookURL, value: legacyURL)
             }
             defaults.removeObject(forKey: Keys.webhookURL)
+        }
+
+        // Migrate hideSkippedWorkflowLogs → logSkippedWorkflows (inverted logic)
+        if defaults.object(forKey: Keys.hideSkippedWorkflowLogs) != nil {
+            let oldValue = defaults.bool(forKey: Keys.hideSkippedWorkflowLogs)
+            defaults.set(!oldValue, forKey: Keys.logSkippedWorkflows)
+            defaults.removeObject(forKey: Keys.hideSkippedWorkflowLogs)
         }
 
         self.webhookURL = keychainService.read(key: KeychainService.Keys.webhookURL)
@@ -229,7 +236,7 @@ class StorageService: ObservableObject, StorageServiceProtocol {
         self.workflowSyncEnabled = defaults.bool(forKey: Keys.workflowSyncEnabled)
         self.logAccessEnabled = defaults.bool(forKey: Keys.logAccessEnabled)
         self.websocketEnabled = defaults.bool(forKey: Keys.websocketEnabled)
-        self.hideSkippedWorkflowLogs = defaults.bool(forKey: Keys.hideSkippedWorkflowLogs)
+        self.logSkippedWorkflows = defaults.bool(forKey: Keys.logSkippedWorkflows)
         let rawCacheSize = defaults.integer(forKey: Keys.logCacheSize)
         self.logCacheSize = rawCacheSize > 0 ? rawCacheSize : 500
         if let data = defaults.data(forKey: Keys.webhookPrivateIPAllowlist),
@@ -366,8 +373,8 @@ class StorageService: ObservableObject, StorageServiceProtocol {
         UserDefaults.standard.bool(forKey: Keys.websocketEnabled)
     }
 
-    nonisolated func readHideSkippedWorkflowLogs() -> Bool {
-        UserDefaults.standard.bool(forKey: Keys.hideSkippedWorkflowLogs)
+    nonisolated func readLogSkippedWorkflows() -> Bool {
+        UserDefaults.standard.bool(forKey: Keys.logSkippedWorkflows)
     }
 
     nonisolated func readLogCacheSize() -> Int {
@@ -409,6 +416,7 @@ class StorageService: ObservableObject, StorageServiceProtocol {
         static let logAccessEnabled = "logAccessEnabled"
         static let logCacheSize = "logCacheSize"
         static let websocketEnabled = "websocketEnabled"
-        static let hideSkippedWorkflowLogs = "hideSkippedWorkflowLogs"
+        static let hideSkippedWorkflowLogs = "hideSkippedWorkflowLogs" // legacy, for migration
+        static let logSkippedWorkflows = "logSkippedWorkflows"
     }
 }

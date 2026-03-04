@@ -353,7 +353,7 @@ export function TriggerEditor({ index, draft, onChange, onRemove }: TriggerEdito
       )}
 
       {/* Retrigger policy */}
-      {(draft.type === 'deviceStateChange' || draft.type === 'sunEvent') && (
+      {draft.type !== 'workflow' && (
         <div className="editor-field">
           <label>Retrigger Policy</label>
           <select

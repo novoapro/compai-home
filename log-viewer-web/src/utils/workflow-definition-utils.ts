@@ -104,7 +104,6 @@ export function formatBlockType(type: string): string {
     repeatWhile: 'Repeat While',
     group: 'Group',
     'return': 'Return',
-    stop: 'Return',
     executeWorkflow: 'Execute Workflow',
   };
   return map[type] || type;
@@ -127,8 +126,7 @@ export function blockTypeIcon(type: string, kind: string): string {
     repeat: 'repeat',
     repeatWhile: 'repeat',
     group: 'rectangles-group',
-    'return': 'stop-circle',
-    stop: 'stop-circle',
+    'return': 'arrow-uturn-left',
     executeWorkflow: 'play-circle-fill',
   };
   return map[type] || 'rectangles-group';

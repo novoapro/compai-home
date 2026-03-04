@@ -23,7 +23,7 @@ interface LogGroup {
 }
 
 function workflowExecToStateChangeLog(e: WorkflowExecutionLog): StateChangeLog {
-  const isError = e.status === 'failure' || e.status === 'cancelled';
+  const isError = e.status === 'failure';
   return {
     id: e.id,
     timestamp: e.triggeredAt,

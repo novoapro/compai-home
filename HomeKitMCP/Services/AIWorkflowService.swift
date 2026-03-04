@@ -453,18 +453,18 @@ actor AIWorkflowService {
           "description": "string (optional)",
           "isEnabled": true,
           "continueOnError": false,
+          "retriggerPolicy": "ignoreNew",
           "triggers": [ ... ],
           "conditions": [ ... ],
           "blocks": [ ... ]
         }
         ```
 
-        ### retriggerPolicy (per-trigger, optional, defaults to "ignoreNew")
-        Set on each trigger object. Controls what happens if this trigger fires while the workflow is already running:
-        - "ignoreNew": ignore the new trigger
-        - "cancelAndRestart": cancel the running execution and restart
-        - "queueAndExecute": queue the trigger for after the current run
-        - "cancelOnly": cancel the running execution without restarting
+        ### retriggerPolicy
+        Controls what happens if a trigger fires while the workflow is already running. \
+        Values: "ignoreNew" (default), "cancelAndRestart", "queueAndExecute", "cancelOnly".
+        - Set at the workflow level as the default policy for all triggers.
+        - Each trigger can optionally override it with its own "retriggerPolicy" field.
 
         ## CRITICAL: How Triggers and Guard Conditions Work Together
 
@@ -623,8 +623,8 @@ actor AIWorkflowService {
         ```json
         { "type": "blockResult", "scope": "specific", "blockId": "block-uuid", "expectedStatus": "success" }
         ```
-        blockResult scope: "specific" (check a named block by blockId), "lastBlock" (most recent block), \
-        "anyPreviousBlock" (any block ran with that status).
+        blockResult scope: "specific" (check a named block by blockId), "all" (all previous blocks), \
+        "any" (any previous block ran with that status).
 
         BLOCK ORDERING RULES: Each block has a 1-based ordinal reflecting its position in depth-first \
         execution order. A blockResult condition with scope "specific" can ONLY reference blocks with a \
@@ -641,10 +641,8 @@ actor AIWorkflowService {
         - "greaterThan", "lessThan", "greaterThanOrEqual", "lessThanOrEqual": numeric comparisons
 
         ## Important Rules
-        - Use the exact deviceId and sceneId values from the device and scene lists provided with the user message
-        - Use human-readable characteristic names (e.g. "Power", "Brightness", "Current Temperature")
-        - For boolean characteristics like Power, use true/false values
-        - For percentage characteristics like Brightness, use 0-100
+        - Use the exact deviceId, characteristicId, serviceId, and sceneId values from the device and scene lists provided with the user message
+        - For characteristic values: use true/false for booleans (e.g. Power), 0-100 for percentages (e.g. Brightness), numeric values for temperatures
         - Always include at least one trigger and one block
         - Generate a descriptive name for the workflow
         - Blocks and triggers can optionally include a "name" field for readability. \

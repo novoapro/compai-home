@@ -5,7 +5,7 @@ const STATUS_CONFIG: Record<ExecutionStatus, { label: string; color: string }> =
   success: { label: 'Success', color: 'var(--status-active)' },
   failure: { label: 'Failed', color: 'var(--status-error)' },
   skipped: { label: 'Skipped', color: 'var(--status-inactive)' },
-  conditionNotMet: { label: 'Condition Not Met', color: 'var(--status-inactive)' },
+  conditionNotMet: { label: 'Skipped', color: 'var(--status-inactive)' },
   cancelled: { label: 'Cancelled', color: 'var(--status-inactive)' },
 };
 

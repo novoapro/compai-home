@@ -400,7 +400,7 @@ struct WorkflowExecutionLogDetailView: View {
         case .failure: return "xmark.circle.fill"
         case .running: return "circle.dotted"
         case .skipped: return "forward.circle.fill"
-        case .conditionNotMet: return "exclamationmark.circle.fill"
+        case .conditionNotMet: return "forward.circle.fill"
         case .cancelled: return "slash.circle.fill"
         }
     }
@@ -411,7 +411,7 @@ struct WorkflowExecutionLogDetailView: View {
         case .failure: return "xmark.circle.fill"
         case .running: return "circle.dotted"
         case .skipped: return "forward.circle.fill"
-        case .conditionNotMet: return "exclamationmark.circle.fill"
+        case .conditionNotMet: return "forward.circle.fill"
         case .cancelled: return "slash.circle.fill"
         }
     }
@@ -434,7 +434,7 @@ struct WorkflowExecutionLogDetailView: View {
         case .failure: return Theme.Status.error
         case .running: return .blue
         case .skipped: return Theme.Status.inactive
-        case .conditionNotMet: return Theme.Status.warning
+        case .conditionNotMet: return Theme.Status.inactive
         case .cancelled: return Theme.Status.inactive
         }
     }

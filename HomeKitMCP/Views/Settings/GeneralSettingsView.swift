@@ -13,7 +13,7 @@ struct GeneralSettingsView: View {
                 Toggle("Log Device State Changes", isOn: $viewModel.deviceStateLoggingEnabled)
                 Toggle("Log Detailed Info", isOn: $viewModel.detailedLogsEnabled)
                 Toggle("Log Access via API", isOn: $viewModel.logAccessEnabled)
-                Toggle("Hide Skipped Workflow Logs", isOn: $viewModel.hideSkippedWorkflowLogs)
+                Toggle("Log Skipped Workflows", isOn: $viewModel.logSkippedWorkflows)
 
                 Picker("Log Buffer Size", selection: $viewModel.logCacheSize) {
                     Text("100").tag(100)
@@ -26,7 +26,7 @@ struct GeneralSettingsView: View {
             } header: {
                 Label("Logging", systemImage: "doc.text")
             } footer: {
-                Text("When enabled, state changes for observed characteristics are recorded to the log buffer. Detailed logs capture full request and response data for MCP, REST, and webhook entries. Log Access via API exposes logs through the MCP get_logs tool and the REST /logs endpoint. Hide Skipped Workflow Logs suppresses logging for workflows whose guard conditions were not met. Log buffer size controls the maximum number of log entries kept in memory and on disk — takes effect on next app launch.")
+                Text("When enabled, state changes for observed characteristics are recorded to the log buffer. Detailed logs capture full request and response data for MCP, REST, and webhook entries. Log Access via API exposes logs through the MCP get_logs tool and the REST /logs endpoint. Log Skipped Workflows controls whether workflows whose guard conditions were not met appear in the log. Log buffer size controls the maximum number of log entries kept in memory and on disk — takes effect on next app launch.")
             }
 
             Section {

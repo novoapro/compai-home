@@ -15,7 +15,7 @@ const STATUS_COLORS: Record<ExecutionStatus, string> = {
   success: 'var(--status-active)',
   failure: 'var(--status-error)',
   skipped: 'var(--status-inactive)',
-  conditionNotMet: 'var(--status-warning)',
+  conditionNotMet: 'var(--status-inactive)',
   cancelled: 'var(--status-inactive)',
 };
 
@@ -24,7 +24,7 @@ const STATUS_ICONS: Record<ExecutionStatus, string> = {
   success: 'checkmark-circle-fill',
   failure: 'xmark-circle-fill',
   skipped: 'forward-circle-fill',
-  conditionNotMet: 'exclamation-circle-fill',
+  conditionNotMet: 'forward-circle-fill',
   cancelled: 'slash-circle-fill',
 };
 

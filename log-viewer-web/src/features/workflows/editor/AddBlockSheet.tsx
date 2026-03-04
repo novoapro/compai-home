@@ -22,7 +22,7 @@ const FLOW_BLOCKS: BlockOption[] = [
   { type: 'repeat', label: 'Repeat', description: 'Run blocks a fixed number of times' },
   { type: 'repeatWhile', label: 'Repeat While', description: 'Loop while a condition is true' },
   { type: 'group', label: 'Group', description: 'Organize blocks under a label' },
-  { type: 'stop', label: 'Stop', description: 'End workflow with an outcome' },
+  { type: 'return', label: 'Return', description: 'End workflow with an outcome' },
   { type: 'executeWorkflow', label: 'Execute Workflow', description: 'Run another workflow' },
 ];
 

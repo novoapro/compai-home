@@ -276,7 +276,6 @@ function blockDraftToPayload(b: WorkflowBlockDraft, idMap?: Map<string, string>)
       };
     case 'group':
       return { ...shared, label: b.label, blocks: (b.blocks ?? []).map((child) => blockDraftToPayload(child, idMap)) };
-    case 'stop':
     case 'return':
       return { ...shared, outcome: b.outcome ?? 'success' };
     case 'executeWorkflow':
@@ -473,7 +472,6 @@ function blockDefToDraft(b: WorkflowBlockDef, blockIdMap?: Map<string, string>):
       base.label = b.label;
       base.blocks = (b.blocks ?? []).map((child) => blockDefToDraft(child, blockIdMap));
       break;
-    case 'stop':
     case 'return':
       base.outcome = b.outcome;
       break;
@@ -689,8 +687,8 @@ export function blockAutoName(b: WorkflowBlockDraft, registry: RegistryLike): st
     }
     case 'group':
       return b.label || 'Group';
-    case 'stop':
-      return `Stop (${b.outcome || 'success'})`;
+    case 'return':
+      return `Return (${b.outcome || 'success'})`;
     case 'executeWorkflow': {
       const mode = b.executionMode === 'sync' ? 'sync' : 'async';
       return `Execute Workflow (${mode})`;

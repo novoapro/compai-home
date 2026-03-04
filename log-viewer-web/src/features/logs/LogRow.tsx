@@ -42,7 +42,7 @@ const STATUS_COLOR_MAP: Record<ExecutionStatus, string> = {
   failure: 'var(--status-error)',
   skipped: 'var(--text-secondary)',
   conditionNotMet: 'var(--text-secondary)',
-  cancelled: 'var(--status-warning)',
+  cancelled: 'var(--text-secondary)',
 };
 
 const STATUS_LABEL_MAP: Record<ExecutionStatus, string> = {
@@ -50,7 +50,7 @@ const STATUS_LABEL_MAP: Record<ExecutionStatus, string> = {
   success: 'Success',
   failure: 'Failed',
   skipped: 'Skipped',
-  conditionNotMet: 'Condition Not Met',
+  conditionNotMet: 'Skipped',
   cancelled: 'Cancelled',
 };
 
@@ -77,10 +77,6 @@ export function LogRow({ log, index }: LogRowProps) {
 
   const isError = useMemo(() => {
     const cat = log.category;
-    if (cat === LogCategory.WorkflowError) {
-      const status = log.workflowExecution?.status;
-      if (status === 'success' || status === 'cancelled' || status === 'running') return false;
-    }
     return cat === LogCategory.WebhookError ||
       cat === LogCategory.ServerError ||
       cat === LogCategory.WorkflowError ||
@@ -88,11 +84,6 @@ export function LogRow({ log, index }: LogRowProps) {
   }, [log]);
 
   const categoryColor = useMemo(() => {
-    if (log.category === LogCategory.WorkflowError) {
-      const status = log.workflowExecution?.status;
-      if (status === 'success') return 'var(--status-active)';
-      if (status === 'cancelled') return 'var(--status-warning)';
-    }
     const meta = CATEGORY_META[log.category];
     return meta?.color || 'var(--tint-main)';
   }, [log]);

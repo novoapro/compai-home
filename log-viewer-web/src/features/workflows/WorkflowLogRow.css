@@ -53,6 +53,7 @@
 .wflr-step-count {
   font-size: var(--font-size-xs);
   color: var(--text-tertiary);
+  white-space: nowrap;
 }
 .wflr-message {
   font-size: var(--font-size-xs);
