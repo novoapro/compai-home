@@ -6,8 +6,10 @@ import { StatusBadge } from '@/components/StatusBadge';
 import { ConditionResultTree } from '@/features/workflows/ConditionResultTree';
 import { BlockResultTree } from '@/features/workflows/BlockResultTree';
 import { useApi } from '@/hooks/useApi';
+import { useWebSocket } from '@/contexts/WebSocketContext';
 import type { WorkflowExecutionLog, ExecutionStatus } from '@/types/workflow-log';
 import { formatDuration } from '@/utils/date-utils';
+import { useTick } from '@/hooks/useTick';
 import './WorkflowExecutionDetailPage.css';
 
 const STATUS_COLORS: Record<ExecutionStatus, string> = {
@@ -38,6 +40,7 @@ export function WorkflowExecutionDetailPage() {
   const { workflowId, logId } = useParams<{ workflowId: string; logId: string }>();
   const navigate = useNavigate();
   const api = useApi();
+  const ws = useWebSocket();
 
   const [log, setLog] = useState<WorkflowExecutionLog | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -64,6 +67,23 @@ export function WorkflowExecutionDetailPage() {
     loadDetail();
   }, [loadDetail]);
 
+  // Live updates via WebSocket
+  useEffect(() => {
+    const unsubLog = ws.onWorkflowLog((msg) => {
+      if (msg.data.id !== logId) return;
+      if (msg.type === 'updated') {
+        setLog(current => {
+          if (!current) return msg.data;
+          // Don't overwrite terminal status with running
+          if (current.status !== 'running' && msg.data.status === 'running') return current;
+          return msg.data;
+        });
+      }
+    });
+    const unsubReconnected = ws.onReconnected(() => loadDetail());
+    return () => { unsubLog(); unsubReconnected(); };
+  }, [ws, logId, loadDetail]);
+
   const goBack = useCallback(() => {
     if (window.history.length > 1) {
       navigate(-1);
@@ -85,11 +105,13 @@ export function WorkflowExecutionDetailPage() {
     };
   }, [log]);
 
+  const tick = useTick(log?.status === 'running');
   const duration = useMemo(() => {
     if (!log) return null;
     if (!log.completedAt && log.status !== 'running') return null;
     return formatDuration(log.triggeredAt, log.completedAt ?? undefined);
-  }, [log]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [log, tick]);
 
   function formatDate(iso: string): string {
     return new Date(iso).toLocaleString(undefined, {

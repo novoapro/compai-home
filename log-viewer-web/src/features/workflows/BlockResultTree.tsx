@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { Icon } from '@/components/Icon';
 import type { BlockResult, ExecutionStatus } from '@/types/workflow-log';
 import { formatBlockType, blockTypeIcon } from '@/utils/workflow-definition-utils';
+import { formatDuration } from '@/utils/date-utils';
+import { useTick } from '@/hooks/useTick';
 import './tree-common.css';
 
 const DEPTH_COLORS = [
@@ -21,15 +23,6 @@ const STATUS_ICONS: Record<ExecutionStatus, { name: string; color: string }> = {
   cancelled: { name: 'xmark-circle-fill', color: 'var(--status-inactive)' },
 };
 
-function computeDuration(block: BlockResult): string | null {
-  if (!block.completedAt) return null;
-  const ms = new Date(block.completedAt).getTime() - new Date(block.startedAt).getTime();
-  if (ms < 1000) return `${ms}ms`;
-  const s = ms / 1000;
-  if (s < 60) return `${s.toFixed(1)}s`;
-  return `${Math.round(s / 60)}m ${Math.round(s % 60)}s`;
-}
-
 const CONTAINER_TYPES = new Set(['conditional', 'repeat', 'repeatWhile', 'group']);
 
 interface BlockResultTreeProps {
@@ -39,12 +32,18 @@ interface BlockResultTreeProps {
 
 export function BlockResultTree({ result, depth = 0 }: BlockResultTreeProps) {
   const [collapsed, setCollapsed] = useState(false);
+  const isRunning = result.status === 'running';
+  const tick = useTick(isRunning);
   const hasChildren = (result.nestedResults?.length ?? 0) > 0;
   const isContainer = CONTAINER_TYPES.has(result.blockType);
   const depthRange = Array.from({ length: depth }, (_, i) => i);
   const statusIcon = STATUS_ICONS[result.status] ?? STATUS_ICONS.skipped;
   const icon = blockTypeIcon(result.blockType, result.blockKind);
-  const duration = computeDuration(result);
+
+  void tick;
+  const duration = (result.completedAt || isRunning)
+    ? formatDuration(result.startedAt, result.completedAt ?? undefined)
+    : null;
 
   return (
     <div className="tree-node">

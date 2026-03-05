@@ -3,6 +3,7 @@ import { Icon } from '@/components/Icon';
 import { StatusBadge } from '@/components/StatusBadge';
 import type { WorkflowExecutionLog } from '@/types/workflow-log';
 import { formatDuration } from '@/utils/date-utils';
+import { useTick } from '@/hooks/useTick';
 import './WorkflowLogRow.css';
 
 const STATUS_COLORS: Record<string, string> = {
@@ -31,10 +32,12 @@ export const WorkflowLogRow = memo(function WorkflowLogRow({ log, index = 0, onC
     });
   }, [log.triggeredAt]);
 
+  const tick = useTick(log.status === 'running');
   const duration = useMemo(() => {
     if (!log.completedAt && log.status !== 'running') return null;
     return formatDuration(log.triggeredAt, log.completedAt ?? undefined);
-  }, [log.triggeredAt, log.completedAt, log.status]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [log.triggeredAt, log.completedAt, log.status, tick]);
 
   const messageClass = log.status === 'failure' ? 'error'
     : log.status === 'success' ? 'success'

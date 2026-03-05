@@ -40,6 +40,7 @@ const WebSocketContext = createContext<WebSocketContextValue | null>(null);
 const MAX_RECONNECT_ATTEMPTS = 10;
 const BASE_RECONNECT_DELAY = 1000;
 const MAX_RECONNECT_DELAY = 30000;
+const CONNECT_TIMEOUT = 5000;
 
 export function WebSocketProvider({ children }: { children: ReactNode }) {
   const { config } = useConfig();
@@ -47,6 +48,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
 
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const connectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reconnectAttemptsRef = useRef(0);
   const intentionalCloseRef = useRef(false);
 
@@ -114,9 +116,24 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
 
     wsRef.current = socket;
 
+    // Timeout: if socket doesn't open within CONNECT_TIMEOUT, kill it and retry.
+    if (connectTimeoutRef.current) clearTimeout(connectTimeoutRef.current);
+    connectTimeoutRef.current = setTimeout(() => {
+      connectTimeoutRef.current = null;
+      if (wsRef.current === socket && socket.readyState !== WebSocket.OPEN) {
+        wsRef.current = null;
+        try { socket.close(); } catch { /* ignore */ }
+        setConnectionState('disconnected');
+        scheduleReconnect();
+      }
+    }, CONNECT_TIMEOUT);
+
     socket.onopen = () => {
-      // Ignore if this socket was replaced by a newer one
       if (wsRef.current !== socket) return;
+      if (connectTimeoutRef.current) {
+        clearTimeout(connectTimeoutRef.current);
+        connectTimeoutRef.current = null;
+      }
       setConnectionState('connected');
       if (reconnectAttemptsRef.current > 0) {
         reconnectedHandlers.current.forEach(h => h());
@@ -125,7 +142,6 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
     };
 
     socket.onmessage = (event) => {
-      // Ignore messages from stale sockets
       if (wsRef.current !== socket) return;
       try {
         const msg = JSON.parse(event.data as string) as { type: string; data: unknown };
@@ -162,8 +178,11 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
     };
 
     socket.onclose = () => {
-      // Ignore if this socket was already replaced by a newer one
       if (wsRef.current !== socket) return;
+      if (connectTimeoutRef.current) {
+        clearTimeout(connectTimeoutRef.current);
+        connectTimeoutRef.current = null;
+      }
       setConnectionState('disconnected');
       wsRef.current = null;
       if (!intentionalCloseRef.current) {
@@ -179,6 +198,10 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
   const disconnect = useCallback(() => {
     intentionalCloseRef.current = true;
     clearReconnectTimer();
+    if (connectTimeoutRef.current) {
+      clearTimeout(connectTimeoutRef.current);
+      connectTimeoutRef.current = null;
+    }
     if (wsRef.current) {
       wsRef.current.close();
       wsRef.current = null;
@@ -204,6 +227,79 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
     return () => disconnect();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [config.websocketEnabled, config.bearerToken, config.serverAddress, config.serverPort]);
+
+  // iOS standalone (home screen) apps break WebSocket after freeze/thaw:
+  // new WebSocket() creates a socket that gets stuck in CONNECTING forever.
+  // The only fix is a page reload to get a fresh JS context.
+  // Strategy: periodically probe the server with fetch; if the server is
+  // reachable but WebSocket can't connect after a few attempts, force reload.
+  useEffect(() => {
+    let probeInFlight = false;
+    let wsFailsSinceProbe = 0;
+
+    const interval = setInterval(async () => {
+      if (document.visibilityState !== 'visible') return;
+      if (!configRef.current.websocketEnabled) return;
+      if (probeInFlight) return;
+
+      const ws = wsRef.current;
+
+      // Socket is healthy
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        wsFailsSinceProbe = 0;
+        return;
+      }
+
+      // Socket is dead or stuck in CONNECTING — probe the server
+      const cfg = configRef.current;
+      const httpProtocol = cfg.useHTTPS ? 'https' : 'http';
+      const probeUrl = `${httpProtocol}://${cfg.serverAddress}:${cfg.serverPort}/health`;
+
+      probeInFlight = true;
+      try {
+        const resp = await fetch(probeUrl, {
+          signal: AbortSignal.timeout(3000),
+          headers: { 'Authorization': `Bearer ${cfg.bearerToken}` },
+        });
+
+        if (resp.ok) {
+          wsFailsSinceProbe++;
+
+          if (wsFailsSinceProbe >= 3) {
+            // Server is up but WebSocket is broken (iOS thaw bug) — reload
+            window.location.reload();
+            return;
+          }
+
+          // Kill whatever socket exists (might be stuck in CONNECTING)
+          const staleWs = wsRef.current;
+          if (staleWs) {
+            staleWs.onopen = null;
+            staleWs.onclose = null;
+            staleWs.onerror = null;
+            staleWs.onmessage = null;
+            wsRef.current = null;
+            try { staleWs.close(); } catch { /* ignore */ }
+          }
+          clearReconnectTimer();
+          if (connectTimeoutRef.current) {
+            clearTimeout(connectTimeoutRef.current);
+            connectTimeoutRef.current = null;
+          }
+          intentionalCloseRef.current = false;
+          reconnectAttemptsRef.current = 0;
+          connect();
+        }
+      } catch {
+        // Server unreachable — not a thaw issue, reset counter
+        wsFailsSinceProbe = 0;
+      } finally {
+        probeInFlight = false;
+      }
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [connect, clearReconnectTimer]);
 
   // Subscription helpers
   const subscribe = useCallback(
