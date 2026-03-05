@@ -7,7 +7,7 @@ struct LogRow: View {
     @State private var isExpanded = false
 
     private var hasDetailedData: Bool {
-        log.detailedRequestBody != nil || log.detailedResponseBody != nil || (log.workflowExecution?.blockResults.isEmpty == false)
+        log.detailedRequestBody != nil || log.detailedResponseBody != nil || (log.workflowExecution?.blockResults.isEmpty == false) || log.aiInteraction != nil
     }
 
     private func executionStatusColor(_ status: ExecutionStatus) -> Color {
@@ -389,13 +389,56 @@ struct LogRow: View {
         }
     }
 
+    private func aiDetailSection(_ p: AIInteractionPayload) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            detailBlock(title: "User Message", content: p.userMessage)
+            if let response = p.rawResponse {
+                detailBlock(title: "Raw Response", content: response)
+            }
+            if let error = p.errorMessage {
+                detailBlock(title: "Error", content: error, color: Theme.Status.error)
+            }
+            detailBlock(title: "System Prompt", content: p.systemPrompt, opacity: 0.7)
+        }
+    }
+
+    private func detailBlock(title: String, content: String, color: Color = Theme.Text.secondary, opacity: Double = 1.0) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack {
+                Text(title)
+                    .font(.footnote)
+                    .fontWeight(.semibold)
+                    .foregroundColor(Theme.Text.secondary)
+                Spacer()
+                Button {
+                    UIPasteboard.general.string = content
+                } label: {
+                    Label("Copy", systemImage: "doc.on.doc")
+                        .font(.footnote)
+                }
+                .buttonStyle(.plain)
+                .foregroundColor(Theme.Tint.main)
+            }
+            Text(content)
+                .font(.system(.footnote, design: .monospaced))
+                .foregroundColor(color)
+                .textSelection(.enabled)
+                .lineLimit(20)
+                .opacity(opacity)
+        }
+    }
+
     // MARK: - Detail Expansion
 
     private var detailSection: some View {
         VStack(alignment: .leading, spacing: 6) {
             VStack(alignment: .leading, spacing: 6) {
+                // AI interaction: show user message, raw response, system prompt
+                if let ai = log.aiInteraction {
+                    aiDetailSection(ai)
+                }
                 // Workflow execution: show inline block tree
-                if let execLog = log.workflowExecution {
+                else if let execLog = log.workflowExecution {
                     workflowBlockTree(execLog)
                 } else {
                     if let detailedReq = log.detailedRequestBody {

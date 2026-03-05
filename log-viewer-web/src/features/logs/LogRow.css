@@ -316,6 +316,39 @@
   color: var(--color-backup);
 }
 
+.method-badge.ai {
+  background: color-mix(in srgb, var(--color-ai, #a855f7) 15%, transparent);
+  color: var(--color-ai, #a855f7);
+  text-transform: capitalize;
+}
+
+.ai-interaction-detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) 0;
+}
+
+.ai-detail-pre {
+  font-family: var(--font-mono, monospace);
+  font-size: var(--font-size-xs);
+  line-height: var(--line-height-relaxed);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 300px;
+  overflow-y: auto;
+  padding: var(--spacing-sm);
+  border-radius: var(--radius-sm);
+  background: var(--bg-main);
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.ai-detail-pre.ai-system-prompt {
+  max-height: 200px;
+  opacity: 0.7;
+}
+
 /* Error inline banner */
 .error-banner-inline {
   display: flex;

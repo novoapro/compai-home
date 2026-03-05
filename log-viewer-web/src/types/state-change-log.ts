@@ -14,6 +14,20 @@ export enum LogCategory {
   SceneExecution = 'scene_execution',
   SceneError = 'scene_error',
   BackupRestore = 'backup_restore',
+  AIInteraction = 'ai_interaction',
+  AIInteractionError = 'ai_interaction_error',
+}
+
+export interface AIInteractionPayload {
+  provider: string;
+  model: string;
+  operation: string;
+  systemPrompt: string;
+  userMessage: string;
+  rawResponse?: string;
+  parsedSuccessfully: boolean;
+  errorMessage?: string;
+  durationSeconds: number;
 }
 
 export interface StateChangeLog {
@@ -35,6 +49,7 @@ export interface StateChangeLog {
   detailedRequestBody?: string;
   detailedResponseBody?: string;
   workflowExecution?: WorkflowExecutionLog;
+  aiInteractionPayload?: AIInteractionPayload;
 }
 
 export interface CategoryMeta {
@@ -55,4 +70,6 @@ export const CATEGORY_META: Record<LogCategory, CategoryMeta> = {
   [LogCategory.SceneExecution]: { label: 'Scene', icon: 'play-circle-fill', color: 'var(--color-scene)' },
   [LogCategory.SceneError]: { label: 'Scene Error', icon: 'exclamation-circle-fill', color: 'var(--color-error)' },
   [LogCategory.BackupRestore]: { label: 'Backup', icon: 'refresh-circle-fill', color: 'var(--color-backup)' },
+  [LogCategory.AIInteraction]: { label: 'AI', icon: 'sparkles', color: 'var(--color-ai, #a855f7)' },
+  [LogCategory.AIInteractionError]: { label: 'AI Error', icon: 'exclamation-circle-fill', color: 'var(--color-error)' },
 };

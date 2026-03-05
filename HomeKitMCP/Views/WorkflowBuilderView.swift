@@ -873,17 +873,38 @@ private struct DeviceScenePickerSheet: View {
     @Binding var selectedDeviceIds: Set<String>
     @Binding var selectedSceneIds: Set<String>
     @Environment(\.dismiss) private var dismiss
+    @State private var searchText = ""
 
-    private var devicesByRoom: [(String, [DeviceModel])] {
-        let grouped = Dictionary(grouping: devices) { $0.roomName ?? "No Room" }
+    private var filteredDevicesByRoom: [(String, [DeviceModel])] {
+        let filtered: [DeviceModel]
+        if searchText.trimmingCharacters(in: .whitespaces).isEmpty {
+            filtered = devices
+        } else {
+            let query = searchText.lowercased()
+            filtered = devices.filter {
+                $0.name.lowercased().contains(query) ||
+                ($0.roomName?.lowercased().contains(query) ?? false) ||
+                $0.services.contains { $0.effectiveDisplayName.lowercased().contains(query) }
+            }
+        }
+        let grouped = Dictionary(grouping: filtered) { $0.roomName ?? "No Room" }
         return grouped.sorted { $0.key < $1.key }
+    }
+
+    private var filteredScenes: [SceneModel] {
+        if searchText.trimmingCharacters(in: .whitespaces).isEmpty {
+            return scenes
+        }
+        let query = searchText.lowercased()
+        return scenes.filter { $0.name.lowercased().contains(query) }
     }
 
     var body: some View {
         NavigationStack {
             List {
-                if !devices.isEmpty {
-                    ForEach(devicesByRoom, id: \.0) { room, roomDevices in
+                let roomGroups = filteredDevicesByRoom
+                if !roomGroups.isEmpty {
+                    ForEach(roomGroups, id: \.0) { room, roomDevices in
                         Section {
                             ForEach(roomDevices) { device in
                                 DevicePickerRow(
@@ -905,9 +926,10 @@ private struct DeviceScenePickerSheet: View {
                     }
                 }
 
-                if !scenes.isEmpty {
+                let matchedScenes = filteredScenes
+                if !matchedScenes.isEmpty {
                     Section {
-                        ForEach(scenes) { scene in
+                        ForEach(matchedScenes) { scene in
                             ScenePickerRow(
                                 scene: scene,
                                 isSelected: selectedSceneIds.contains(scene.id),
@@ -929,6 +951,7 @@ private struct DeviceScenePickerSheet: View {
             .listStyle(.insetGrouped)
             .scrollContentBackground(.hidden)
             .background(Theme.mainBackground)
+            .searchable(text: $searchText, prompt: "Filter devices & scenes")
             .navigationTitle("Select Devices & Scenes")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

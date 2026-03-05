@@ -72,6 +72,7 @@ export const LogRow = memo(function LogRow({ log, index }: LogRowProps) {
 
   const isExpandable = useMemo(() => {
     if (log.workflowExecution) return true;
+    if (log.aiInteractionPayload) return true;
     return !!(log.detailedRequestBody || log.detailedResponseBody || log.requestBody || log.responseBody);
   }, [log]);
 
@@ -80,7 +81,8 @@ export const LogRow = memo(function LogRow({ log, index }: LogRowProps) {
     return cat === LogCategory.WebhookError ||
       cat === LogCategory.ServerError ||
       cat === LogCategory.WorkflowError ||
-      cat === LogCategory.SceneError;
+      cat === LogCategory.SceneError ||
+      cat === LogCategory.AIInteractionError;
   }, [log]);
 
   const categoryColor = useMemo(() => {
@@ -388,12 +390,29 @@ export const LogRow = memo(function LogRow({ log, index }: LogRowProps) {
           </>
         )}
 
+        {(log.category === LogCategory.AIInteraction || log.category === LogCategory.AIInteractionError) && log.aiInteractionPayload && (
+          <>
+            <div className="api-content">
+              <span className="method-badge ai">{log.aiInteractionPayload.operation}</span>
+              <span className="api-text">{log.aiInteractionPayload.provider} / {log.aiInteractionPayload.model}</span>
+              <span className="api-text" style={{ marginLeft: 'auto', opacity: 0.6 }}>{log.aiInteractionPayload.durationSeconds.toFixed(1)}s</span>
+            </div>
+            {log.aiInteractionPayload.errorMessage && (
+              <div className="error-banner-inline">
+                <Icon name="exclamation-circle-fill" size={14} />
+                <span>{log.aiInteractionPayload.errorMessage}</span>
+              </div>
+            )}
+          </>
+        )}
+
         {/* Default: show responseBody if category not handled above */}
         {![
           LogCategory.StateChange, LogCategory.McpCall, LogCategory.RestCall,
           LogCategory.WebhookCall, LogCategory.WebhookError, LogCategory.ServerError,
           LogCategory.WorkflowExecution, LogCategory.WorkflowError,
           LogCategory.SceneExecution, LogCategory.SceneError, LogCategory.BackupRestore,
+          LogCategory.AIInteraction, LogCategory.AIInteractionError,
         ].includes(log.category) && log.responseBody && (
           <div className="sub-content">{log.responseBody}</div>
         )}
@@ -409,7 +428,20 @@ export const LogRow = memo(function LogRow({ log, index }: LogRowProps) {
       {/* Expandable Detail Panel */}
       {expanded && isExpandable && (
         <div className="detail-inline">
-          {log.workflowExecution ? (
+          {log.aiInteractionPayload ? (
+            <div className="ai-interaction-detail" onClick={(e) => e.stopPropagation()}>
+              <div className="execution-section-label">User Message</div>
+              <pre className="ai-detail-pre">{log.aiInteractionPayload.userMessage}</pre>
+              {log.aiInteractionPayload.rawResponse && (
+                <>
+                  <div className="execution-section-label">Raw Response</div>
+                  <pre className="ai-detail-pre">{log.aiInteractionPayload.rawResponse}</pre>
+                </>
+              )}
+              <div className="execution-section-label">System Prompt</div>
+              <pre className="ai-detail-pre ai-system-prompt">{log.aiInteractionPayload.systemPrompt}</pre>
+            </div>
+          ) : log.workflowExecution ? (
             <div className="workflow-execution-detail" onClick={(e) => e.stopPropagation()}>
               {log.workflowExecution.conditionResults && log.workflowExecution.conditionResults.length > 0 && (
                 <>

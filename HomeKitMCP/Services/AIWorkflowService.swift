@@ -1181,6 +1181,24 @@ actor AIWorkflowService {
         }
 
         let normalizedData = try JSONSerialization.data(withJSONObject: dict)
-        return try JSONDecoder.iso8601.decode(Workflow.self, from: normalizedData)
+        do {
+            return try JSONDecoder.iso8601.decode(Workflow.self, from: normalizedData)
+        } catch let decodingError as DecodingError {
+            // Provide a detailed error message instead of the generic "The data couldn't be read because it is missing."
+            let detail: String
+            switch decodingError {
+            case .keyNotFound(let key, let context):
+                detail = "Missing required field '\(key.stringValue)' at path: \(context.codingPath.map(\.stringValue).joined(separator: "."))"
+            case .typeMismatch(let type, let context):
+                detail = "Type mismatch for \(type) at path: \(context.codingPath.map(\.stringValue).joined(separator: ".")). \(context.debugDescription)"
+            case .valueNotFound(let type, let context):
+                detail = "Null value for \(type) at path: \(context.codingPath.map(\.stringValue).joined(separator: "."))"
+            case .dataCorrupted(let context):
+                detail = "Data corrupted at path: \(context.codingPath.map(\.stringValue).joined(separator: ".")). \(context.debugDescription)"
+            @unknown default:
+                detail = decodingError.localizedDescription
+            }
+            throw AIWorkflowError.parseError("Workflow JSON decode failed: \(detail)")
+        }
     }
 }

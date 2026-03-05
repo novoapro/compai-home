@@ -288,12 +288,65 @@
 /* Inline device/scene picker */
 .aig-picker {
   width: 100%;
-  max-height: 200px;
-  overflow-y: auto;
+  max-height: 240px;
+  display: flex;
+  flex-direction: column;
   border: 1px solid var(--border-main);
   border-radius: var(--radius-sm);
   background: var(--bg-main);
   text-align: left;
+  overflow: hidden;
+}
+
+.aig-picker-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border-main);
+  flex-shrink: 0;
+}
+
+.aig-picker-search-icon {
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+}
+
+.aig-picker-search-input {
+  flex: 1;
+  border: none;
+  background: none;
+  outline: none;
+  font-family: inherit;
+  font-size: var(--font-size-xs);
+  color: var(--text-primary);
+  min-width: 0;
+}
+
+.aig-picker-search-input::placeholder {
+  color: var(--text-tertiary);
+}
+
+.aig-picker-search-clear {
+  display: inline-flex;
+  background: none;
+  border: none;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  padding: 0;
+}
+
+.aig-picker-list {
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+
+.aig-picker-empty {
+  padding: 16px 12px;
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+  text-align: center;
 }
 
 .aig-picker-section {
