@@ -60,9 +60,11 @@
   cursor: pointer;
   padding: 0;
 }
-.picker-clear:hover {
-  background: color-mix(in srgb, var(--text-tertiary) 10%, transparent);
-  color: var(--text-secondary);
+@media (hover: hover) {
+  .picker-clear:hover {
+    background: color-mix(in srgb, var(--text-tertiary) 10%, transparent);
+    color: var(--text-secondary);
+  }
 }
 
 .picker-dropdown {
@@ -90,9 +92,11 @@
   font-size: var(--font-size-sm);
   color: var(--text-primary);
 }
-.picker-option:hover,
-.picker-option.focused {
-  background: color-mix(in srgb, var(--tint-main) 8%, transparent);
+@media (hover: hover) {
+  .picker-option:hover,
+  .picker-option.focused {
+    background: color-mix(in srgb, var(--tint-main) 8%, transparent);
+  }
 }
 .picker-option.selected {
   background: color-mix(in srgb, var(--tint-main) 12%, transparent);

@@ -101,8 +101,10 @@
   color: white;
 }
 
-.btn-primary:hover {
-  filter: brightness(1.1);
+@media (hover: hover) {
+  .btn-primary:hover {
+    filter: brightness(1.1);
+  }
 }
 
 .btn-secondary {
@@ -110,8 +112,10 @@
   color: var(--text-primary);
 }
 
-.btn-secondary:hover {
-  filter: brightness(0.95);
+@media (hover: hover) {
+  .btn-secondary:hover {
+    filter: brightness(0.95);
+  }
 }
 
 /* Toggle switch (Headless UI Switch) */

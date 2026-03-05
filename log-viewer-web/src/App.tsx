@@ -59,7 +59,7 @@ export function App() {
         />
         <RefreshBar isRefreshing={refresh.isRefreshing} />
 
-        <main ref={bindToElement} className="flex-1 overflow-y-auto overflow-x-hidden">
+        <main ref={bindToElement} className="flex-1 overflow-y-auto overflow-x-hidden" style={{ touchAction: 'manipulation' }}>
           <PageTransition>
             <AppRoutes />
           </PageTransition>

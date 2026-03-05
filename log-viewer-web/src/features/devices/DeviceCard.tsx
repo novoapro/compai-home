@@ -1,3 +1,4 @@
+import { memo, useCallback } from 'react';
 import { Icon } from '@/components/Icon';
 import { getServiceIcon } from '@/utils/service-icons';
 import { CharacteristicsTable } from './CharacteristicsTable';
@@ -6,17 +7,21 @@ import type { RESTDevice } from '@/types/homekit-device';
 interface DeviceCardProps {
   device: RESTDevice;
   isExpanded: boolean;
-  onToggle: () => void;
+  onToggleDevice: (deviceId: string) => void;
 }
 
-export function DeviceCard({ device, isExpanded, onToggle }: DeviceCardProps) {
+export const DeviceCard = memo(function DeviceCard({ device, isExpanded, onToggleDevice }: DeviceCardProps) {
   const primaryService = device.services[0];
   const iconName = getServiceIcon(primaryService?.type) ?? getServiceIcon(primaryService?.name) ?? 'house';
   const serviceCount = device.services.length;
 
+  const handleToggle = useCallback(() => {
+    onToggleDevice(device.id);
+  }, [onToggleDevice, device.id]);
+
   return (
     <div className={`device-card ${isExpanded ? 'expanded' : ''}`}>
-      <button className="device-card-header" onClick={onToggle} type="button">
+      <button className="device-card-header" onClick={handleToggle} type="button">
         <span className="device-card-icon">
           <Icon name={iconName} size={22} style={{ color: 'var(--tint-main)' }} />
         </span>
@@ -66,4 +71,4 @@ export function DeviceCard({ device, isExpanded, onToggle }: DeviceCardProps) {
       )}
     </div>
   );
-}
+});

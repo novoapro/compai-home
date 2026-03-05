@@ -3,5 +3,5 @@
 }
 
 .page-enter {
-  animation: pageFadeIn 200ms var(--ease-decelerate) both;
+  animation: pageFadeIn 200ms var(--ease-decelerate) forwards;
 }

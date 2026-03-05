@@ -67,9 +67,11 @@
   transition: all var(--transition-fast);
 }
 
-.sidebar-close-btn:hover {
-  background: var(--bg-hover);
-  color: var(--text-primary);
+@media (hover: hover) {
+  .sidebar-close-btn:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+  }
 }
 
 /* Navigation */
@@ -101,10 +103,12 @@
   -webkit-tap-highlight-color: transparent;
 }
 
-.sidebar-nav-item:hover {
-  background: var(--bg-hover);
-  color: var(--text-primary);
-  text-decoration: none;
+@media (hover: hover) {
+  .sidebar-nav-item:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+    text-decoration: none;
+  }
 }
 
 .sidebar-nav-item.active {

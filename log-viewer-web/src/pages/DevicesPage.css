@@ -35,8 +35,10 @@
   transition: all var(--transition-fast);
 }
 
-.devices-tab:hover {
-  background: var(--bg-hover);
+@media (hover: hover) {
+  .devices-tab:hover {
+    background: var(--bg-hover);
+  }
 }
 
 .devices-tab.active {
@@ -138,8 +140,10 @@
   transition: all var(--transition-fast);
 }
 
-.device-filter-trigger:hover {
-  background: var(--bg-hover);
+@media (hover: hover) {
+  .device-filter-trigger:hover {
+    background: var(--bg-hover);
+  }
 }
 
 .device-filter-trigger.has-filters {
@@ -202,8 +206,10 @@
   transition: opacity var(--transition-fast);
 }
 
-.active-filter-tag button:hover {
-  opacity: 1;
+@media (hover: hover) {
+  .active-filter-tag button:hover {
+    opacity: 1;
+  }
 }
 
 .active-filter-clear {
@@ -220,8 +226,10 @@
   background: transparent;
 }
 
-.active-filter-clear:hover {
-  background: color-mix(in srgb, var(--status-error) 10%, transparent);
+@media (hover: hover) {
+  .active-filter-clear:hover {
+    background: color-mix(in srgb, var(--status-error) 10%, transparent);
+  }
 }
 
 /* ===== Bulk actions ===== */
@@ -245,9 +253,11 @@
   transition: all var(--transition-fast);
 }
 
-.devices-bulk-btn:hover {
-  background: var(--bg-hover);
-  color: var(--text-secondary);
+@media (hover: hover) {
+  .devices-bulk-btn:hover {
+    background: var(--bg-hover);
+    color: var(--text-secondary);
+  }
 }
 
 /* ===== Device list ===== */
@@ -267,8 +277,10 @@
   transition: box-shadow var(--transition-fast);
 }
 
-.device-card:hover {
-  box-shadow: var(--shadow-card-hover);
+@media (hover: hover) {
+  .device-card:hover {
+    box-shadow: var(--shadow-card-hover);
+  }
 }
 
 .device-card-header {
@@ -495,8 +507,10 @@
   transition: box-shadow var(--transition-fast);
 }
 
-.scene-card:hover {
-  box-shadow: var(--shadow-card-hover);
+@media (hover: hover) {
+  .scene-card:hover {
+    box-shadow: var(--shadow-card-hover);
+  }
 }
 
 .scene-card-icon {

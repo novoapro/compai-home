@@ -88,21 +88,27 @@
   background: var(--bg-detail);
   color: var(--text-secondary);
 }
-.cd-btn.cancel:hover {
-  background: var(--bg-pill);
+@media (hover: hover) {
+  .cd-btn.cancel:hover {
+    background: var(--bg-pill);
+  }
 }
 
 .cd-btn.confirm {
   background: var(--tint-main);
   color: white;
 }
-.cd-btn.confirm:hover {
-  filter: brightness(1.08);
+@media (hover: hover) {
+  .cd-btn.confirm:hover {
+    filter: brightness(1.08);
+  }
 }
 
 .cd-btn.confirm.destructive {
   background: var(--status-error);
 }
-.cd-btn.confirm.destructive:hover {
-  filter: brightness(1.08);
+@media (hover: hover) {
+  .cd-btn.confirm.destructive:hover {
+    filter: brightness(1.08);
+  }
 }

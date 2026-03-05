@@ -49,8 +49,10 @@
   flex-shrink: 0;
 }
 
-.hamburger-btn:hover {
-  background: var(--bg-hover);
+@media (hover: hover) {
+  .hamburger-btn:hover {
+    background: var(--bg-hover);
+  }
 }
 
 /* Logo — mobile only */

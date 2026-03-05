@@ -281,7 +281,7 @@ export function DevicesPage() {
                   key={device.id}
                   device={device}
                   isExpanded={expandedDevices.has(device.id)}
-                  onToggle={() => toggleDevice(device.id)}
+                  onToggleDevice={toggleDevice}
                 />
               ))
             )}

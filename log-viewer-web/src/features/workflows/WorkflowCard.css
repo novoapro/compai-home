@@ -44,8 +44,10 @@
   will-change: transform;
   z-index: 1;
 }
-.wf-card:hover {
-  box-shadow: var(--shadow-card-hover);
+@media (hover: hover) {
+  .wf-card:hover {
+    box-shadow: var(--shadow-card-hover);
+  }
 }
 
 /* Selection mode */

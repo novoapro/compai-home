@@ -169,10 +169,13 @@ struct ServerSettingsView: View {
                 } label: {
                     Label("Add Token", systemImage: "plus.circle")
                 }
+                .disabled(viewModel.mcpServerRunning == true)
             } header: {
                 Label("API Tokens", systemImage: "key")
             } footer: {
-                Text("Each client needs a unique Bearer token. Restart the server after changes.")
+                Text(viewModel.mcpServerRunning == true
+                    ? "Stop the server to add or remove tokens."
+                    : "Each client needs a unique Bearer token.")
             }
 
             if viewModel.storage.mcpServerEnabled {
@@ -328,9 +331,10 @@ struct ServerSettingsView: View {
                     tokenToDelete = apiToken
                 } label: {
                     Image(systemName: "trash")
-                        .foregroundColor(.red)
+                        .foregroundColor(viewModel.mcpServerRunning == true ? .secondary : .red)
                 }
                 .buttonStyle(.plain)
+                .disabled(viewModel.mcpServerRunning == true)
             }
         }
     }

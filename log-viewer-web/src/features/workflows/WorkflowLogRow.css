@@ -11,8 +11,10 @@
   cursor: pointer;
   transition: background 150ms ease, box-shadow 150ms ease;
 }
-.wflr-card:hover {
-  box-shadow: var(--shadow-card-hover);
+@media (hover: hover) {
+  .wflr-card:hover {
+    box-shadow: var(--shadow-card-hover);
+  }
 }
 
 .wflr-status-icon {

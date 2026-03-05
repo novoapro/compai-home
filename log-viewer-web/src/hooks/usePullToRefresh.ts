@@ -11,16 +11,27 @@ export function usePullToRefresh({ onRefresh, disabled }: UsePullToRefreshOption
   const startYRef = useRef(0);
   const pullingRef = useRef(false);
   const refreshingRef = useRef(false);
+  const onRefreshRef = useRef(onRefresh);
+  const disabledRef = useRef(disabled);
+
+  // Keep refs in sync so the callback identity stays stable
+  onRefreshRef.current = onRefresh;
+  disabledRef.current = disabled;
 
   const bindToElement = useCallback(
     (el: HTMLElement | null) => {
-      if (!el) return;
+      // Clean up previous listeners
+      if (!el) {
+        return;
+      }
+
+      (el as any).__pullToRefreshCleanup?.();
 
       // Prevent native pull-to-refresh
       el.style.overscrollBehaviorY = 'contain';
 
       const onTouchStart = (e: TouchEvent) => {
-        if (disabled || refreshingRef.current) return;
+        if (disabledRef.current || refreshingRef.current) return;
         if (el.scrollTop <= 0) {
           startYRef.current = e.touches[0]!.clientY;
           pullingRef.current = true;
@@ -40,7 +51,7 @@ export function usePullToRefresh({ onRefresh, disabled }: UsePullToRefreshOption
 
         if (distance >= THRESHOLD && el.scrollTop <= 0) {
           refreshingRef.current = true;
-          onRefresh().finally(() => {
+          onRefreshRef.current().finally(() => {
             refreshingRef.current = false;
           });
         }
@@ -50,15 +61,13 @@ export function usePullToRefresh({ onRefresh, disabled }: UsePullToRefreshOption
       el.addEventListener('touchmove', onTouchMove, { passive: true });
       el.addEventListener('touchend', onTouchEnd, { passive: true });
 
-      // Store cleanup for when ref changes
-      (el as any).__pullToRefreshCleanup?.();
       (el as any).__pullToRefreshCleanup = () => {
         el.removeEventListener('touchstart', onTouchStart);
         el.removeEventListener('touchmove', onTouchMove);
         el.removeEventListener('touchend', onTouchEnd);
       };
     },
-    [onRefresh, disabled],
+    [], // Stable identity — uses refs for changing values
   );
 
   return { bindToElement };

@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { memo, useMemo, useCallback } from 'react';
 import { Icon } from '@/components/Icon';
 import { StatusBadge } from '@/components/StatusBadge';
 import type { WorkflowExecutionLog } from '@/types/workflow-log';
@@ -17,10 +17,10 @@ const STATUS_COLORS: Record<string, string> = {
 interface WorkflowLogRowProps {
   log: WorkflowExecutionLog;
   index?: number;
-  onClick: () => void;
+  onClick: (logId: string) => void;
 }
 
-export function WorkflowLogRow({ log, index = 0, onClick }: WorkflowLogRowProps) {
+export const WorkflowLogRow = memo(function WorkflowLogRow({ log, index = 0, onClick }: WorkflowLogRowProps) {
   const statusColor = STATUS_COLORS[log.status] || 'var(--tint-main)';
 
   const timeStr = useMemo(() => {
@@ -41,11 +41,15 @@ export function WorkflowLogRow({ log, index = 0, onClick }: WorkflowLogRowProps)
     : log.status === 'cancelled' ? 'cancelled'
     : '';
 
+  const handleClick = useCallback(() => {
+    onClick(log.id);
+  }, [onClick, log.id]);
+
   return (
     <div
       className="wflr-card animate-card-enter"
       style={{ animationDelay: `${index * 30}ms` }}
-      onClick={onClick}
+      onClick={handleClick}
     >
       <div className="wflr-status-icon" style={{ color: statusColor }}>
         {log.status === 'running' ? (
@@ -81,4 +85,4 @@ export function WorkflowLogRow({ log, index = 0, onClick }: WorkflowLogRowProps)
       <Icon name="chevron-right" size={14} className="wflr-chevron" />
     </div>
   );
-}
+});

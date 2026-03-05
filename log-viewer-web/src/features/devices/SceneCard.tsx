@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { Icon } from '@/components/Icon';
 import type { RESTScene } from '@/types/homekit-device';
 
@@ -5,7 +6,7 @@ interface SceneCardProps {
   scene: RESTScene;
 }
 
-export function SceneCard({ scene }: SceneCardProps) {
+export const SceneCard = memo(function SceneCard({ scene }: SceneCardProps) {
   return (
     <div className="scene-card">
       <div className="scene-card-icon">
@@ -30,4 +31,4 @@ export function SceneCard({ scene }: SceneCardProps) {
       </div>
     </div>
   );
-}
+});

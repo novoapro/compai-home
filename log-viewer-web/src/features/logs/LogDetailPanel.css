@@ -40,8 +40,10 @@
   transition: background var(--transition-fast);
 }
 
-.copy-btn:hover {
-  background: color-mix(in srgb, var(--tint-main) 10%, transparent);
+@media (hover: hover) {
+  .copy-btn:hover {
+    background: color-mix(in srgb, var(--tint-main) 10%, transparent);
+  }
 }
 
 .detail-body {

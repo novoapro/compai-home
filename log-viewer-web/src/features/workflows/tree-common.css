@@ -14,8 +14,10 @@
   border-radius: var(--radius-xs);
 }
 
-.tree-row.collapsible:hover {
-  background: color-mix(in srgb, var(--text-tertiary) 6%, transparent);
+@media (hover: hover) {
+  .tree-row.collapsible:hover {
+    background: color-mix(in srgb, var(--text-tertiary) 6%, transparent);
+  }
 }
 
 .connector-line {
@@ -109,8 +111,10 @@
   cursor: pointer;
   transition: all var(--transition-fast);
 }
-.tree-copy-btn:hover {
-  background: color-mix(in srgb, var(--tint-main) 20%, transparent);
+@media (hover: hover) {
+  .tree-copy-btn:hover {
+    background: color-mix(in srgb, var(--tint-main) 20%, transparent);
+  }
 }
 
 .retrigger-badge {

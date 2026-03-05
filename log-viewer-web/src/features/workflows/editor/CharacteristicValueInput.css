@@ -77,8 +77,10 @@
   cursor: pointer;
   transition: transform var(--transition-fast);
 }
-.char-slider::-webkit-slider-thumb:hover {
-  transform: scale(1.15);
+@media (hover: hover) {
+  .char-slider::-webkit-slider-thumb:hover {
+    transform: scale(1.15);
+  }
 }
 .char-slider:disabled {
   opacity: 0.5;
@@ -142,8 +144,10 @@
   cursor: pointer;
   transition: all var(--transition-fast);
 }
-.char-any-clear:hover {
-  background: color-mix(in srgb, var(--tint-main) 10%, transparent);
+@media (hover: hover) {
+  .char-any-clear:hover {
+    background: color-mix(in srgb, var(--tint-main) 10%, transparent);
+  }
 }
 
 .char-any-btn {
@@ -162,8 +166,10 @@
   flex-shrink: 0;
   transition: all var(--transition-fast);
 }
-.char-any-btn:hover {
-  border-color: var(--status-error);
-  color: var(--status-error);
-  background: color-mix(in srgb, var(--status-error) 8%, transparent);
+@media (hover: hover) {
+  .char-any-btn:hover {
+    border-color: var(--status-error);
+    color: var(--status-error);
+    background: color-mix(in srgb, var(--status-error) 8%, transparent);
+  }
 }

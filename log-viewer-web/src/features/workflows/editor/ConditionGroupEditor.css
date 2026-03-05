@@ -97,8 +97,10 @@
   transition: all var(--transition-fast);
   background: var(--bg-detail);
 }
-.child-node:hover {
-  background: color-mix(in srgb, var(--bg-detail) 70%, var(--bg-pill));
+@media (hover: hover) {
+  .child-node:hover {
+    background: color-mix(in srgb, var(--bg-detail) 70%, var(--bg-pill));
+  }
 }
 .child-node:active {
   transform: scale(0.99);
@@ -164,8 +166,10 @@
   flex-shrink: 0;
   transition: opacity var(--transition-fast);
 }
-.child-node:hover .child-remove-btn { opacity: 0.6; }
-.child-remove-btn:hover { opacity: 1 !important; }
+@media (hover: hover) {
+  .child-node:hover .child-remove-btn { opacity: 0.6; }
+  .child-remove-btn:hover { opacity: 1 !important; }
+}
 
 .child-chevron {
   color: var(--text-tertiary);
@@ -202,15 +206,19 @@
   cursor: pointer;
   transition: background var(--transition-fast);
 }
-.cge-add-btn:hover {
-  background: color-mix(in srgb, var(--tint-main) 8%, transparent);
+@media (hover: hover) {
+  .cge-add-btn:hover {
+    background: color-mix(in srgb, var(--tint-main) 8%, transparent);
+  }
 }
 .cge-add-btn.group-btn {
   border-color: color-mix(in srgb, var(--color-workflow) 30%, transparent);
   color: var(--color-workflow);
 }
-.cge-add-btn.group-btn:hover {
-  background: color-mix(in srgb, var(--color-workflow) 8%, transparent);
+@media (hover: hover) {
+  .cge-add-btn.group-btn:hover {
+    background: color-mix(in srgb, var(--color-workflow) 8%, transparent);
+  }
 }
 
 @media (max-width: 768px) {

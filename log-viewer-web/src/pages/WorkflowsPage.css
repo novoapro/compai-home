@@ -77,8 +77,10 @@
   padding: 0;
   border-radius: 50%;
 }
-.wf-search-clear:hover {
-  color: var(--text-secondary);
+@media (hover: hover) {
+  .wf-search-clear:hover {
+    color: var(--text-secondary);
+  }
 }
 
 /* Desktop action buttons */
@@ -98,7 +100,7 @@
   transition: filter var(--transition-fast), background var(--transition-fast);
   flex-shrink: 0;
 }
-.wf-ai-btn:hover { background: var(--bg-detail); }
+@media (hover: hover) { .wf-ai-btn:hover { background: var(--bg-detail); } }
 .wf-ai-btn:active { transform: scale(0.97); }
 
 .wf-new-btn {
@@ -117,7 +119,7 @@
   transition: filter var(--transition-fast);
   flex-shrink: 0;
 }
-.wf-new-btn:hover { filter: brightness(1.1); }
+@media (hover: hover) { .wf-new-btn:hover { filter: brightness(1.1); } }
 .wf-new-btn:active { transform: scale(0.97); }
 
 /* Mobile toolbar */
@@ -144,9 +146,11 @@
   padding: 0;
   transition: background var(--transition-fast), color var(--transition-fast);
 }
-.wf-toolbar-icon-btn:hover {
-  background: var(--bg-pill);
-  color: var(--text-primary);
+@media (hover: hover) {
+  .wf-toolbar-icon-btn:hover {
+    background: var(--bg-pill);
+    color: var(--text-primary);
+  }
 }
 .wf-toolbar-icon-btn:active { transform: scale(0.93); }
 
@@ -155,8 +159,10 @@
   border: none;
   color: var(--tint-main);
 }
-.wf-toolbar-icon-btn.ai:hover {
-  background: color-mix(in srgb, var(--tint-main) 12%, transparent);
+@media (hover: hover) {
+  .wf-toolbar-icon-btn.ai:hover {
+    background: color-mix(in srgb, var(--tint-main) 12%, transparent);
+  }
 }
 
 .wf-toolbar-icon-btn.primary {
@@ -164,7 +170,7 @@
   border-color: var(--tint-main);
   color: white;
 }
-.wf-toolbar-icon-btn.primary:hover { filter: brightness(1.1); }
+@media (hover: hover) { .wf-toolbar-icon-btn.primary:hover { filter: brightness(1.1); } }
 
 .wf-loading-dot {
   width: 6px;
@@ -229,8 +235,10 @@
   cursor: pointer;
   transition: background var(--transition-fast);
 }
-.wf-selection-select-all:hover {
-  background: var(--bg-pill);
+@media (hover: hover) {
+  .wf-selection-select-all:hover {
+    background: var(--bg-pill);
+  }
 }
 .wf-selection-cancel {
   padding: 6px 12px;
@@ -244,8 +252,10 @@
   cursor: pointer;
   transition: color var(--transition-fast);
 }
-.wf-selection-cancel:hover {
-  color: var(--text-primary);
+@media (hover: hover) {
+  .wf-selection-cancel:hover {
+    color: var(--text-primary);
+  }
 }
 
 /* Bulk operations bar */
@@ -297,24 +307,30 @@
   background: var(--tint-main);
   color: white;
 }
-.wf-bulk-btn.enable:hover:not(:disabled) {
-  filter: brightness(1.1);
+@media (hover: hover) {
+  .wf-bulk-btn.enable:hover:not(:disabled) {
+    filter: brightness(1.1);
+  }
 }
 
 .wf-bulk-btn.disable {
   background: var(--bg-pill);
   color: var(--text-primary);
 }
-.wf-bulk-btn.disable:hover:not(:disabled) {
-  filter: brightness(0.95);
+@media (hover: hover) {
+  .wf-bulk-btn.disable:hover:not(:disabled) {
+    filter: brightness(0.95);
+  }
 }
 
 .wf-bulk-btn.delete {
   background: var(--status-error);
   color: white;
 }
-.wf-bulk-btn.delete:hover:not(:disabled) {
-  filter: brightness(1.1);
+@media (hover: hover) {
+  .wf-bulk-btn.delete:hover:not(:disabled) {
+    filter: brightness(1.1);
+  }
 }
 
 @media (max-width: 768px) {

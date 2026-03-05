@@ -113,9 +113,11 @@
   transition: all var(--transition-fast);
 }
 
-.load-more-btn:hover:not(:disabled) {
-  box-shadow: var(--shadow-card-hover);
-  background: var(--bg-hover);
+@media (hover: hover) {
+  .load-more-btn:hover:not(:disabled) {
+    box-shadow: var(--shadow-card-hover);
+    background: var(--bg-hover);
+  }
 }
 
 .load-more-btn:disabled {

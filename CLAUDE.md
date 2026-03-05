@@ -68,25 +68,12 @@ vapor/vapor 4.89.0+
 - `NSHomeKitUsageDescription` in Info.plist
 - `LSUIElement = true` in Info.plist (hides Dock icon)
 
-## Implementation Plan
 
-See `homekit-mcp-implementation-plan.md` for the full phased implementation plan with detailed specifications for each component.
-
-Everytime you are complete with a task, run the following command:
-
-```bash
-pkill -9 -f HomeKitMCP
-```
-
-```bash
-xcodebuild -scheme HomeKitMCP -destination 'platform=macOS,variant=Mac Catalyst' build
-```
-
-And then run the following command:
-
-```bash
-open /Users/manuel/Library/Developer/Xcode/DerivedData/HomeKitMCP-byyskooslqggvmgrsoyhqtmgtepf/Build/Products/Debug-maccatalyst/HomeKitMCP.app
-```
-
-Very Important:
+**Very Important:**
 Everytime you complete a task that changes in any way the model that we expose through the MCP server, you need to update the documentation at `API.md` file to reflect the changes.
+
+Everytime we add something new to the workflow definition, you need to update a few things: 
+- How we display and edit workflows including the new fields, blocks, and options in the MCP server app and in the web app
+- update how we log them. 
+- update how we expose the new update to the workflow schema externally via MCP or REST server.
+- Update the documentation at `API.md` file to reflect the changes.

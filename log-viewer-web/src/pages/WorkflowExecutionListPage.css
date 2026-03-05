@@ -25,8 +25,10 @@
   border: none;
   font-family: inherit;
 }
-.wfel-back-btn:hover {
-  background: color-mix(in srgb, var(--tint-main) 10%, transparent);
+@media (hover: hover) {
+  .wfel-back-btn:hover {
+    background: color-mix(in srgb, var(--tint-main) 10%, transparent);
+  }
 }
 
 .wfel-page-header {

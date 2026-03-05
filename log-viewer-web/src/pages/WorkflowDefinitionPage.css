@@ -23,8 +23,10 @@
   border: none;
   font-family: inherit;
 }
-.wfd-back-btn:hover {
-  background: color-mix(in srgb, var(--tint-main) 10%, transparent);
+@media (hover: hover) {
+  .wfd-back-btn:hover {
+    background: color-mix(in srgb, var(--tint-main) 10%, transparent);
+  }
 }
 
 .wfd-loading {
@@ -96,15 +98,19 @@
   transition: background var(--transition-fast);
   font-family: inherit;
 }
-.wfd-icon-btn:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--tint-main) 10%, transparent);
+@media (hover: hover) {
+  .wfd-icon-btn:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--tint-main) 10%, transparent);
+  }
 }
 .wfd-icon-btn:disabled {
   opacity: 0.4;
   cursor: default;
 }
 .wfd-icon-btn.wfd-danger { color: var(--status-error); }
-.wfd-icon-btn.wfd-danger:hover { background: color-mix(in srgb, var(--status-error) 10%, transparent); }
+@media (hover: hover) {
+  .wfd-icon-btn.wfd-danger:hover { background: color-mix(in srgb, var(--status-error) 10%, transparent); }
+}
 
 .wfd-name-row {
   display: flex;
@@ -237,9 +243,11 @@
   animation: cardEnter 350ms cubic-bezier(0, 0, 0.2, 1) backwards;
   animation-delay: 350ms;
 }
-.wfd-exec-logs-btn:hover {
-  box-shadow: var(--shadow-card-hover);
-  background: color-mix(in srgb, var(--tint-main) 5%, var(--bg-card));
+@media (hover: hover) {
+  .wfd-exec-logs-btn:hover {
+    box-shadow: var(--shadow-card-hover);
+    background: color-mix(in srgb, var(--tint-main) 5%, var(--bg-card));
+  }
 }
 .wfd-exec-logs-btn:active {
   transform: scale(0.985);

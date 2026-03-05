@@ -46,9 +46,11 @@
   flex-shrink: 0;
   transition: opacity var(--transition-fast), background var(--transition-fast);
 }
-.trigger-remove-btn:hover {
-  opacity: 1;
-  background: color-mix(in srgb, var(--status-error) 8%, transparent);
+@media (hover: hover) {
+  .trigger-remove-btn:hover {
+    opacity: 1;
+    background: color-mix(in srgb, var(--status-error) 8%, transparent);
+  }
 }
 
 /* Shared form field styles */

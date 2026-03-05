@@ -159,7 +159,7 @@
 
   --text-primary: rgba(255, 255, 255, 0.85);
   --text-secondary: rgba(255, 255, 255, 0.6);
-  --text-tertiary: rgba(255, 255, 255, 0.3);
+  --text-tertiary: rgba(255, 255, 255, 0.5);
 
   --bg-main: #0A0A0B;
   --bg-content: #161618;
@@ -212,8 +212,10 @@ a {
   text-decoration: none;
 }
 
-a:hover {
-  text-decoration: underline;
+@media (hover: hover) {
+  a:hover {
+    text-decoration: underline;
+  }
 }
 
 button {
@@ -223,6 +225,14 @@ button {
   background: none;
   font-size: inherit;
   color: inherit;
+}
+
+/* ── iOS touch fix ─────────────────────────────────── */
+/* Disable 300ms double-tap-to-zoom delay on all interactive elements */
+a, button, [role="button"], input, select, textarea, label, summary,
+[tabindex]:not([tabindex="-1"]) {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 input, select, textarea {
@@ -287,12 +297,12 @@ input, select, textarea {
 }
 
 @keyframes fadeSlideIn {
-  from { opacity: 0; transform: translateY(-8px); }
+  from { opacity: 0.01; transform: translateY(-8px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
 @keyframes fadeScaleIn {
-  from { opacity: 0; transform: scale(0.95); }
+  from { opacity: 0.01; transform: scale(0.95); }
   to { opacity: 1; transform: scale(1); }
 }
 
@@ -302,7 +312,7 @@ input, select, textarea {
 }
 
 @keyframes cardEnter {
-  from { opacity: 0; transform: translateY(12px); }
+  from { opacity: 0.01; transform: translateY(12px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
@@ -317,12 +327,12 @@ input, select, textarea {
 }
 
 @keyframes pageFadeIn {
-  from { opacity: 0; }
+  from { opacity: 0.01; }
   to { opacity: 1; }
 }
 
 @keyframes listItemEnter {
-  from { opacity: 0; transform: translateY(8px); }
+  from { opacity: 0.01; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
 }
 

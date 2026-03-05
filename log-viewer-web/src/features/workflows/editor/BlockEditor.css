@@ -75,9 +75,11 @@
   width: 100%;
   text-align: left;
 }
-.nested-nav-btn:hover {
-  background: color-mix(in srgb, var(--bg-detail) 60%, var(--bg-pill));
-  border-color: var(--border-color);
+@media (hover: hover) {
+  .nested-nav-btn:hover {
+    background: color-mix(in srgb, var(--bg-detail) 60%, var(--bg-pill));
+    border-color: var(--border-color);
+  }
 }
 .nested-nav-btn:active { transform: scale(0.99); }
 

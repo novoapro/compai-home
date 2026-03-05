@@ -67,6 +67,10 @@ export function WorkflowExecutionListPage() {
     return () => { unsubLog(); unsubCleared(); };
   }, [ws, workflowId]);
 
+  const handleLogClick = useCallback((logId: string) => {
+    navigate(`/workflows/${workflowId}/${logId}`);
+  }, [navigate, workflowId]);
+
   const goBack = useCallback(() => {
     if (window.history.length > 1) {
       navigate(-1);
@@ -119,7 +123,7 @@ export function WorkflowExecutionListPage() {
               key={log.id}
               log={log}
               index={i}
-              onClick={() => navigate(`/workflows/${workflowId}/${log.id}`)}
+              onClick={handleLogClick}
             />
           ))}
         </div>

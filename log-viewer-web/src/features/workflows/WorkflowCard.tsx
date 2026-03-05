@@ -1,4 +1,4 @@
-import { useMemo, useRef, useCallback } from 'react';
+import { memo, useMemo, useRef, useCallback } from 'react';
 import { Icon } from '@/components/Icon';
 import type { Workflow, TriggerTypeKey } from '@/types/workflow-log';
 import { TRIGGER_TYPE_LABELS, TRIGGER_TYPE_ICONS } from '@/types/workflow-log';
@@ -8,19 +8,19 @@ import './WorkflowCard.css';
 interface WorkflowCardProps {
   workflow: Workflow;
   index?: number;
-  onToggleEnabled: (enabled: boolean) => void;
-  onDelete: () => void;
-  onClick: () => void;
+  onToggleEnabled: (workflowId: string, enabled: boolean) => void;
+  onDelete: (workflowId: string) => void;
+  onClick: (workflowId: string) => void;
   selectionMode?: boolean;
   isSelected?: boolean;
-  onSelect?: () => void;
-  onLongPress?: () => void;
+  onSelect?: (workflowId: string) => void;
+  onLongPress?: (workflowId: string) => void;
 }
 
 const SWIPE_THRESHOLD = 80;
 const LONG_PRESS_DELAY = 500;
 
-export function WorkflowCard({
+export const WorkflowCard = memo(function WorkflowCard({
   workflow,
   index = 0,
   onToggleEnabled,
@@ -75,11 +75,11 @@ export function WorkflowCard({
     // Start long-press timer
     longPressTimerRef.current = setTimeout(() => {
       didLongPressRef.current = true;
-      onLongPress?.();
+      onLongPress?.(workflow.id);
       // Vibrate if available
       if (navigator.vibrate) navigator.vibrate(30);
     }, LONG_PRESS_DELAY);
-  }, [selectionMode, onLongPress]);
+  }, [selectionMode, onLongPress, workflow.id]);
 
   const handleTouchMove = useCallback((e: React.TouchEvent) => {
     if (selectionMode) return;
@@ -121,7 +121,7 @@ export function WorkflowCard({
         cardRef.current.style.transition = 'transform 200ms ease';
         cardRef.current.style.transform = 'translateX(0)';
       }
-      onDelete();
+      onDelete(workflow.id);
     } else if (swipingRef.current) {
       // Snap back
       if (cardRef.current) {
@@ -132,16 +132,20 @@ export function WorkflowCard({
     swipingRef.current = false;
     currentXRef.current = 0;
     containerRef.current?.classList.remove('swiping');
-  }, [selectionMode, onDelete, clearLongPress]);
+  }, [selectionMode, onDelete, clearLongPress, workflow.id]);
 
   const handleClick = useCallback(() => {
     if (didLongPressRef.current) return;
     if (selectionMode) {
-      onSelect?.();
+      onSelect?.(workflow.id);
     } else {
-      onClick();
+      onClick(workflow.id);
     }
-  }, [selectionMode, onSelect, onClick]);
+  }, [selectionMode, onSelect, onClick, workflow.id]);
+
+  const handleToggle = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    onToggleEnabled(workflow.id, e.target.checked);
+  }, [onToggleEnabled, workflow.id]);
 
   return (
     <div ref={containerRef} className="wf-card-swipe-container">
@@ -217,7 +221,7 @@ export function WorkflowCard({
               <input
                 type="checkbox"
                 checked={workflow.isEnabled}
-                onChange={e => onToggleEnabled(e.target.checked)}
+                onChange={handleToggle}
               />
               <span className="wf-toggle-track" />
             </label>
@@ -226,4 +230,4 @@ export function WorkflowCard({
       </div>
     </div>
   );
-}
+});

@@ -76,22 +76,31 @@ export function WorkflowsPage() {
     return workflows.filter((wf) => wf.name.toLowerCase().includes(q));
   }, [workflows, searchQuery]);
 
-  const toggleWorkflow = useCallback(async (workflow: Workflow, enabled: boolean) => {
+  const toggleWorkflow = useCallback(async (workflowId: string, enabled: boolean) => {
     // Optimistic update
-    setWorkflows(prev => prev.map(w => w.id === workflow.id ? { ...w, isEnabled: enabled } : w));
+    setWorkflows(prev => prev.map(w => w.id === workflowId ? { ...w, isEnabled: enabled } : w));
 
     try {
-      const updated = await api.updateWorkflow(workflow.id, { isEnabled: enabled });
+      const updated = await api.updateWorkflow(workflowId, { isEnabled: enabled });
       setWorkflows(prev => prev.map(w => w.id === updated.id ? updated : w));
     } catch {
       // Revert
-      setWorkflows(prev => prev.map(w => w.id === workflow.id ? { ...w, isEnabled: !enabled } : w));
+      setWorkflows(prev => prev.map(w => w.id === workflowId ? { ...w, isEnabled: !enabled } : w));
       setError('Failed to update workflow');
     }
   }, [api]);
 
   const [deleteTarget, setDeleteTarget] = useState<Workflow | null>(null);
   const [showAIDialog, setShowAIDialog] = useState(false);
+
+  const handleDelete = useCallback((workflowId: string) => {
+    const wf = workflows.find(w => w.id === workflowId) ?? null;
+    setDeleteTarget(wf);
+  }, [workflows]);
+
+  const handleClick = useCallback((workflowId: string) => {
+    navigate(`/workflows/${workflowId}/definition`);
+  }, [navigate]);
 
   // Bulk delete confirmation
   const [bulkDeletePending, setBulkDeletePending] = useState(false);
@@ -309,13 +318,13 @@ export function WorkflowsPage() {
               key={wf.id}
               workflow={wf}
               index={i}
-              onToggleEnabled={(enabled) => toggleWorkflow(wf, enabled)}
-              onDelete={() => setDeleteTarget(wf)}
-              onClick={() => navigate(`/workflows/${wf.id}/definition`)}
+              onToggleEnabled={toggleWorkflow}
+              onDelete={handleDelete}
+              onClick={handleClick}
               selectionMode={selectionMode}
               isSelected={selectedIds.has(wf.id)}
-              onSelect={() => toggleSelection(wf.id)}
-              onLongPress={() => enterSelectionMode(wf.id)}
+              onSelect={toggleSelection}
+              onLongPress={enterSelectionMode}
             />
           ))}
         </div>

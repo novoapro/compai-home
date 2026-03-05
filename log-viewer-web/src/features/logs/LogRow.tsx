@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { memo, useState, useMemo } from 'react';
 import { Link } from 'react-router';
 import { Icon } from '@/components/Icon';
 import { CategoryIcon } from '@/components/CategoryIcon';
@@ -67,7 +67,7 @@ interface LogRowProps {
   index: number;
 }
 
-export function LogRow({ log, index }: LogRowProps) {
+export const LogRow = memo(function LogRow({ log, index }: LogRowProps) {
   const [expanded, setExpanded] = useState(false);
 
   const isExpandable = useMemo(() => {
@@ -454,4 +454,4 @@ export function LogRow({ log, index }: LogRowProps) {
       )}
     </div>
   );
-}
+});

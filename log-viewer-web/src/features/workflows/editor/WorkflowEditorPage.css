@@ -22,8 +22,10 @@
   border: none;
   font-family: inherit;
 }
-.wfe-back-btn:hover {
-  background: color-mix(in srgb, var(--tint-main) 10%, transparent);
+@media (hover: hover) {
+  .wfe-back-btn:hover {
+    background: color-mix(in srgb, var(--tint-main) 10%, transparent);
+  }
 }
 
 .wfe-page-title {
@@ -160,8 +162,10 @@
   background: var(--bg-detail);
   border-left: 3px solid var(--tint-main);
 }
-.wfe-trigger-node:hover {
-  background: color-mix(in srgb, var(--bg-detail) 70%, var(--bg-pill));
+@media (hover: hover) {
+  .wfe-trigger-node:hover {
+    background: color-mix(in srgb, var(--bg-detail) 70%, var(--bg-pill));
+  }
 }
 
 .wfe-trigger-node-info {
@@ -206,8 +210,10 @@
   cursor: pointer;
   transition: background var(--transition-fast);
 }
-.wfe-add-btn:hover {
-  background: color-mix(in srgb, var(--tint-main) 8%, transparent);
+@media (hover: hover) {
+  .wfe-add-btn:hover {
+    background: color-mix(in srgb, var(--tint-main) 8%, transparent);
+  }
 }
 
 /* Condition section */
@@ -223,8 +229,10 @@
   border-left: 3px solid var(--color-workflow);
   margin-bottom: var(--spacing-md);
 }
-.wfe-condition-node:hover {
-  background: color-mix(in srgb, var(--bg-detail) 70%, var(--bg-pill));
+@media (hover: hover) {
+  .wfe-condition-node:hover {
+    background: color-mix(in srgb, var(--bg-detail) 70%, var(--bg-pill));
+  }
 }
 
 .wfe-condition-add-btn {
@@ -242,8 +250,10 @@
   cursor: pointer;
   transition: background var(--transition-fast);
 }
-.wfe-condition-add-btn:hover {
-  background: color-mix(in srgb, var(--color-workflow) 8%, transparent);
+@media (hover: hover) {
+  .wfe-condition-add-btn:hover {
+    background: color-mix(in srgb, var(--color-workflow) 8%, transparent);
+  }
 }
 
 /* Blocks section */
@@ -272,8 +282,10 @@
   cursor: pointer;
   transition: all var(--transition-fast);
 }
-.wfe-reorder-btn:hover {
-  background: color-mix(in srgb, var(--text-tertiary) 6%, transparent);
+@media (hover: hover) {
+  .wfe-reorder-btn:hover {
+    background: color-mix(in srgb, var(--text-tertiary) 6%, transparent);
+  }
 }
 .wfe-reorder-btn.active {
   background: color-mix(in srgb, var(--tint-main) 12%, transparent);
@@ -305,16 +317,20 @@
   cursor: pointer;
   transition: background var(--transition-fast);
 }
-.wfe-crumb:hover {
-  background: color-mix(in srgb, var(--tint-main) 8%, transparent);
+@media (hover: hover) {
+  .wfe-crumb:hover {
+    background: color-mix(in srgb, var(--tint-main) 8%, transparent);
+  }
 }
 .wfe-crumb.current {
   color: var(--text-primary);
   font-weight: var(--font-weight-semibold);
   cursor: default;
 }
-.wfe-crumb.current:hover {
-  background: none;
+@media (hover: hover) {
+  .wfe-crumb.current:hover {
+    background: none;
+  }
 }
 
 .wfe-block-list {
@@ -402,8 +418,10 @@
   cursor: pointer;
   transition: background var(--transition-fast);
 }
-.wfe-panel-close-btn:hover {
-  background: color-mix(in srgb, var(--text-secondary) 10%, transparent);
+@media (hover: hover) {
+  .wfe-panel-close-btn:hover {
+    background: color-mix(in srgb, var(--text-secondary) 10%, transparent);
+  }
 }
 
 .wfe-panel-body {
@@ -436,15 +454,19 @@
   background: none;
   color: var(--text-secondary);
 }
-.wfe-panel-btn.discard:hover {
-  background: color-mix(in srgb, var(--text-secondary) 8%, transparent);
+@media (hover: hover) {
+  .wfe-panel-btn.discard:hover {
+    background: color-mix(in srgb, var(--text-secondary) 8%, transparent);
+  }
 }
 .wfe-panel-btn.apply {
   background: var(--tint-main);
   color: white;
 }
-.wfe-panel-btn.apply:hover {
-  filter: brightness(1.1);
+@media (hover: hover) {
+  .wfe-panel-btn.apply:hover {
+    filter: brightness(1.1);
+  }
 }
 
 /* Sticky footer */
@@ -502,8 +524,10 @@
   cursor: pointer;
   transition: background var(--transition-fast);
 }
-.wfe-cancel-btn:hover {
-  background: color-mix(in srgb, var(--text-secondary) 8%, transparent);
+@media (hover: hover) {
+  .wfe-cancel-btn:hover {
+    background: color-mix(in srgb, var(--text-secondary) 8%, transparent);
+  }
 }
 
 .wfe-save-btn {
@@ -518,8 +542,10 @@
   cursor: pointer;
   transition: filter var(--transition-fast), opacity var(--transition-fast);
 }
-.wfe-save-btn:hover:not(:disabled) {
-  filter: brightness(1.1);
+@media (hover: hover) {
+  .wfe-save-btn:hover:not(:disabled) {
+    filter: brightness(1.1);
+  }
 }
 .wfe-save-btn:disabled {
   opacity: 0.5;
@@ -620,9 +646,11 @@
   font-family: inherit;
   transition: background var(--transition-fast), color var(--transition-fast);
 }
-.wfe-footer-block-btn:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--text-secondary) 18%, transparent);
-  color: var(--text-primary);
+@media (hover: hover) {
+  .wfe-footer-block-btn:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--text-secondary) 18%, transparent);
+    color: var(--text-primary);
+  }
 }
 .wfe-footer-block-btn:disabled {
   opacity: 0.25;
@@ -632,9 +660,11 @@
   color: var(--status-error);
   opacity: 0.6;
 }
-.wfe-footer-block-btn.danger:hover:not(:disabled) {
-  opacity: 1;
-  background: color-mix(in srgb, var(--status-error) 8%, transparent);
+@media (hover: hover) {
+  .wfe-footer-block-btn.danger:hover:not(:disabled) {
+    opacity: 1;
+    background: color-mix(in srgb, var(--status-error) 8%, transparent);
+  }
 }
 
 /* Move operations row */
@@ -660,9 +690,11 @@
   transition: background var(--transition-fast), color var(--transition-fast);
   white-space: nowrap;
 }
-.wfe-footer-move-btn:hover {
-  background: color-mix(in srgb, var(--text-tertiary) 8%, transparent);
-  color: var(--text-primary);
+@media (hover: hover) {
+  .wfe-footer-move-btn:hover {
+    background: color-mix(in srgb, var(--text-tertiary) 8%, transparent);
+    color: var(--text-primary);
+  }
 }
 
 .wfe-footer-move-select {
@@ -684,8 +716,10 @@
   background-position: right 6px center;
   padding-right: 22px;
 }
-.wfe-footer-move-select:hover {
-  border-color: var(--text-tertiary);
+@media (hover: hover) {
+  .wfe-footer-move-select:hover {
+    border-color: var(--text-tertiary);
+  }
 }
 
 @media (max-width: 768px) {

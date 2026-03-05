@@ -118,16 +118,20 @@
   background: var(--bg-detail);
   color: var(--text-secondary);
 }
-.aig-btn.secondary:hover {
-  background: var(--bg-pill);
+@media (hover: hover) {
+  .aig-btn.secondary:hover {
+    background: var(--bg-pill);
+  }
 }
 
 .aig-btn.primary {
   background: var(--tint-main);
   color: white;
 }
-.aig-btn.primary:hover {
-  filter: brightness(1.08);
+@media (hover: hover) {
+  .aig-btn.primary:hover {
+    filter: brightness(1.08);
+  }
 }
 .aig-btn.primary:disabled {
   opacity: 0.5;
