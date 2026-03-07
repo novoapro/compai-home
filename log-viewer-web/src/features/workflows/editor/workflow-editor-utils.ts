@@ -175,7 +175,7 @@ function buildScheduleType(t: WorkflowTriggerDraft): ScheduleType {
   switch (t.scheduleType) {
     case 'once': {
       const date = t.scheduleDate || new Date().toISOString().slice(0, 10);
-      const time = t.scheduleTime ?? { hour: 0, minute: 0 };
+      const time = t.scheduleTime ?? { hour: 8, minute: 0 };
       return { type: 'once', date: `${date}T${String(time.hour).padStart(2, '0')}:${String(time.minute).padStart(2, '0')}:00` };
     }
     case 'daily':

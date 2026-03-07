@@ -75,7 +75,7 @@ export function TriggerEditor({ index, draft, onChange, onRemove }: TriggerEdito
         _draftId: draft._draftId,
         type: type as WorkflowTriggerDraft['type'],
       };
-      if (type === 'schedule') base.scheduleType = 'daily';
+      if (type === 'schedule') { base.scheduleType = 'daily'; base.scheduleTime = { hour: 8, minute: 0 }; }
       if (type === 'sunEvent') { base.event = 'sunrise'; base.offsetMinutes = 0; }
       onChange(base);
     },
@@ -219,10 +219,14 @@ export function TriggerEditor({ index, draft, onChange, onRemove }: TriggerEdito
             <select
               className="editor-select"
               value={draft.scheduleType || 'daily'}
-              onChange={(e) => patch({
-                scheduleType: e.target.value,
-                scheduleDays: e.target.value === 'weekly' ? [1, 2, 3, 4, 5] : undefined,
-              })}
+              onChange={(e) => {
+                const st = e.target.value;
+                patch({
+                  scheduleType: st,
+                  scheduleTime: draft.scheduleTime ?? { hour: 8, minute: 0 },
+                  scheduleDays: st === 'weekly' ? [1, 2, 3, 4, 5] : undefined,
+                });
+              }}
             >
               {SCHEDULE_TYPES.map((s) => (
                 <option key={s.value} value={s.value}>{s.label}</option>
