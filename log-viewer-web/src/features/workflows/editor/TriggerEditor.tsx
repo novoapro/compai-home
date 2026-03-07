@@ -231,15 +231,21 @@ export function TriggerEditor({ index, draft, onChange, onRemove }: TriggerEdito
           </div>
 
           {(draft.scheduleType || 'daily') === 'once' && (
-            <div className="editor-field">
-              <label>Date</label>
-              <input
-                className="editor-input"
-                type="date"
-                value={draft.scheduleDate || ''}
-                onChange={(e) => patch({ scheduleDate: e.target.value })}
-              />
-            </div>
+            <>
+              <div className="editor-field">
+                <label>Date</label>
+                <input
+                  className="editor-input"
+                  type="date"
+                  value={draft.scheduleDate || ''}
+                  onChange={(e) => patch({ scheduleDate: e.target.value })}
+                />
+              </div>
+              <div className="editor-field">
+                <label>Time</label>
+                <input className="editor-input" type="time" value={timeString(draft.scheduleTime)} onChange={onTimeChange} />
+              </div>
+            </>
           )}
 
           {(draft.scheduleType || 'daily') === 'daily' && (

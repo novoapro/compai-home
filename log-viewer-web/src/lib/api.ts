@@ -3,6 +3,17 @@ import type { WorkflowExecutionLog, Workflow } from '@/types/workflow-log';
 import type { WorkflowDefinition } from '@/types/workflow-definition';
 import type { RESTDevice, RESTScene } from '@/types/homekit-device';
 
+export interface SunEvents {
+  sunrise: string | null;
+  sunset: string | null;
+  locationConfigured: boolean;
+  cityName: string | null;
+}
+
+export interface WorkflowRuntime {
+  sunEvents: SunEvents;
+}
+
 export interface ApiClient {
   checkHealth(): Promise<boolean>;
   getLogs(params?: LogQueryParams): Promise<PaginatedLogsResponse>;
@@ -16,6 +27,7 @@ export interface ApiClient {
   generateWorkflow(prompt: string, deviceIds?: string[], sceneIds?: string[]): Promise<{ id: string; name: string; description: string | null }>;
   getDevices(): Promise<RESTDevice[]>;
   getScenes(): Promise<RESTScene[]>;
+  getWorkflowRuntime(): Promise<WorkflowRuntime>;
 }
 
 const DEFAULT_TIMEOUT = 15_000;
@@ -167,6 +179,10 @@ export function createApiClient(baseUrl: string, bearerToken: string): ApiClient
 
     async getScenes() {
       return requestJson<RESTScene[]>('/scenes');
+    },
+
+    async getWorkflowRuntime() {
+      return requestJson<WorkflowRuntime>('/workflow-runtime');
     },
   };
 }

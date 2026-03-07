@@ -62,6 +62,8 @@ const ICON_MAP: Record<string, IconEntry> = {
   // General UI
   'magnifying-glass':        { ms: 'search'                        },
   'sun':                     { ms: 'light_mode',         fill: 1  },
+  'sunrise':                 { ms: 'wb_sunny',           fill: 1  },
+  'sunset':                  { ms: 'wb_twilight',        fill: 1  },
   'moon':                    { ms: 'dark_mode',          fill: 1  },
   'wifi':                    { ms: 'wifi'                          },
   'wifi-off':                { ms: 'wifi_off'                      },

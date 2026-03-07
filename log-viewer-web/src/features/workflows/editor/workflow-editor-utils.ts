@@ -173,8 +173,11 @@ function triggerDraftToPayload(t: WorkflowTriggerDraft): WorkflowTriggerDef {
 
 function buildScheduleType(t: WorkflowTriggerDraft): ScheduleType {
   switch (t.scheduleType) {
-    case 'once':
-      return { type: 'once', date: t.scheduleDate! };
+    case 'once': {
+      const date = t.scheduleDate || new Date().toISOString().slice(0, 10);
+      const time = t.scheduleTime ?? { hour: 0, minute: 0 };
+      return { type: 'once', date: `${date}T${String(time.hour).padStart(2, '0')}:${String(time.minute).padStart(2, '0')}:00` };
+    }
     case 'daily':
       return { type: 'daily', time: t.scheduleTime ?? { hour: 8, minute: 0 } };
     case 'weekly':
@@ -368,7 +371,14 @@ function triggerDefToDraft(t: WorkflowTriggerDef): WorkflowTriggerDraft {
       const st = t.scheduleType;
       if (st) {
         base.scheduleType = st.type;
-        if (st.type === 'once') base.scheduleDate = st.date;
+        if (st.type === 'once') {
+          base.scheduleDate = st.date.slice(0, 10);
+          if (st.date.length > 10) {
+            const timePart = st.date.slice(11);
+            const [h, m] = timePart.split(':').map(Number);
+            base.scheduleTime = { hour: h || 0, minute: m || 0 };
+          }
+        }
         if (st.type === 'daily') base.scheduleTime = st.time;
         if (st.type === 'weekly') {
           base.scheduleTime = st.time;
@@ -509,7 +519,9 @@ function pad2(n: number): string {
 
 function fmtTime(t: { hour: number; minute: number } | undefined): string {
   if (!t) return '?';
-  return `${pad2(t.hour)}:${pad2(t.minute)}`;
+  const period = t.hour >= 12 ? 'PM' : 'AM';
+  const h = t.hour % 12 || 12;
+  return `${h}:${pad2(t.minute)} ${period}`;
 }
 
 export function triggerAutoName(t: WorkflowTriggerDraft, registry: RegistryLike): string {
@@ -542,7 +554,7 @@ export function triggerAutoName(t: WorkflowTriggerDraft, registry: RegistryLike)
     case 'schedule': {
       switch (t.scheduleType) {
         case 'once':
-          return `Once on ${t.scheduleDate || '?'}`;
+          return `Once on ${t.scheduleDate || '?'} at ${fmtTime(t.scheduleTime)}`;
         case 'daily':
           return `Daily at ${fmtTime(t.scheduleTime)}`;
         case 'weekly': {

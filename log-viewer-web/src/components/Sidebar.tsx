@@ -1,7 +1,9 @@
-import { useRef, useEffect, useCallback } from 'react';
+import { useRef, useEffect, useCallback, useState } from 'react';
 import { NavLink } from 'react-router';
 import { Icon } from './Icon';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useApi } from '@/hooks/useApi';
+import type { SunEvents } from '@/lib/api';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -10,12 +12,32 @@ interface SidebarProps {
   onToggleCollapse: () => void;
 }
 
+function formatSunTime(isoString: string | null): string {
+  if (!isoString) return '--:--';
+  const date = new Date(isoString);
+  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
 export function Sidebar({ isOpen, collapsed, onClose, onToggleCollapse }: SidebarProps) {
   const { isDarkMode, toggle: toggleTheme } = useTheme();
+  const api = useApi();
+  const [sunEvents, setSunEvents] = useState<SunEvents | null>(null);
   const sidebarRef = useRef<HTMLElement>(null);
   const touchStartX = useRef(0);
   const touchCurrentX = useRef(0);
   const isSwiping = useRef(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    api.getWorkflowRuntime()
+      .then((runtime) => {
+        if (!cancelled && runtime.sunEvents.locationConfigured) {
+          setSunEvents(runtime.sunEvents);
+        }
+      })
+      .catch(() => { /* ignore - server may not be reachable */ });
+    return () => { cancelled = true; };
+  }, [api]);
 
   const handleNavClick = useCallback(() => {
     if (window.innerWidth <= 768) onClose();
@@ -113,6 +135,27 @@ export function Sidebar({ isOpen, collapsed, onClose, onToggleCollapse }: Sideba
         {/* Footer */}
         <div className="sidebar-footer">
           <div className="sidebar-divider" />
+
+          {sunEvents && (
+            <div className="sidebar-sun-events">
+              {sunEvents.cityName && (
+                <span className="sidebar-nav-label sidebar-sun-city">
+                  <Icon name="map-pin" size={10} />
+                  {sunEvents.cityName}
+                </span>
+              )}
+              <div className="sidebar-sun-times">
+                <div className="sidebar-sun-row">
+                  <Icon name="sunrise" size={14} />
+                  <span className="sidebar-sun-time">{formatSunTime(sunEvents.sunrise)}</span>
+                </div>
+                <div className="sidebar-sun-row">
+                  <Icon name="sunset" size={14} />
+                  <span className="sidebar-sun-time">{formatSunTime(sunEvents.sunset)}</span>
+                </div>
+              </div>
+            </div>
+          )}
 
           <button className="sidebar-nav-item sidebar-footer-item" onClick={toggleTheme}>
             <Icon name={isDarkMode ? 'sun' : 'moon'} size={20} />

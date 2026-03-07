@@ -269,6 +269,33 @@ Each log entry is a flat JSON object (see [StateChangeLog](#statechangelog) in D
 
 ---
 
+### Workflow Runtime
+
+Requires: **REST API enabled**
+
+| Method | Path | Description | Response |
+|---|---|---|---|
+| `GET` | `/workflow-runtime` | Get workflow runtime information (sun events) | `WorkflowRuntimeResponse` |
+
+**Response (200):**
+
+```json
+{
+  "sunEvents": {
+    "sunrise": "2026-03-07T11:48:57Z",
+    "sunset": "2026-03-07T23:33:26Z",
+    "locationConfigured": true,
+    "cityName": "Land O Lakes"
+  }
+}
+```
+
+- `sunrise`/`sunset`: ISO 8601 timestamps for today's calculated times, or `null` if not computable (polar regions)
+- `locationConfigured`: `false` when latitude and longitude are both 0 (not set). When `false`, `sunrise` and `sunset` will be `null`
+- `cityName`: User-configured city name, or `null` if not set
+
+---
+
 ### Workflows
 
 Requires: **REST API enabled** + **Workflows enabled**

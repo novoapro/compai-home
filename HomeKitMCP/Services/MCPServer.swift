@@ -489,6 +489,13 @@ class MCPServer: ObservableObject, MCPServerProtocol, @unchecked Sendable {
             return try await self.handleRestGetLogs(req)
         }
 
+        // Workflow Runtime Info
+        protected.on(.GET, "workflow-runtime") { [weak self] req async throws -> Response in
+            guard let self else { throw Abort(.serviceUnavailable) }
+            try self.guardRestApiEnabled()
+            return self.handleGetWorkflowRuntime()
+        }
+
         // Workflow REST Endpoints
         protected.on(.GET, "workflows") { [weak self] req async throws -> Response in
             guard let self else { throw Abort(.serviceUnavailable) }
@@ -805,6 +812,50 @@ class MCPServer: ObservableObject, MCPServerProtocol, @unchecked Sendable {
     }
 
     // MARK: - Workflow REST Handlers
+
+    private struct WorkflowRuntimeResponse: Codable {
+        struct SunEventsInfo: Codable {
+            let sunrise: String?
+            let sunset: String?
+            let locationConfigured: Bool
+            let cityName: String?
+        }
+        let sunEvents: SunEventsInfo
+    }
+
+    private func handleGetWorkflowRuntime() -> Response {
+        let latitude = storage.readSunEventLatitude()
+        let longitude = storage.readSunEventLongitude()
+        let locationConfigured = latitude != 0 || longitude != 0
+
+        var sunriseISO: String?
+        var sunsetISO: String?
+
+        if locationConfigured {
+            let times = SolarCalculator.sunTimes(for: Date(), latitude: latitude, longitude: longitude)
+            let formatter = ISO8601DateFormatter()
+            formatter.formatOptions = [.withInternetDateTime]
+            if let sr = times.sunrise { sunriseISO = formatter.string(from: sr) }
+            if let ss = times.sunset { sunsetISO = formatter.string(from: ss) }
+        }
+
+        let cityName = storage.readSunEventCityName()
+        let response = WorkflowRuntimeResponse(
+            sunEvents: .init(
+                sunrise: sunriseISO,
+                sunset: sunsetISO,
+                locationConfigured: locationConfigured,
+                cityName: cityName.isEmpty ? nil : cityName
+            )
+        )
+
+        do {
+            let data = try JSONEncoder().encode(response)
+            return jsonResponse(data: data)
+        } catch {
+            return jsonResponse(data: "{}".data(using: .utf8)!, status: .internalServerError)
+        }
+    }
 
     private func handleRestGetWorkflows(_ req: Request) async throws -> Response {
         try guardWorkflowsEnabled()
