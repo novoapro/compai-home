@@ -42,6 +42,7 @@ export interface DeviceStateTriggerDef {
   characteristicId: string;
   condition: TriggerCondition;
   retriggerPolicy?: string;
+  conditions?: WorkflowConditionDef[];
 }
 
 export interface ScheduleTriggerDef {
@@ -49,6 +50,7 @@ export interface ScheduleTriggerDef {
   name?: string;
   scheduleType: ScheduleType;
   retriggerPolicy?: string;
+  conditions?: WorkflowConditionDef[];
 }
 
 export interface WebhookTriggerDef {
@@ -56,12 +58,14 @@ export interface WebhookTriggerDef {
   name?: string;
   token: string;
   retriggerPolicy?: string;
+  conditions?: WorkflowConditionDef[];
 }
 
 export interface WorkflowCallTriggerDef {
   type: 'workflow';
   name?: string;
   retriggerPolicy?: string;
+  conditions?: WorkflowConditionDef[];
 }
 
 export interface SunEventTriggerDef {
@@ -70,6 +74,7 @@ export interface SunEventTriggerDef {
   event: 'sunrise' | 'sunset';
   offsetMinutes: number;
   retriggerPolicy?: string;
+  conditions?: WorkflowConditionDef[];
 }
 
 export type WorkflowTriggerDef =

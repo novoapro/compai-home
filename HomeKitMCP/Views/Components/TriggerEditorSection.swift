@@ -141,6 +141,36 @@ private struct TriggerRow: View {
             sunEventTriggerContent
         }
 
+        // Per-trigger guard conditions
+        DisclosureGroup {
+            ConditionGroupEditor(
+                group: $trigger.conditionRoot,
+                devices: devices,
+                scenes: [],
+                depth: 0,
+                continueOnError: false,
+                allBlocks: [],
+                currentBlockId: nil,
+                allowBlockResult: false,
+                blockOrdinals: [:]
+            )
+        } label: {
+            HStack {
+                Text("Trigger Conditions")
+                    .font(.subheadline)
+                Spacer()
+                if trigger.conditionRoot.leafCount > 0 {
+                    Text("\(trigger.conditionRoot.leafCount)")
+                        .font(.caption)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Theme.Tint.main.opacity(0.15))
+                        .foregroundStyle(Theme.Tint.main)
+                        .clipShape(Capsule())
+                }
+            }
+        }
+
         Picker("If workflow is running?", selection: $trigger.retriggerPolicy) {
             ForEach(ConcurrentExecutionPolicy.allCases) { policy in
                 VStack(alignment: .leading) {

@@ -141,9 +141,12 @@ function rewritePayloadBlockConditionRefs(blocks: WorkflowBlockDef[], map: Map<s
 }
 
 function triggerDraftToPayload(t: WorkflowTriggerDraft): WorkflowTriggerDef {
-  const shared: { name?: string; retriggerPolicy?: string } = {};
+  const shared: { name?: string; retriggerPolicy?: string; conditions?: WorkflowConditionDef[] } = {};
   if (t.name) shared.name = t.name;
   if (t.retriggerPolicy) shared.retriggerPolicy = t.retriggerPolicy;
+  if (t.conditions?.length) {
+    shared.conditions = t.conditions.map(conditionDraftToPayload);
+  }
 
   switch (t.type) {
     case 'deviceStateChange':
@@ -354,6 +357,9 @@ function triggerDefToDraft(t: WorkflowTriggerDef): WorkflowTriggerDraft {
   const base: WorkflowTriggerDraft = { _draftId: newUUID(), type: t.type };
   if (t.name) base.name = t.name;
   if ('retriggerPolicy' in t && t.retriggerPolicy) base.retriggerPolicy = t.retriggerPolicy;
+  if (t.conditions?.length) {
+    base.conditions = t.conditions.map(conditionDefToDraft);
+  }
 
   switch (t.type) {
     case 'deviceStateChange':

@@ -625,7 +625,7 @@ final class MCPRequestHandler: Sendable {
                     "description": "Must be true if using blockResult conditions"],
                 "triggers": ["type": "array", "required": true, "description": "Array of trigger objects"],
                 "conditions": ["type": "array", "required": false,
-                    "description": "Optional guard conditions (AND-ed). Only deviceState, timeCondition allowed (no blockResult)."],
+                    "description": "Optional global guard conditions (AND-ed). Evaluated after any trigger fires. Only deviceState, timeCondition allowed (no blockResult). Failure logs as conditionNotMet (skipped)."],
                 "blocks": ["type": "array", "required": true, "description": "Array of block objects (actions and flow control)"]
             ] as [String: Any],
             "retriggerPolicies": [
@@ -645,7 +645,9 @@ final class MCPRequestHandler: Sendable {
                             "description": "Stable characteristic ID from list_devices."],
                         "condition": ["type": "object", "required": true, "description": "Trigger condition (see triggerConditions)"],
                         "name": ["type": "string", "required": false],
-                        "retriggerPolicy": ["type": "string", "required": false]
+                        "retriggerPolicy": ["type": "string", "required": false],
+                        "conditions": ["type": "array", "required": false,
+                            "description": "Per-trigger guard conditions. Only deviceState, timeCondition allowed. If conditions fail, trigger is silently skipped."]
                     ] as [String: Any]
                 ],
                 [
@@ -653,7 +655,9 @@ final class MCPRequestHandler: Sendable {
                     "fields": [
                         "scheduleType": ["type": "object", "required": true, "description": "See scheduleTypes"],
                         "name": ["type": "string", "required": false],
-                        "retriggerPolicy": ["type": "string", "required": false]
+                        "retriggerPolicy": ["type": "string", "required": false],
+                        "conditions": ["type": "array", "required": false,
+                            "description": "Per-trigger guard conditions. Only deviceState, timeCondition allowed. If conditions fail, trigger is silently skipped."]
                     ] as [String: Any]
                 ],
                 [
@@ -663,7 +667,9 @@ final class MCPRequestHandler: Sendable {
                         "offsetMinutes": ["type": "integer", "required": false, "default": 0,
                             "description": "Negative=before, positive=after, 0=exact"],
                         "name": ["type": "string", "required": false],
-                        "retriggerPolicy": ["type": "string", "required": false]
+                        "retriggerPolicy": ["type": "string", "required": false],
+                        "conditions": ["type": "array", "required": false,
+                            "description": "Per-trigger guard conditions. Only deviceState, timeCondition allowed. If conditions fail, trigger is silently skipped."]
                     ] as [String: Any]
                 ],
                 [
@@ -671,7 +677,9 @@ final class MCPRequestHandler: Sendable {
                     "fields": [
                         "token": ["type": "string", "required": true, "description": "Unique webhook token"],
                         "name": ["type": "string", "required": false],
-                        "retriggerPolicy": ["type": "string", "required": false]
+                        "retriggerPolicy": ["type": "string", "required": false],
+                        "conditions": ["type": "array", "required": false,
+                            "description": "Per-trigger guard conditions. Only deviceState, timeCondition allowed. If conditions fail, trigger is silently skipped."]
                     ] as [String: Any]
                 ],
                 [
@@ -679,7 +687,9 @@ final class MCPRequestHandler: Sendable {
                     "description": "Makes this workflow callable by other workflows via executeWorkflow blocks.",
                     "fields": [
                         "name": ["type": "string", "required": false],
-                        "retriggerPolicy": ["type": "string", "required": false]
+                        "retriggerPolicy": ["type": "string", "required": false],
+                        "conditions": ["type": "array", "required": false,
+                            "description": "Per-trigger guard conditions. Only deviceState, timeCondition allowed. If conditions fail, trigger is silently skipped."]
                     ] as [String: Any]
                 ]
             ] as [[String: Any]],
@@ -825,7 +835,7 @@ final class MCPRequestHandler: Sendable {
                 ] as [[String: Any]]
             ] as [String: Any],
             "conditionTypes": [
-                "description": "WorkflowCondition types used in guard conditions, conditional blocks, waitForState, and repeatWhile.",
+                "description": "WorkflowCondition types used in global guard conditions, per-trigger conditions, conditional blocks, waitForState, and repeatWhile.",
                 "types": [
                     [
                         "type": "deviceState",

@@ -22,6 +22,8 @@ export interface WorkflowTriggerDraft {
   characteristicId?: string;
   condition?: TriggerCondition;
   retriggerPolicy?: string;
+  // per-trigger guard conditions
+  conditions?: WorkflowConditionDraft[];
   // schedule
   scheduleType?: string;
   scheduleDate?: string;

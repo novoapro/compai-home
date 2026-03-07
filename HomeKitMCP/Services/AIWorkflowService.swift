@@ -554,7 +554,7 @@ actor AIWorkflowService {
         - Set at the workflow level as the default policy for all triggers.
         - Each trigger can optionally override it with its own "retriggerPolicy" field.
 
-        ## CRITICAL: How Triggers and Guard Conditions Work Together
+        ## CRITICAL: How Triggers and Conditions Work Together
 
         Triggers are **atomic event detectors**. Each trigger fires on exactly ONE event \
         (a device state change, a schedule tick, a webhook call, a sun event). \
@@ -562,13 +562,23 @@ actor AIWorkflowService {
 
         Multiple triggers in the "triggers" array act as **OR** — any single trigger can start the workflow.
 
-        Guard conditions (the workflow-level "conditions" array) control whether the workflow \
-        actually executes after a trigger fires. They check for **readiness** — is the environment \
-        in the right state for this workflow to run? If any guard condition fails, the workflow is skipped.
+        There are TWO levels of guard conditions:
+
+        ### Per-Trigger Conditions (trigger-level "conditions" array)
+        Each trigger can have an optional "conditions" array. These are evaluated AFTER the trigger \
+        matches but BEFORE the workflow is considered triggered. If per-trigger conditions fail, the \
+        trigger is silently ignored (as if it never matched). No execution log entry is created. \
+        Use per-trigger conditions when different triggers should fire under different environmental conditions.
+
+        ### Global Guard Conditions (workflow-level "conditions" array)
+        Global guard conditions control whether the workflow actually executes after a trigger fires. \
+        They check for **readiness** — is the environment in the right state for this workflow to run? \
+        If any global guard condition fails, the workflow is marked as skipped (conditionNotMet). \
+        Use global guard conditions when ALL triggers share the same readiness requirements.
 
         For "when X happens AND Y is true" logic, use:
         - ONE trigger (the event that starts the workflow)
-        - Guard conditions in the "conditions" array (readiness checks evaluated when the trigger fires)
+        - Per-trigger conditions or global guard conditions (readiness checks evaluated when the trigger fires)
 
         Guard conditions are the primary mechanism for AND/OR/NOT logic. They are evaluated \
         against current device/scene/time state when a trigger fires.
@@ -592,7 +602,9 @@ actor AIWorkflowService {
 
         ## Trigger Types
 
-        All triggers accept an optional "retriggerPolicy" field (see above).
+        All triggers accept optional "retriggerPolicy" and "conditions" fields. \
+        The "conditions" array contains per-trigger guard conditions (same format as global guard conditions). \
+        Only deviceState and timeCondition are allowed (no blockResult).
 
         ### deviceStateChange
         ```json
@@ -605,7 +617,8 @@ actor AIWorkflowService {
           "roomName": "Living Room",
           "serviceId": "optional-service-uuid",
           "characteristicId": "<characteristic-uuid-from-device-list>",
-          "condition": { "type": "equals", "value": true }
+          "condition": { "type": "equals", "value": true },
+          "conditions": [ { "type": "timeCondition", "mode": "nighttime" } ]
         }
         ```
         Condition types: "changed" (no value needed), "equals", "notEquals", \
@@ -677,14 +690,15 @@ actor AIWorkflowService {
         {"type":"and","conditions":[{"type":"deviceState",...},{"type":"deviceState",...}]} to wait \
         for multiple device states simultaneously.
 
-        ## Guard Condition Types (workflow-level "conditions" array)
+        ## Global Guard Condition Types (workflow-level "conditions" array)
 
-        Guard conditions are **readiness checks** — they determine whether the environment is in the \
+        Global guard conditions are **readiness checks** — they determine whether the environment is in the \
         right state for this workflow to run. They are the PRIMARY mechanism for AND/OR/NOT logic. \
         Use guard conditions whenever the user describes multi-condition scenarios like \
         "when X AND Y", "only if Z", "unless W", "but only during...", "if ... is on/off". \
         IMPORTANT: Only deviceState, timeCondition (and logical and/or/not) are valid here. \
-        Do NOT use blockResult in guard conditions — no blocks have executed yet at that point.
+        Do NOT use blockResult in global guard conditions or per-trigger conditions — no blocks have executed yet at that point. \
+        Per-trigger conditions use the same format but are placed inside the trigger object's "conditions" array.
 
         ```json
         { "type": "deviceState", "deviceId": "...", "deviceName": "Living Room Light", "roomName": "Living Room", "serviceId": "optional", "characteristicId": "<characteristic-uuid>", "comparison": { "type": "equals", "value": true } }
@@ -705,7 +719,7 @@ actor AIWorkflowService {
         ## Block Result Condition (conditional/if-else blocks only)
 
         blockResult checks the execution status of a previously-run block. It is ONLY valid inside \
-        conditional (if/else) block "condition" fields. Do NOT use blockResult in workflow-level guard \
+        conditional (if/else) block "condition" fields. Do NOT use blockResult in workflow-level global guard \
         "conditions", repeatWhile conditions, or anywhere else. Requires continueOnError=true on the workflow.
         ```json
         { "type": "blockResult", "scope": "specific", "blockId": "block-uuid", "expectedStatus": "success" }

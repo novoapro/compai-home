@@ -241,6 +241,9 @@ struct TriggerDraft: Identifiable {
     var sunEventType: SunEventType = .sunrise
     var sunEventOffsetMinutes: Int = 0
 
+    /// Per-trigger guard conditions
+    var conditionRoot: ConditionGroupDraft = .empty()
+
     static func empty() -> TriggerDraft {
         TriggerDraft(id: UUID())
     }
@@ -1288,11 +1291,12 @@ extension WorkflowDraft {
 
     private static func convertTrigger(_ trigger: WorkflowTrigger, devices: [DeviceModel] = []) -> TriggerDraft? {
         let policy = trigger.resolvedRetriggerPolicy
+        let triggerCondRoot = convertConditionTree(trigger.conditions ?? [], devices: devices)
         switch trigger {
         case let .deviceStateChange(t):
             let (condType, condValue, condFrom) = convertTriggerCondition(t.condition)
             let meta = lookupCharacteristicMeta(deviceId: t.deviceId, characteristicId: t.characteristicId, in: devices)
-            return TriggerDraft(
+            var draft = TriggerDraft(
                 id: UUID(),
                 name: t.name ?? "",
                 triggerType: .deviceStateChange,
@@ -1309,6 +1313,8 @@ extension WorkflowDraft {
                 characteristicStepValue: meta.stepValue,
                 characteristicValidValues: meta.validValues
             )
+            draft.conditionRoot = triggerCondRoot
+            return draft
         case let .schedule(t):
             var draft = TriggerDraft(id: UUID(), name: t.name ?? "", triggerType: .schedule, retriggerPolicy: policy)
             switch t.scheduleType {
@@ -1334,24 +1340,29 @@ extension WorkflowDraft {
                     draft.scheduleIntervalUnit = .minutes
                 }
             }
+            draft.conditionRoot = triggerCondRoot
             return draft
         case let .webhook(t):
-            return TriggerDraft(
+            var draft = TriggerDraft(
                 id: UUID(),
                 name: t.name ?? "",
                 triggerType: .webhook,
                 retriggerPolicy: policy,
                 webhookToken: t.token
             )
+            draft.conditionRoot = triggerCondRoot
+            return draft
         case let .workflow(t):
-            return TriggerDraft(
+            var draft = TriggerDraft(
                 id: UUID(),
                 name: t.name ?? "",
                 triggerType: .workflow,
                 retriggerPolicy: policy
             )
+            draft.conditionRoot = triggerCondRoot
+            return draft
         case let .sunEvent(t):
-            return TriggerDraft(
+            var draft = TriggerDraft(
                 id: UUID(),
                 name: t.name ?? "",
                 triggerType: .sunEvent,
@@ -1359,6 +1370,8 @@ extension WorkflowDraft {
                 sunEventType: t.event,
                 sunEventOffsetMinutes: t.offsetMinutes
             )
+            draft.conditionRoot = triggerCondRoot
+            return draft
         }
     }
 
@@ -1636,6 +1649,7 @@ extension WorkflowDraft {
 
 extension TriggerDraft {
     func toTrigger(devices: [DeviceModel]) -> WorkflowTrigger {
+        let triggerConds = conditionRoot.toConditions(devices: devices)
         switch triggerType {
         case .deviceStateChange:
             return .deviceStateChange(DeviceStateTrigger(
@@ -1644,31 +1658,36 @@ extension TriggerDraft {
                 characteristicId: characteristicId,
                 condition: toTriggerCondition(),
                 name: name.isEmpty ? nil : name,
-                retriggerPolicy: retriggerPolicy
+                retriggerPolicy: retriggerPolicy,
+                conditions: triggerConds
             ))
         case .schedule:
             return .schedule(ScheduleTrigger(
                 scheduleType: toScheduleType(),
                 name: name.isEmpty ? nil : name,
-                retriggerPolicy: retriggerPolicy
+                retriggerPolicy: retriggerPolicy,
+                conditions: triggerConds
             ))
         case .webhook:
             return .webhook(WebhookTrigger(
                 token: webhookToken,
                 name: name.isEmpty ? nil : name,
-                retriggerPolicy: retriggerPolicy
+                retriggerPolicy: retriggerPolicy,
+                conditions: triggerConds
             ))
         case .workflow:
             return .workflow(WorkflowCallTrigger(
                 name: name.isEmpty ? nil : name,
-                retriggerPolicy: retriggerPolicy
+                retriggerPolicy: retriggerPolicy,
+                conditions: triggerConds
             ))
         case .sunEvent:
             return .sunEvent(SunEventTrigger(
                 event: sunEventType,
                 offsetMinutes: sunEventOffsetMinutes,
                 name: name.isEmpty ? nil : name,
-                retriggerPolicy: retriggerPolicy
+                retriggerPolicy: retriggerPolicy,
+                conditions: triggerConds
             ))
         }
     }

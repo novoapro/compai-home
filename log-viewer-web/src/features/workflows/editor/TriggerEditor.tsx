@@ -4,9 +4,11 @@ import { useDeviceRegistry } from '@/contexts/DeviceRegistryContext';
 import { DevicePicker } from './DevicePicker';
 import { CharacteristicValueInput } from './CharacteristicValueInput';
 import { CurrentValueIndicator } from './CurrentValueIndicator';
+import { ConditionGroupEditor } from './ConditionGroupEditor';
 import { useConfig } from '@/contexts/ConfigContext';
-import type { WorkflowTriggerDraft } from './workflow-editor-types';
-import { triggerAutoName } from './workflow-editor-utils';
+import type { WorkflowTriggerDraft, WorkflowConditionDraft } from './workflow-editor-types';
+import { newUUID } from './workflow-editor-types';
+import { triggerAutoName, conditionAutoName } from './workflow-editor-utils';
 import './TriggerEditor.css';
 import '../tree-common.css';
 
@@ -363,6 +365,9 @@ export function TriggerEditor({ index, draft, onChange, onRemove }: TriggerEdito
         </div>
       )}
 
+      {/* Per-trigger conditions */}
+      <TriggerConditionsSection draft={draft} onChange={onChange} />
+
       {/* Retrigger policy */}
       {draft.type !== 'workflow' && (
         <div className="editor-field">
@@ -389,6 +394,83 @@ export function TriggerEditor({ index, draft, onChange, onRemove }: TriggerEdito
           placeholder="Human-readable label"
         />
       </div>
+    </div>
+  );
+}
+
+// Per-trigger conditions section
+function TriggerConditionsSection({ draft, onChange }: { draft: WorkflowTriggerDraft; onChange: (d: WorkflowTriggerDraft) => void }) {
+  const registry = useDeviceRegistry();
+  const [expanded, setExpanded] = useState(false);
+
+  const hasConditions = draft.conditions && draft.conditions.length > 0 && draft.conditions[0];
+  const root = hasConditions ? draft.conditions![0]! : null;
+
+  const condCount = useMemo(() => {
+    if (!root) return 0;
+    function countLeaves(c: WorkflowConditionDraft): number {
+      if (c.type === 'and' || c.type === 'or') return (c.conditions ?? []).reduce((s, ch) => s + countLeaves(ch), 0);
+      if (c.type === 'not') return c.condition ? countLeaves(c.condition) : 0;
+      return 1;
+    }
+    return countLeaves(root);
+  }, [root]);
+
+  const addConditions = useCallback(() => {
+    const emptyRoot: WorkflowConditionDraft = { _draftId: newUUID(), type: 'and', conditions: [] };
+    onChange({ ...draft, conditions: [emptyRoot] });
+    setExpanded(true);
+  }, [draft, onChange]);
+
+  const removeConditions = useCallback(() => {
+    onChange({ ...draft, conditions: undefined });
+    setExpanded(false);
+  }, [draft, onChange]);
+
+  const onRootChange = useCallback((updated: WorkflowConditionDraft) => {
+    onChange({ ...draft, conditions: [updated] });
+  }, [draft, onChange]);
+
+  return (
+    <div className="editor-field">
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }} onClick={() => hasConditions && setExpanded(!expanded)}>
+        <label style={{ margin: 0, cursor: 'pointer' }}>Trigger Conditions</label>
+        {condCount > 0 && (
+          <span className="child-badge" style={{ fontSize: 11 }}>{condCount}</span>
+        )}
+        {hasConditions && (
+          <Icon name={expanded ? 'chevron-down' : 'chevron-forward'} size={12} style={{ color: 'var(--text-tertiary)', marginLeft: 'auto' }} />
+        )}
+      </div>
+      {!hasConditions && (
+        <button className="wfe-condition-add-btn" onClick={addConditions} type="button" style={{ marginTop: 4 }}>
+          <Icon name="plus-circle" size={14} />
+          Add Trigger Conditions
+        </button>
+      )}
+      {hasConditions && expanded && root && (
+        <div style={{ marginTop: 8 }}>
+          <ConditionGroupEditor
+            draft={root}
+            allowBlockResult={false}
+            onChange={onRootChange}
+            onEditNestedCondition={() => {}}
+          />
+          <div style={{ marginTop: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>
+              If conditions fail, this trigger is silently skipped.
+            </span>
+            <button className="wfe-remove-btn" onClick={removeConditions} type="button" style={{ fontSize: 11 }}>
+              Remove
+            </button>
+          </div>
+        </div>
+      )}
+      {hasConditions && !expanded && root && condCount > 0 && (
+        <span style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
+          {conditionAutoName(root, registry)}
+        </span>
+      )}
     </div>
   );
 }

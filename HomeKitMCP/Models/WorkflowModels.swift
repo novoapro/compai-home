@@ -689,6 +689,7 @@ enum WorkflowTrigger: Codable {
         case scheduleType, token
         case event, offsetMinutes
         case retriggerPolicy
+        case conditions
     }
 
     init(from decoder: Decoder) throws {
@@ -696,6 +697,7 @@ enum WorkflowTrigger: Codable {
         let type = try container.decode(TriggerType.self, forKey: .type)
         let name = try container.decodeIfPresent(String.self, forKey: .name)
         let policy = try container.decodeIfPresent(ConcurrentExecutionPolicy.self, forKey: .retriggerPolicy)
+        let triggerConditions = try container.decodeIfPresent([WorkflowCondition].self, forKey: .conditions)
         switch type {
         case .deviceStateChange:
             let charId = try container.decode(String.self, forKey: .characteristicId)
@@ -707,28 +709,32 @@ enum WorkflowTrigger: Codable {
                 characteristicId: charId,
                 condition: container.decode(TriggerCondition.self, forKey: .condition),
                 name: name,
-                retriggerPolicy: policy
+                retriggerPolicy: policy,
+                conditions: triggerConditions
             ))
         case .schedule:
             self = try .schedule(ScheduleTrigger(
                 scheduleType: container.decode(ScheduleType.self, forKey: .scheduleType),
                 name: name,
-                retriggerPolicy: policy
+                retriggerPolicy: policy,
+                conditions: triggerConditions
             ))
         case .webhook:
             self = try .webhook(WebhookTrigger(
                 token: container.decodeIfPresent(String.self, forKey: .token) ?? UUID().uuidString,
                 name: name,
-                retriggerPolicy: policy
+                retriggerPolicy: policy,
+                conditions: triggerConditions
             ))
         case .workflow:
-            self = .workflow(WorkflowCallTrigger(name: name, retriggerPolicy: policy))
+            self = .workflow(WorkflowCallTrigger(name: name, retriggerPolicy: policy, conditions: triggerConditions))
         case .sunEvent:
             self = try .sunEvent(SunEventTrigger(
                 event: container.decode(SunEventType.self, forKey: .event),
                 offsetMinutes: container.decodeIfPresent(Int.self, forKey: .offsetMinutes) ?? 0,
                 name: name,
-                retriggerPolicy: policy
+                retriggerPolicy: policy,
+                conditions: triggerConditions
             ))
         }
     }
@@ -746,26 +752,31 @@ enum WorkflowTrigger: Codable {
             try container.encode(trigger.characteristicId, forKey: .characteristicId)
             try container.encode(trigger.condition, forKey: .condition)
             try container.encodeIfPresent(trigger.retriggerPolicy, forKey: .retriggerPolicy)
+            try container.encodeIfPresent(trigger.conditions, forKey: .conditions)
         case let .schedule(trigger):
             try container.encode(TriggerType.schedule, forKey: .type)
             try container.encodeIfPresent(trigger.name, forKey: .name)
             try container.encode(trigger.scheduleType, forKey: .scheduleType)
             try container.encodeIfPresent(trigger.retriggerPolicy, forKey: .retriggerPolicy)
+            try container.encodeIfPresent(trigger.conditions, forKey: .conditions)
         case let .webhook(trigger):
             try container.encode(TriggerType.webhook, forKey: .type)
             try container.encodeIfPresent(trigger.name, forKey: .name)
             try container.encode(trigger.token, forKey: .token)
             try container.encodeIfPresent(trigger.retriggerPolicy, forKey: .retriggerPolicy)
+            try container.encodeIfPresent(trigger.conditions, forKey: .conditions)
         case let .workflow(trigger):
             try container.encode(TriggerType.workflow, forKey: .type)
             try container.encodeIfPresent(trigger.name, forKey: .name)
             try container.encodeIfPresent(trigger.retriggerPolicy, forKey: .retriggerPolicy)
+            try container.encodeIfPresent(trigger.conditions, forKey: .conditions)
         case let .sunEvent(trigger):
             try container.encode(TriggerType.sunEvent, forKey: .type)
             try container.encodeIfPresent(trigger.name, forKey: .name)
             try container.encode(trigger.event, forKey: .event)
             try container.encode(trigger.offsetMinutes, forKey: .offsetMinutes)
             try container.encodeIfPresent(trigger.retriggerPolicy, forKey: .retriggerPolicy)
+            try container.encodeIfPresent(trigger.conditions, forKey: .conditions)
         }
     }
     /// The per-trigger retrigger policy, if set.
@@ -784,6 +795,17 @@ enum WorkflowTrigger: Codable {
         retriggerPolicy ?? .ignoreNew
     }
 
+    /// Per-trigger guard conditions, if set.
+    var conditions: [WorkflowCondition]? {
+        switch self {
+        case .deviceStateChange(let t): return t.conditions
+        case .schedule(let t): return t.conditions
+        case .webhook(let t): return t.conditions
+        case .workflow(let t): return t.conditions
+        case .sunEvent(let t): return t.conditions
+        }
+    }
+
     /// Returns a copy of this trigger with the given retrigger policy applied.
     func withRetriggerPolicy(_ policy: ConcurrentExecutionPolicy) -> WorkflowTrigger {
         switch self {
@@ -792,24 +814,24 @@ enum WorkflowTrigger: Codable {
                 deviceId: t.deviceId, deviceName: t.deviceName, roomName: t.roomName,
                 serviceId: t.serviceId,
                 characteristicId: t.characteristicId, condition: t.condition,
-                name: t.name, retriggerPolicy: policy
+                name: t.name, retriggerPolicy: policy, conditions: t.conditions
             ))
         case .schedule(let t):
             return .schedule(ScheduleTrigger(
-                scheduleType: t.scheduleType, name: t.name, retriggerPolicy: policy
+                scheduleType: t.scheduleType, name: t.name, retriggerPolicy: policy, conditions: t.conditions
             ))
         case .webhook(let t):
             return .webhook(WebhookTrigger(
-                token: t.token, name: t.name, retriggerPolicy: policy
+                token: t.token, name: t.name, retriggerPolicy: policy, conditions: t.conditions
             ))
         case .workflow(let t):
             return .workflow(WorkflowCallTrigger(
-                name: t.name, retriggerPolicy: policy
+                name: t.name, retriggerPolicy: policy, conditions: t.conditions
             ))
         case .sunEvent(let t):
             return .sunEvent(SunEventTrigger(
                 event: t.event, offsetMinutes: t.offsetMinutes,
-                name: t.name, retriggerPolicy: policy
+                name: t.name, retriggerPolicy: policy, conditions: t.conditions
             ))
         }
     }
@@ -824,8 +846,9 @@ struct DeviceStateTrigger {
     let condition: TriggerCondition
     let name: String?
     let retriggerPolicy: ConcurrentExecutionPolicy?
+    let conditions: [WorkflowCondition]?
 
-    init(deviceId: String, deviceName: String? = nil, roomName: String? = nil, serviceId: String? = nil, characteristicId: String, condition: TriggerCondition, name: String? = nil, retriggerPolicy: ConcurrentExecutionPolicy? = nil) {
+    init(deviceId: String, deviceName: String? = nil, roomName: String? = nil, serviceId: String? = nil, characteristicId: String, condition: TriggerCondition, name: String? = nil, retriggerPolicy: ConcurrentExecutionPolicy? = nil, conditions: [WorkflowCondition]? = nil) {
         self.deviceId = deviceId
         self.deviceName = deviceName
         self.roomName = roomName
@@ -834,6 +857,7 @@ struct DeviceStateTrigger {
         self.condition = condition
         self.name = name
         self.retriggerPolicy = retriggerPolicy
+        self.conditions = conditions
     }
 }
 
@@ -841,11 +865,13 @@ struct ScheduleTrigger {
     let scheduleType: ScheduleType
     let name: String?
     let retriggerPolicy: ConcurrentExecutionPolicy?
+    let conditions: [WorkflowCondition]?
 
-    init(scheduleType: ScheduleType, name: String? = nil, retriggerPolicy: ConcurrentExecutionPolicy? = nil) {
+    init(scheduleType: ScheduleType, name: String? = nil, retriggerPolicy: ConcurrentExecutionPolicy? = nil, conditions: [WorkflowCondition]? = nil) {
         self.scheduleType = scheduleType
         self.name = name
         self.retriggerPolicy = retriggerPolicy
+        self.conditions = conditions
     }
 }
 
@@ -942,21 +968,25 @@ struct WebhookTrigger {
     let token: String
     let name: String?
     let retriggerPolicy: ConcurrentExecutionPolicy?
+    let conditions: [WorkflowCondition]?
 
-    init(token: String = UUID().uuidString, name: String? = nil, retriggerPolicy: ConcurrentExecutionPolicy? = nil) {
+    init(token: String = UUID().uuidString, name: String? = nil, retriggerPolicy: ConcurrentExecutionPolicy? = nil, conditions: [WorkflowCondition]? = nil) {
         self.token = token
         self.name = name
         self.retriggerPolicy = retriggerPolicy
+        self.conditions = conditions
     }
 }
 
 struct WorkflowCallTrigger: Codable {
     let name: String?
     let retriggerPolicy: ConcurrentExecutionPolicy?
+    let conditions: [WorkflowCondition]?
 
-    init(name: String? = nil, retriggerPolicy: ConcurrentExecutionPolicy? = nil) {
+    init(name: String? = nil, retriggerPolicy: ConcurrentExecutionPolicy? = nil, conditions: [WorkflowCondition]? = nil) {
         self.name = name
         self.retriggerPolicy = retriggerPolicy
+        self.conditions = conditions
     }
 }
 
@@ -979,12 +1009,14 @@ struct SunEventTrigger {
     let offsetMinutes: Int
     let name: String?
     let retriggerPolicy: ConcurrentExecutionPolicy?
+    let conditions: [WorkflowCondition]?
 
-    init(event: SunEventType, offsetMinutes: Int = 0, name: String? = nil, retriggerPolicy: ConcurrentExecutionPolicy? = nil) {
+    init(event: SunEventType, offsetMinutes: Int = 0, name: String? = nil, retriggerPolicy: ConcurrentExecutionPolicy? = nil, conditions: [WorkflowCondition]? = nil) {
         self.event = event
         self.offsetMinutes = offsetMinutes
         self.name = name
         self.retriggerPolicy = retriggerPolicy
+        self.conditions = conditions
     }
 }
 

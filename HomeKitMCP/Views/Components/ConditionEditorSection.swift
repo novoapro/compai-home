@@ -29,12 +29,12 @@ struct ConditionEditorSection: View {
                 blockOrdinals: blockOrdinals
             )
         } header: {
-            Text("Guard Conditions (\(conditionRoot.leafCount))")
+            Text("Global Guard Conditions (\(conditionRoot.leafCount))")
         } footer: {
             if conditionRoot.children.isEmpty {
-                Text("No conditions — workflow will always proceed.")
+                Text("No global guard conditions — workflow will always proceed after any trigger fires.")
             } else {
-                Text("Conditions combine with \(conditionRoot.logicOperator.displayName). Leave empty to always proceed.")
+                Text("Global guard conditions apply after any trigger fires. Conditions combine with \(conditionRoot.logicOperator.displayName).")
             }
         }
         .listRowBackground(Theme.contentBackground)

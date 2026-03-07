@@ -37,7 +37,7 @@ struct GeneralSettingsView: View {
             } header: {
                 Label("Logging", systemImage: "doc.text")
             } footer: {
-                Text("When enabled, state changes for observed characteristics are recorded to the log buffer. Detailed logs capture full request and response data for MCP, REST, and webhook entries. Log Access via API exposes logs through the MCP get_logs tool and the REST /logs endpoint. Log Skipped Workflows controls whether workflows whose guard conditions were not met appear in the log. Log buffer size controls the maximum number of log entries kept in memory and on disk — takes effect on next app launch.")
+                Text("When enabled, state changes for observed characteristics are recorded to the log buffer. Detailed logs capture full request and response data for MCP, REST, and webhook entries. Log Access via API exposes logs through the MCP get_logs tool and the REST /logs endpoint. Log Skipped Workflows controls whether workflows whose global guard conditions were not met appear in the log. Log buffer size controls the maximum number of log entries kept in memory and on disk — takes effect on next app launch.")
             }
 
             Section {

@@ -523,7 +523,7 @@ export function WorkflowEditorPage() {
     } else {
       panelConditionRef.current = { _draftId: newUUID(), type: 'and', conditions: [] };
     }
-    setPanel({ type: 'conditionGroup', title: 'Guard Conditions', conditionPath: [0] });
+    setPanel({ type: 'conditionGroup', title: 'Global Guard Conditions', conditionPath: [0] });
   }, [draft.conditions]);
 
   const openNestedConditionPanel = useCallback(
@@ -751,9 +751,9 @@ export function WorkflowEditorPage() {
         </button>
       </div>
 
-      {/* Guard Conditions Section */}
+      {/* Global Guard Conditions Section */}
       <div className="wfe-section">
-        <h3 className="wfe-section-title">Guard Conditions</h3>
+        <h3 className="wfe-section-title">Global Guard Conditions</h3>
         {draft.conditions.length > 0 && draft.conditions[0] && (
           <div className="wfe-condition-node" onClick={openConditionGroupPanel}>
             <Icon name="arrow-triangle-branch" size={15} style={{ color: 'var(--text-tertiary)', opacity: 0.5 }} />
@@ -771,7 +771,7 @@ export function WorkflowEditorPage() {
         {draft.conditions.length === 0 && (
           <button className="wfe-condition-add-btn" onClick={openConditionGroupPanel} type="button">
             <Icon name="plus-circle" size={14} />
-            Add Guard Conditions
+            Add Global Guard Conditions
           </button>
         )}
       </div>

@@ -150,9 +150,9 @@ struct WorkflowDetailView: View {
                 WorkflowConditionRow(condition: condition, devices: devices, scenes: scenes, depth: 0)
             }
         } header: {
-            Text("Guard Conditions")
+            Text("Global Guard Conditions")
         } footer: {
-            Text("Conditions are evaluated before the workflow proceeds.")
+            Text("Global guard conditions are evaluated after any trigger fires. Failure marks the workflow as skipped.")
         }
         .listRowBackground(Theme.contentBackground)
     }
@@ -252,99 +252,121 @@ private struct WorkflowTriggerRow: View {
     let devices: [DeviceModel]
 
     var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            triggerContent
+            triggerConditionsBadge
+        }
+        .padding(.vertical, 2)
+    }
+
+    @ViewBuilder
+    private var triggerConditionsBadge: some View {
+        if let conditions = trigger.conditions, !conditions.isEmpty {
+            let count = Self.countLeafConditions(conditions)
+            HStack(spacing: 4) {
+                Image(systemName: "shield.fill")
+                    .font(.caption2)
+                    .foregroundStyle(.indigo)
+                Text("\(count) trigger condition\(count == 1 ? "" : "s")")
+                    .font(.caption)
+                    .foregroundStyle(.indigo)
+            }
+        }
+    }
+
+    private static func countLeafConditions(_ conditions: [WorkflowCondition]) -> Int {
+        conditions.reduce(0) { sum, cond in
+            switch cond {
+            case .and(let children), .or(let children):
+                return sum + countLeafConditions(children)
+            case .not(let inner):
+                return sum + countLeafConditions([inner])
+            default:
+                return sum + 1
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var triggerContent: some View {
         switch trigger {
         case let .deviceStateChange(t):
             let isOrphaned = !t.deviceId.isEmpty && !devices.contains(where: { $0.id == t.deviceId })
-            VStack(alignment: .leading, spacing: 4) {
-                HStack {
-                    Image(systemName: "bolt.fill")
-                        .font(.footnote)
-                        .foregroundColor(Theme.Tint.main)
-                    Text(t.name ?? "Device State Change")
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                    if isOrphaned {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .font(.caption)
-                            .foregroundColor(.orange)
-                    }
-                }
-                Text("Device: \(devices.resolvedName(deviceId: t.deviceId, serviceId: t.serviceId))")
+            HStack {
+                Image(systemName: "bolt.fill")
                     .font(.footnote)
-                    .foregroundColor(isOrphaned ? .orange : Theme.Text.secondary)
-                Text("Characteristic: \(devices.resolvedCharacteristicName(deviceId: t.deviceId, characteristicId: t.characteristicId))")
-                    .font(.footnote)
-                    .foregroundColor(Theme.Text.secondary)
-                Text("Condition: \(Self.triggerConditionDescription(t.condition))")
-                    .font(.footnote)
-                    .foregroundColor(Theme.Text.secondary)
-            }
-            .padding(.vertical, 2)
-        case let .schedule(t):
-            VStack(alignment: .leading, spacing: 4) {
-                HStack {
-                    Image(systemName: "clock.fill")
-                        .font(.footnote)
-                        .foregroundColor(Theme.Tint.main)
-                    Text(t.name ?? "Schedule")
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                }
-                Text(Self.scheduleDescription(t.scheduleType))
-                    .font(.footnote)
-                    .foregroundColor(Theme.Text.secondary)
-            }
-            .padding(.vertical, 2)
-        case let .webhook(t):
-            VStack(alignment: .leading, spacing: 4) {
-                HStack {
-                    Image(systemName: "arrow.down.circle.fill")
-                        .font(.footnote)
-                        .foregroundColor(Theme.Tint.main)
-                    Text(t.name ?? "Webhook")
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                }
-                Text("Token: \(String(t.token.prefix(8)))...")
-                    .font(.footnote)
-                    .foregroundColor(Theme.Text.secondary)
-            }
-            .padding(.vertical, 2)
-        case let .workflow(t):
-            VStack(alignment: .leading, spacing: 4) {
-                HStack {
-                    Image(systemName: "arrow.triangle.turn.up.right.diamond")
-                        .font(.footnote)
-                        .foregroundColor(Theme.Tint.main)
-                    Text(t.name ?? "Workflow Trigger")
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                }
-                Text("Callable from other workflows")
-                    .font(.footnote)
-                    .foregroundColor(Theme.Text.secondary)
-            }
-            .padding(.vertical, 2)
-        case let .sunEvent(t):
-            VStack(alignment: .leading, spacing: 4) {
-                HStack {
-                    Image(systemName: "sunrise.fill")
-                        .font(.footnote)
+                    .foregroundColor(Theme.Tint.main)
+                Text(t.name ?? "Device State Change")
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                if isOrphaned {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.caption)
                         .foregroundColor(.orange)
-                    Text(t.name ?? "Sunrise/Sunset")
-                        .font(.subheadline)
-                        .fontWeight(.medium)
                 }
-                let offsetDesc: String = {
-                    if t.offsetMinutes == 0 { return "" }
-                    if t.offsetMinutes > 0 { return " +\(t.offsetMinutes)min" }
-                    return " \(t.offsetMinutes)min"
-                }()
-                Text("\(t.event.displayName)\(offsetDesc)")
-                    .font(.footnote)
-                    .foregroundColor(Theme.Text.secondary)
             }
-            .padding(.vertical, 2)
+            Text("Device: \(devices.resolvedName(deviceId: t.deviceId, serviceId: t.serviceId))")
+                .font(.footnote)
+                .foregroundColor(isOrphaned ? .orange : Theme.Text.secondary)
+            Text("Characteristic: \(devices.resolvedCharacteristicName(deviceId: t.deviceId, characteristicId: t.characteristicId))")
+                .font(.footnote)
+                .foregroundColor(Theme.Text.secondary)
+            Text("Condition: \(Self.triggerConditionDescription(t.condition))")
+                .font(.footnote)
+                .foregroundColor(Theme.Text.secondary)
+        case let .schedule(t):
+            HStack {
+                Image(systemName: "clock.fill")
+                    .font(.footnote)
+                    .foregroundColor(Theme.Tint.main)
+                Text(t.name ?? "Schedule")
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+            }
+            Text(Self.scheduleDescription(t.scheduleType))
+                .font(.footnote)
+                .foregroundColor(Theme.Text.secondary)
+        case let .webhook(t):
+            HStack {
+                Image(systemName: "arrow.down.circle.fill")
+                    .font(.footnote)
+                    .foregroundColor(Theme.Tint.main)
+                Text(t.name ?? "Webhook")
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+            }
+            Text("Token: \(String(t.token.prefix(8)))...")
+                .font(.footnote)
+                .foregroundColor(Theme.Text.secondary)
+        case let .workflow(t):
+            HStack {
+                Image(systemName: "arrow.triangle.turn.up.right.diamond")
+                    .font(.footnote)
+                    .foregroundColor(Theme.Tint.main)
+                Text(t.name ?? "Workflow Trigger")
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+            }
+            Text("Callable from other workflows")
+                .font(.footnote)
+                .foregroundColor(Theme.Text.secondary)
+        case let .sunEvent(t):
+            HStack {
+                Image(systemName: "sunrise.fill")
+                    .font(.footnote)
+                    .foregroundColor(.orange)
+                Text(t.name ?? "Sunrise/Sunset")
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+            }
+            let offsetDesc: String = {
+                if t.offsetMinutes == 0 { return "" }
+                if t.offsetMinutes > 0 { return " +\(t.offsetMinutes)min" }
+                return " \(t.offsetMinutes)min"
+            }()
+            Text("\(t.event.displayName)\(offsetDesc)")
+                .font(.footnote)
+                .foregroundColor(Theme.Text.secondary)
         }
     }
 
