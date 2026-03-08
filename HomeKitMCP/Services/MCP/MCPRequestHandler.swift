@@ -76,37 +76,11 @@ final class MCPRequestHandler: Sendable {
     }
 
     /// Checks whether a specific device + characteristic is exposed (enabled) for external access.
-    private func isCharacteristicExposed(deviceId: String, characteristicType: String, serviceId: String?) async -> Bool {
-        let resolvedType = CharacteristicTypes.characteristicType(forName: characteristicType) ?? characteristicType
-
-        let device: DeviceModel? = await MainActor.run { homeKitManager.getDeviceState(id: deviceId) }
-        guard let device else {
-            return false
-        }
-
-        let targetServices: [ServiceModel]
-        if let serviceId {
-            targetServices = device.services.filter { $0.id == serviceId }
-        } else {
-            targetServices = device.services
-        }
-
-        for service in targetServices {
-            for characteristic in service.characteristics where characteristic.type == resolvedType {
-                let settings = registry?.readCharacteristicSettings(forHomeKitCharId: characteristic.id)
-                if settings?.enabled ?? true {
-                    return true
-                }
-            }
-        }
-        return false
-    }
-
     /// Workflow tool names for guard checks when workflows are disabled.
     private static let workflowToolNames: Set<String> = [
         "list_workflows", "get_workflow", "create_workflow", "update_workflow",
         "delete_workflow", "enable_workflow", "get_workflow_logs",
-        "trigger_workflow", "trigger_workflow_webhook"
+        "trigger_workflow"
     ]
 
     // MARK: - Initialize
@@ -285,28 +259,20 @@ final class MCPRequestHandler: Sendable {
         switch toolName {
         case "list_devices":
             return await handleListDevices(id: id, arguments: arguments)
-        case "get_device":
-            return await handleGetDevice(id: id, arguments: arguments)
+        case "get_device_details":
+            return await handleGetDeviceDetails(id: id, arguments: arguments)
         case "control_device":
             return await handleControlDevice(id: id, arguments: arguments)
         case "list_rooms":
             return await handleListRooms(id: id)
-        case "get_room_devices":
-            return await handleGetRoomDevices(id: id, arguments: arguments)
         case "get_logs":
             return await handleGetLogs(id: id, arguments: arguments)
-        case "get_devices_in_rooms":
-            return await handleGetDevicesInRooms(id: id, arguments: arguments)
         case "get_devices_by_type":
             return await handleGetDevicesByType(id: id, arguments: arguments)
         case "list_scenes":
             return await handleListScenes(id: id)
         case "execute_scene":
             return await handleExecuteScene(id: id, arguments: arguments)
-        case "list_service_types":
-            return handleListServiceTypes(id: id)
-        case "list_characteristic_types":
-            return handleListCharacteristicTypes(id: id)
         case "list_device_categories":
             return handleListDeviceCategories(id: id)
         case "get_workflow_schema":
@@ -327,8 +293,6 @@ final class MCPRequestHandler: Sendable {
             return await handleGetWorkflowLogs(id: id, arguments: arguments)
         case "trigger_workflow":
             return await handleTriggerWorkflow(id: id, arguments: arguments)
-        case "trigger_workflow_webhook":
-            return await handleTriggerWorkflowWebhook(id: id, arguments: arguments)
         default:
             return JSONRPCResponse.error(
                 id: id,
@@ -340,11 +304,11 @@ final class MCPRequestHandler: Sendable {
 
     private func handleControlDevice(id: JSONRPCId?, arguments: [String: Any]) async -> JSONRPCResponse {
         guard let deviceId = arguments["device_id"] as? String,
-              let characteristicType = arguments["characteristic_type"] as? String else {
+              let characteristicId = arguments["characteristic_id"] as? String else {
             return JSONRPCResponse.error(
                 id: id,
                 code: MCPErrorCode.invalidParams,
-                message: "Missing required arguments: device_id, characteristic_type"
+                message: "Missing required arguments: device_id, characteristic_id"
             )
         }
 
@@ -356,28 +320,50 @@ final class MCPRequestHandler: Sendable {
             )
         }
 
-        let serviceId = arguments["service_id"] as? String
+        // Look up the device and find the characteristic by its stable ID
+        let device: DeviceModel? = await MainActor.run { homeKitManager.getDeviceState(id: deviceId) }
+        guard let device else {
+            return toolResult(text: "Device not found: \(deviceId)", isError: true, id: id)
+        }
 
-        // Check device/characteristic exposure before allowing control
-        let exposed = await isCharacteristicExposed(
-            deviceId: deviceId,
-            characteristicType: characteristicType,
-            serviceId: serviceId
-        )
-        guard exposed else {
+        // Find the characteristic and its parent service by characteristic ID
+        var matchedCharacteristic: CharacteristicModel?
+        var matchedServiceId: String?
+        for service in device.services {
+            if let char = service.characteristics.first(where: { $0.id == characteristicId }) {
+                matchedCharacteristic = char
+                matchedServiceId = service.id
+                break
+            }
+        }
+
+        guard let characteristic = matchedCharacteristic else {
+            return toolResult(text: "Characteristic not found: \(characteristicId)", isError: true, id: id)
+        }
+
+        // Check exposure
+        let settings = registry?.readCharacteristicSettings(forHomeKitCharId: characteristic.id)
+        guard settings?.enabled ?? true else {
             return toolResult(
-                text: "Device or characteristic not found or not exposed for external access.",
+                text: "Characteristic not exposed for external access.",
                 isError: true,
                 id: id
             )
         }
 
-        // Validate value against characteristic metadata and check write permission
-        let resolvedType = CharacteristicTypes.characteristicType(forName: characteristicType) ?? characteristicType
+        // Check write permission
+        guard characteristic.permissions.contains("write") else {
+            let displayName = CharacteristicTypes.displayName(for: characteristic.type)
+            return toolResult(
+                text: "Characteristic '\(displayName)' is not writable (permissions: \(characteristic.permissions.joined(separator: ", "))).",
+                isError: true,
+                id: id
+            )
+        }
 
         // Convert temperature from user's preferred unit back to Celsius for HomeKit
         var effectiveValue = value
-        if TemperatureConversion.isFahrenheit && TemperatureConversion.isTemperatureCharacteristic(resolvedType) {
+        if TemperatureConversion.isFahrenheit && TemperatureConversion.isTemperatureCharacteristic(characteristic.type) {
             if let doubleVal = value as? Double {
                 effectiveValue = TemperatureConversion.fahrenheitToCelsius(doubleVal)
             } else if let intVal = value as? Int {
@@ -385,36 +371,18 @@ final class MCPRequestHandler: Sendable {
             }
         }
 
-        let device: DeviceModel? = await MainActor.run { homeKitManager.getDeviceState(id: deviceId) }
-        if let device {
-            let targetServices = serviceId != nil ? device.services.filter({ $0.id == serviceId }) : device.services
-            if let characteristic = targetServices.flatMap(\.characteristics).first(where: { $0.type == resolvedType }) {
-                // Check write permission
-                guard characteristic.permissions.contains("write") else {
-                    return toolResult(
-                        text: "Characteristic '\(CharacteristicTypes.displayName(for: resolvedType))' is not writable (permissions: \(characteristic.permissions.joined(separator: ", "))).",
-                        isError: true,
-                        id: id
-                    )
-                }
-                do {
-                    try CharacteristicValidator.validate(value: effectiveValue, against: characteristic)
-                } catch let error as CharacteristicValidator.ValidationError {
-                    return toolResult(text: error.message, isError: true, id: id)
-                } catch {}
-            }
-        }
+        // Validate value against characteristic metadata
+        do {
+            try CharacteristicValidator.validate(value: effectiveValue, against: characteristic)
+        } catch let error as CharacteristicValidator.ValidationError {
+            return toolResult(text: error.message, isError: true, id: id)
+        } catch {}
 
         do {
-            try await homeKitManager.updateDevice(id: deviceId, characteristicType: characteristicType, value: effectiveValue, serviceId: serviceId)
+            try await homeKitManager.updateDevice(id: deviceId, characteristicType: characteristic.type, value: effectiveValue, serviceId: matchedServiceId)
 
-            let displayName = CharacteristicTypes.displayName(for: resolvedType)
-
-            var message = "Successfully set \(displayName) to \(value) on device \(deviceId)"
-            if let serviceId {
-                message += " (service: \(serviceId))"
-            }
-            return toolResult(text: message, id: id)
+            let displayName = CharacteristicTypes.displayName(for: characteristic.type)
+            return toolResult(text: "Successfully set \(displayName) to \(value) on device \(deviceId)", id: id)
         } catch {
             AppLogger.general.error("Device control failed: \(error.localizedDescription)")
             return toolResult(text: "Failed to control device: \(error.localizedDescription)", isError: true, id: id)
@@ -426,8 +394,6 @@ final class MCPRequestHandler: Sendable {
 
         // Parse optional filters
         let roomFilter = arguments["rooms"] as? [String]
-        let serviceTypeFilter = arguments["service_type"] as? String
-        let charTypeFilter = arguments["characteristic_type"] as? String
         let categoryFilter = arguments["device_category"] as? String
 
         var lines: [String] = []
@@ -448,36 +414,6 @@ final class MCPRequestHandler: Sendable {
                         return device.categoryType == resolved
                     }
                     return device.categoryType.localizedCaseInsensitiveContains(categoryFilter)
-                }
-            }
-
-            // Service type filter
-            if let serviceTypeFilter {
-                let resolvedServiceType = ServiceTypes.serviceType(forName: serviceTypeFilter)
-                filteredDevices = filteredDevices.filter { device in
-                    device.services.contains { service in
-                        if let resolved = resolvedServiceType {
-                            return service.type == resolved
-                        }
-                        return service.type.localizedCaseInsensitiveContains(serviceTypeFilter) ||
-                               service.displayName.localizedCaseInsensitiveContains(serviceTypeFilter)
-                    }
-                }
-            }
-
-            // Characteristic type filter
-            if let charTypeFilter {
-                let resolvedCharType = CharacteristicTypes.characteristicType(forName: charTypeFilter)
-                filteredDevices = filteredDevices.filter { device in
-                    device.services.contains { service in
-                        service.characteristics.contains { char in
-                            if let resolved = resolvedCharType {
-                                return char.type == resolved
-                            }
-                            let charName = CharacteristicTypes.displayName(for: char.type)
-                            return charName.localizedCaseInsensitiveContains(charTypeFilter)
-                        }
-                    }
                 }
             }
 
@@ -512,94 +448,6 @@ final class MCPRequestHandler: Sendable {
     }
 
     // MARK: - Metadata Tools
-
-    private func handleListServiceTypes(id: JSONRPCId?) -> JSONRPCResponse {
-        let entries = ServiceTypes.allEntries
-        var lines: [String] = ["Known service types (\(entries.count)):"]
-        for entry in entries {
-            if entry.description.isEmpty {
-                lines.append("- \(entry.displayName)")
-            } else {
-                lines.append("- \(entry.displayName) — \(entry.description)")
-            }
-        }
-        return toolResult(text: lines.joined(separator: "\n"), id: id)
-    }
-
-    private func handleListCharacteristicTypes(id: JSONRPCId?) -> JSONRPCResponse {
-        let allMappings = CharacteristicTypes.allMappings
-
-        var lines: [String] = ["Known characteristic types (\(allMappings.count)):"]
-        for entry in allMappings {
-            let name = entry.displayName
-            let uuid = entry.uuid
-
-            // Semantic description
-            let semanticDesc = CharacteristicTypes.description(for: uuid)
-
-            // Build value description
-            var valueDesc = ""
-
-            // Check for enum values
-            if let enumMap = CharacteristicInputConfig.enumLabelMaps[uuid] {
-                let sorted = enumMap.sorted { $0.key < $1.key }
-                let vals = sorted.map { "\($0.key)=\($0.value)" }.joined(separator: ", ")
-                valueDesc = "enum: \(vals)"
-            } else {
-                // Determine value type from characteristic behavior
-                valueDesc = Self.characteristicValueDescription(for: uuid)
-            }
-
-            // Get aliases (names that differ from the canonical lowercase display name)
-            let aliases = CharacteristicTypes.aliases(for: uuid)
-                .filter { $0 != name.lowercased() }
-
-            var line = "- \(name)"
-            if !aliases.isEmpty {
-                line += " (aliases: \(aliases.joined(separator: ", ")))"
-            }
-            if let desc = semanticDesc {
-                line += " — \(desc)"
-            }
-            line += " [\(valueDesc)]"
-            lines.append(line)
-        }
-
-        return toolResult(text: lines.joined(separator: "\n"), id: id)
-    }
-
-    /// Returns a human-readable value description for a characteristic type.
-    private static func characteristicValueDescription(for uuid: String) -> String {
-        switch uuid {
-        case HMCharacteristicTypePowerState, HMCharacteristicTypeMotionDetected,
-             HMCharacteristicTypeOutletInUse, HMCharacteristicTypeObstructionDetected,
-             HMCharacteristicTypeStatusActive:
-            return "bool (true=On, false=Off)"
-        case HMCharacteristicTypeBrightness, HMCharacteristicTypeSaturation,
-             HMCharacteristicTypeBatteryLevel, HMCharacteristicTypeCurrentRelativeHumidity,
-             HMCharacteristicTypeTargetRelativeHumidity, HMCharacteristicTypeCurrentPosition,
-             HMCharacteristicTypeTargetPosition, HMCharacteristicTypeRotationSpeed:
-            return "percentage 0-100%"
-        case HMCharacteristicTypeHue:
-            return "degrees 0-360°"
-        case HMCharacteristicTypeColorTemperature:
-            return "integer 140-500K (mireds)"
-        case HMCharacteristicTypeCurrentTemperature:
-            return "read-only, temperature (°C/°F)"
-        case HMCharacteristicTypeTargetTemperature:
-            return "temperature (°C/°F, typically 10-38)"
-        case HMCharacteristicTypeCurrentLightLevel:
-            return "read-only, float (lux)"
-        case HMCharacteristicTypeRemainingDuration:
-            return "read-only, integer (seconds)"
-        case HMCharacteristicTypeSetDuration:
-            return "integer (seconds)"
-        case HMCharacteristicTypeName:
-            return "read-only, string"
-        default:
-            return "value"
-        }
-    }
 
     private func handleListDeviceCategories(id: JSONRPCId?) -> JSONRPCResponse {
         let entries = DeviceCategories.allEntries
@@ -730,7 +578,7 @@ final class MCPRequestHandler: Sendable {
                             "characteristicId": ["type": "string", "required": true,
                                 "description": "Stable characteristic ID from list_devices."],
                             "value": ["type": "any", "required": true,
-                                "description": "Value to set. Use list_characteristic_types for valid values."],
+                                "description": "Value to set."],
                             "name": ["type": "string", "required": false]
                         ] as [String: Any]
                     ],
@@ -932,63 +780,6 @@ final class MCPRequestHandler: Sendable {
         return toolResult(text: lines.joined(separator: "\n"), id: id)
     }
 
-    private func handleGetRoomDevices(id: JSONRPCId?, arguments: [String: Any]) async -> JSONRPCResponse {
-        guard let roomName = arguments["room_name"] as? String else {
-            return JSONRPCResponse.error(
-                id: id,
-                code: MCPErrorCode.invalidParams,
-                message: "Missing required argument: room_name"
-            )
-        }
-
-        let groups = await MainActor.run { homeKitManager.getDevicesGroupedByRoom() }
-
-        guard let group = groups.first(where: { $0.roomName.localizedCaseInsensitiveCompare(roomName) == .orderedSame }) else {
-            return toolResult(text: "Room not found: \(roomName). Use list_rooms to see available rooms.", isError: true, id: id)
-        }
-
-        let filteredDevices = stableDevices(group.devices)
-        let restDevices = filteredDevices.map { RESTDevice.from($0) }
-        return toolResult(encoding: restDevices, id: id)
-    }
-
-    private func handleGetDevicesInRooms(id: JSONRPCId?, arguments: [String: Any]) async -> JSONRPCResponse {
-        guard let rooms = arguments["rooms"] as? [String] else {
-            return JSONRPCResponse.error(
-                id: id,
-                code: MCPErrorCode.invalidParams,
-                message: "Missing required argument: rooms (array of strings)"
-            )
-        }
-
-        let groups = await MainActor.run { homeKitManager.getDevicesGroupedByRoom() }
-        var resultDevices: [DeviceModel] = []
-        var missingRooms: [String] = []
-
-        for roomName in rooms {
-            if let group = groups.first(where: { $0.roomName.localizedCaseInsensitiveCompare(roomName) == .orderedSame }) {
-                resultDevices.append(contentsOf: group.devices)
-            } else {
-                missingRooms.append(roomName)
-            }
-        }
-
-        let filteredDevices = stableDevices(resultDevices)
-        let restDevices = filteredDevices.map { RESTDevice.from($0) }
-
-        guard let jsonData = try? JSONEncoder.iso8601.encode(restDevices),
-              let jsonString = String(data: jsonData, encoding: .utf8) else {
-            return toolResult(text: "Failed to encode device data", isError: true, id: id)
-        }
-
-        var responseText = jsonString
-        if !missingRooms.isEmpty {
-            responseText += "\n\nNote: The following rooms were not found: \(missingRooms.joined(separator: ", "))"
-        }
-
-        return toolResult(text: responseText, id: id)
-    }
-
     private func handleGetDevicesByType(id: JSONRPCId?, arguments: [String: Any]) async -> JSONRPCResponse {
         guard let types = arguments["types"] as? [String] else {
             return JSONRPCResponse.error(
@@ -1096,29 +887,38 @@ final class MCPRequestHandler: Sendable {
         return toolResult(text: lines.joined(separator: "\n"), id: id)
     }
 
-    private func handleGetDevice(id: JSONRPCId?, arguments: [String: Any]) async -> JSONRPCResponse {
-        guard let deviceId = arguments["device_id"] as? String else {
+    private func handleGetDeviceDetails(id: JSONRPCId?, arguments: [String: Any]) async -> JSONRPCResponse {
+        guard let deviceIds = arguments["device_ids"] as? [String], !deviceIds.isEmpty else {
             return JSONRPCResponse.error(
                 id: id,
                 code: MCPErrorCode.invalidParams,
-                message: "Missing required argument: device_id"
+                message: "Missing required argument: device_ids (array of strings)"
             )
         }
 
-        let device = await MainActor.run { homeKitManager.getDeviceState(id: deviceId) }
+        var restDevices: [RESTDevice] = []
+        var notFound: [String] = []
 
-        guard let device else {
-            return toolResult(text: "Device not found: \(deviceId)", isError: true, id: id)
+        for deviceId in deviceIds {
+            if let device = await MainActor.run { homeKitManager.getDeviceState(id: deviceId) },
+               let filteredDevice = stableDevices([device]).first {
+                restDevices.append(RESTDevice.from(filteredDevice))
+            } else {
+                notFound.append(deviceId)
+            }
         }
 
-        let filtered = stableDevices([device])
-
-        guard let filteredDevice = filtered.first else {
-            return toolResult(text: "Device not found: \(deviceId)", isError: true, id: id)
+        guard let jsonData = try? JSONEncoder.iso8601.encode(restDevices),
+              let jsonString = String(data: jsonData, encoding: .utf8) else {
+            return toolResult(text: "Failed to encode device data", isError: true, id: id)
         }
 
-        let restDevice = RESTDevice.from(filteredDevice)
-        return toolResult(encoding: restDevice, id: id)
+        var responseText = jsonString
+        if !notFound.isEmpty {
+            responseText += "\n\nNote: The following device IDs were not found: \(notFound.joined(separator: ", "))"
+        }
+
+        return toolResult(text: responseText, id: id)
     }
 
     // MARK: - Scene Tool Handlers
@@ -1390,53 +1190,6 @@ final class MCPRequestHandler: Sendable {
 
         let result = await workflowEngine.scheduleTrigger(id: workflowId)
         return toolResult(text: result.message, isError: !result.isAccepted, id: id)
-    }
-
-    private func handleTriggerWorkflowWebhook(id: JSONRPCId?, arguments: [String: Any]) async -> JSONRPCResponse {
-        guard let token = arguments["token"] as? String, !token.isEmpty else {
-            return JSONRPCResponse.error(id: id, code: MCPErrorCode.invalidParams, message: "Missing required argument: token")
-        }
-
-        let allWorkflows = await workflowStorageService.getEnabledWorkflows()
-        let matchingWorkflows = allWorkflows.filter { workflow in
-            workflow.triggers.contains { trigger in
-                if case .webhook(let wt) = trigger { return wt.token == token }
-                return false
-            }
-        }
-
-        guard !matchingWorkflows.isEmpty else {
-            return toolResult(text: "No enabled workflow found for webhook token: \(token.prefix(8))...", isError: true, id: id)
-        }
-
-        var lines: [String] = []
-        for workflow in matchingWorkflows {
-            // Find the specific webhook trigger that matched to get its retrigger policy
-            let matchedTrigger = workflow.triggers.first { trigger in
-                if case .webhook(let wt) = trigger { return wt.token == token }
-                return false
-            }
-            let policy = matchedTrigger?.retriggerPolicy
-
-            let triggerEvent = TriggerEvent(
-                deviceId: nil,
-                deviceName: nil,
-                serviceName: nil,
-                characteristicName: nil,
-                roomName: nil,
-                oldValue: nil,
-                newValue: nil,
-                triggerDescription: "Webhook received (token \(String(token.prefix(8)))…)"
-            )
-            let result = await workflowEngine.scheduleTrigger(id: workflow.id, triggerEvent: triggerEvent, policy: policy)
-            lines.append("\(workflow.name): \(result.message)")
-        }
-
-        if lines.isEmpty {
-            return toolResult(text: "Webhook matched \(matchingWorkflows.count) workflow(s) but none were scheduled.", id: id)
-        }
-
-        return toolResult(text: lines.joined(separator: "\n"), id: id)
     }
 
     // MARK: - Workflow JSON Parser

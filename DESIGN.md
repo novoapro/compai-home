@@ -248,11 +248,11 @@ Vapor 4.x HTTP server exposing three protocol surfaces from a single port.
 
 | Category | Tools |
 |----------|-------|
-| Device | `list_devices`, `get_device`, `control_device`, `list_rooms`, `get_room_devices`, `get_devices_in_rooms`, `get_devices_by_type` |
+| Device | `list_devices`, `get_device_details`, `control_device`, `list_rooms`, `get_devices_by_type` |
 | Scene | `list_scenes`, `get_scene`, `execute_scene` |
 | Log | `get_logs` |
-| Workflow | `list_workflows`, `get_workflow`, `create_workflow`, `update_workflow`, `delete_workflow`, `enable_workflow`, `trigger_workflow`, `trigger_workflow_webhook`, `get_workflow_logs` |
-| Metadata | `list_service_types`, `list_characteristic_types`, `list_device_categories`, `get_workflow_schema`, `get_workflow_ai_context` |
+| Workflow | `list_workflows`, `get_workflow`, `create_workflow`, `update_workflow`, `delete_workflow`, `enable_workflow`, `trigger_workflow`, `get_workflow_logs` |
+| Metadata | `list_device_categories`, `get_workflow_schema`, `get_workflow_ai_context` |
 
 **WebSocket Events (server → client):**
 

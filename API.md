@@ -548,13 +548,11 @@ List HomeKit devices grouped by room, with optional filters. All filters are AND
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `rooms` | string[] | no | Filter by room name(s). Case-insensitive. |
-| `service_type` | string | no | Filter to devices with a service of this type (e.g. "Lightbulb"). Case-insensitive. |
-| `characteristic_type` | string | no | Filter to devices with a characteristic of this type (e.g. "Power"). Case-insensitive. |
 | `device_category` | string | no | Filter by device category (e.g. "Lightbulb", "Sensor"). Case-insensitive. |
 
 Returns markdown-formatted text with devices grouped by room. Each device shows its name, online/offline status, and stable device ID. For multi-service devices, each service shows its display name and service ID. Each characteristic includes its stable characteristic ID, current value, compact permissions (`[r/w/n]` where r=read, w=write, n=notify), and metadata (format, range, units, or enum labels).
 
-Use `list_service_types`, `list_characteristic_types`, and `list_device_categories` to discover valid filter values.
+Use `list_device_categories` to discover valid category filter values.
 
 Example output:
 ```
@@ -567,15 +565,15 @@ Example output:
 
 ---
 
-##### get_device
+##### get_device_details
 
-Get the full state of a specific device.
+Get the full state of one or more devices.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
-| `device_id` | string | yes | Stable device identifier |
+| `device_ids` | string[] | yes | Array of stable device identifiers |
 
-Returns a JSON `RESTDevice` object.
+Returns a JSON array of `RESTDevice` objects. Reports any device IDs not found.
 
 ---
 
@@ -586,30 +584,14 @@ Set a characteristic value on a device.
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `device_id` | string | yes | Stable device identifier |
-| `characteristic_type` | string | yes | Human-readable name or shorthand. Common shorthands: `power`, `brightness`, `hue`, `saturation`, `color_temperature`, `temperature`, `current_temperature`, `target_position`, `lock_state`, `rotation_speed`. Full display names (e.g. `Target Temperature`, `Door State`, `Motion Detected`) are also accepted (case-insensitive). |
-| `value` | varies | yes | Value to set. Type depends on characteristic (see below) |
-| `service_id` | string | no | Target a specific service when a device has multiple (e.g. fan + light) |
+| `characteristic_id` | string | yes | Stable characteristic identifier (from `list_devices` or `get_device_details`) |
+| `value` | varies | yes | Value to set. Type depends on characteristic: bool for power/lock, int 0-100 for brightness/saturation/position, int 0-360 for hue, float for temperature |
 
-**Value types by characteristic:**
-
-| Characteristic | Type | Range |
-|---|---|---|
-| `power` | bool | `true` / `false` |
-| `brightness` | int | 0–100 |
-| `hue` | int | 0–360 |
-| `saturation` | int | 0–100 |
-| `color_temperature` | int | device-specific (typically 50–400) |
-| `temperature` / `target_temperature` | float | device-specific |
-| `current_temperature` | float | read-only |
-| `target_position` | int | 0–100 |
-| `lock_state` | bool | `true` (secured) / `false` (unsecured) |
-| `rotation_speed` | int | 0–100 |
-
-All 45+ HomeKit characteristic types are supported. The full display name (e.g., `Target Humidity`, `Door State`, `Active`) can also be used as the `characteristic_type` value. Values are validated against the characteristic's metadata (format, min/max, valid values).
+Values are validated against the characteristic's metadata (format, min/max, valid values).
 
 **Temperature values**: When the temperature unit preference is set to Fahrenheit, provide temperature values in Fahrenheit. The server automatically converts to Celsius before sending to HomeKit.
 
-**Permission requirement:** The target characteristic must have `"write"` permission. Attempting to set a value on a read-only characteristic (e.g., `current_temperature`, `Motion Detected`) will return an error.
+**Permission requirement:** The target characteristic must have `"write"` permission. Attempting to set a value on a read-only characteristic will return an error.
 
 ---
 
@@ -622,30 +604,6 @@ List all rooms with device counts.
 | *(none)* | | | |
 
 Returns text list of rooms and the number of devices in each.
-
----
-
-##### get_room_devices
-
-Get all devices in a room.
-
-| Parameter | Type | Required | Description |
-|---|---|---|---|
-| `room_name` | string | yes | Room name (case-insensitive) |
-
-Returns JSON array of `RESTDevice` objects.
-
----
-
-##### get_devices_in_rooms
-
-Get devices across multiple rooms.
-
-| Parameter | Type | Required | Description |
-|---|---|---|---|
-| `rooms` | string[] | yes | List of room names |
-
-Returns JSON array of matching devices. Reports any rooms not found.
 
 ---
 
@@ -710,44 +668,6 @@ Returns success message with scene name, or error with reason.
 #### Metadata Tools
 
 Always available. These tools help AI agents discover valid type names and workflow schema before making requests.
-
-##### list_service_types
-
-List all known HomeKit service types with semantic descriptions.
-
-| Parameter | Type | Required | Description |
-|---|---|---|---|
-| *(none)* | | | |
-
-Returns a text list of all service types. Each entry includes:
-- Friendly name (e.g. "Lightbulb", "Fan", "Thermostat")
-- Semantic description explaining the service's purpose and typical capabilities
-
-These names can be used as filter values in `list_devices` and `get_devices_by_type`.
-
-Example entry: `- Thermostat — Climate control; reads current temperature, sets target temperature and heating/cooling mode`
-
----
-
-##### list_characteristic_types
-
-List all known HomeKit characteristic types with semantic descriptions and value type information.
-
-| Parameter | Type | Required | Description |
-|---|---|---|---|
-| *(none)* | | | |
-
-Returns a rich text list of all characteristic types. Each entry includes:
-- Friendly name (e.g. "Power", "Brightness")
-- Accepted aliases (e.g. "power", "temperature")
-- Semantic description explaining what the characteristic represents
-- Value type and range in brackets (bool, percentage 0-100%, enum values, etc.)
-
-These names can be used in `control_device`, workflow triggers, conditions, actions, and as filter values in `list_devices`.
-
-Example entry: `- Brightness (aliases: brightness) — Light intensity level [percentage 0-100%]`
-
----
 
 ##### list_device_categories
 
@@ -887,18 +807,6 @@ Manually trigger a workflow (fire-and-forget).
 | `workflow_id` | string | yes | UUID of the workflow |
 
 Returns the scheduling outcome based on the retrigger policy. See [TriggerResult](#triggerresult).
-
----
-
-##### trigger_workflow_webhook
-
-Trigger workflows by webhook token (fire-and-forget).
-
-| Parameter | Type | Required | Description |
-|---|---|---|---|
-| `token` | string | yes | Webhook token from the trigger definition |
-
-Triggers all workflows with a matching webhook trigger. Returns scheduling outcome for each.
 
 ---
 

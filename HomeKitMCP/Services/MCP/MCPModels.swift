@@ -72,10 +72,9 @@ enum MCPConstants {
     static let serverInstructions = """
         This MCP server exposes Apple HomeKit smart home devices and automation workflows. \
         Use 'list_devices' to discover all devices and their current states, \
-        'get_device' to inspect a specific device, 'control_device' to change \
+        'get_device_details' to inspect one or more devices by ID, 'control_device' to change \
         device characteristics (power, brightness, temperature, etc.), \
-        'list_rooms' to see room layout, 'get_room_devices' to get devices in \
-        a specific room, and 'get_logs' to review recent state changes. \
+        'list_rooms' to see room layout, and 'get_logs' to review recent state changes. \
         Some devices have multiple components (e.g. a ceiling fan with both \
         a fan and a light). These appear as separate services, each with their \
         own service_id. When controlling such devices, use the service_id \

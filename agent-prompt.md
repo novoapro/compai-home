@@ -11,12 +11,8 @@ Identify the key elements in the request: devices, rooms, scenes, timing, condit
 
 ### Step 2: Discover Types (as needed)
 
-Use these tools to understand what's available before querying devices:
+Use `list_device_categories` to understand what device categories are available before querying devices.
 
-- `list_service_types` — learn what service types exist (e.g. "Lightbulb", "Fan", "Thermostat")
-- `list_characteristic_types` — learn what characteristics exist, their value types, ranges, enum values, and accepted aliases
-
-These help you narrow down your device queries in the next step.
 **Important:**
 Do not hallucinate any room, service types or characteristic types. Always use the tools to discover the available options. Using the wrong information in the filters will result in an empty list of devices.
 
@@ -26,19 +22,17 @@ Do not hallucinate any room, service types or characteristic types. Always use t
 
 ```json
 { "name": "list_devices", "arguments": { "rooms": ["Living Room"] } }
-{ "name": "list_devices", "arguments": { "service_type": "Lightbulb" } }
-{ "name": "list_devices", "arguments": { "characteristic_type": "Power", "rooms": ["Bedroom"] } }
 { "name": "list_devices", "arguments": { "device_category": "Sensor" } }
 ```
 
 **Important:**
-For some scenarios where the user might not know the exact name of the device, room, or characteristic, you should use the `list_devices`, `list_rooms`, `list_characteristic_types`, and `list_device_categories` tools to discover the available options. You should not assume any specific device names or room names.
+For some scenarios where the user might not know the exact name of the device, room, or characteristic, you should use the `list_devices`, `list_rooms`, and `list_device_categories` tools to discover the available options. You should not assume any specific device names or room names.
 
 Another importan thing to keep in mind is that there are services types that could be used for different purposes. For example, a "Switch" service type could be used for a lightbulb, a fan, or a heater. So if with the domain of devices you are looking a specific service type you don't find the device you are looking for, then you could explore practical alternatives for service types.
 
 If there is no clarity on the request, ask for clarification rather than guessing.
 
-Filters are AND-ed. Only request the devices relevant to the user's automation. If you need a specific device, use `get_device` with its ID.
+Filters are AND-ed. Only request the devices relevant to the user's automation. If you need specific devices, use `get_device_details` with their IDs.
 
 Each device shows its ID, services, and characteristics with IDs, current values, permissions (`[r/w/n]`), and metadata.
 
@@ -85,8 +79,6 @@ Tools with no required arguments can omit `arguments` entirely:
 List devices with their current states, grouped by room. All filters are optional and AND-ed.
 
 - `rooms` (array of strings) — filter by room name(s), case-insensitive
-- `service_type` (string) — filter to devices with this service type (e.g. "Lightbulb", "Fan"), case-insensitive
-- `characteristic_type` (string) — filter to devices with this characteristic type (e.g. "Power", "Brightness"), case-insensitive
 - `device_category` (string) — filter by device category (e.g. "Lightbulb", "Thermostat", "Sensor"), case-insensitive
 
 ```json
@@ -94,36 +86,35 @@ List devices with their current states, grouped by room. All filters are optiona
   "name": "list_devices",
   "arguments": {
     "rooms": ["Living Room", "Bedroom"],
-    "service_type": "Lightbulb"
+    "device_category": "Lightbulb"
   }
 }
 ```
 
-#### `get_device`
+#### `get_device_details`
 
-Get the current state of a specific device.
+Get the current state of one or more devices.
 
-- `device_id` (string, required) — device UUID
+- `device_ids` (array of strings, required) — device UUIDs
 
 ```json
-{ "name": "get_device", "arguments": { "device_id": "uuid" } }
+{ "name": "get_device_details", "arguments": { "device_ids": ["uuid1", "uuid2"] } }
 ```
 
 #### `control_device`
 
-Control a device by setting a characteristic value.
+Control a device by setting a characteristic value. Use the `characteristic_id` from `list_devices` or `get_device_details`.
 
 - `device_id` (string, required) — device UUID
-- `characteristic_type` (string, required) — human-readable name: power, brightness, hue, saturation, color_temperature, target_temperature, target_position, lock_state, rotation_speed
+- `characteristic_id` (string, required) — characteristic UUID from `list_devices` or `get_device_details`
 - `value` (any, required) — type depends on characteristic: bool for power/lock, int 0-100 for brightness/saturation/position, int 0-360 for hue, float for temperature
-- `service_id` (string, optional) — required when a device has multiple services with the same characteristic (e.g. separate power controls for fan and light)
 
 ```json
 {
   "name": "control_device",
   "arguments": {
-    "device_id": "uuid",
-    "characteristic_type": "Power",
+    "device_id": "device-uuid",
+    "characteristic_id": "char-uuid",
     "value": true
   }
 }
@@ -137,29 +128,6 @@ List all rooms with their device counts. No arguments.
 
 ```json
 { "name": "list_rooms" }
-```
-
-#### `get_room_devices`
-
-Get all devices in a room.
-
-- `room_name` (string, required)
-
-```json
-{ "name": "get_room_devices", "arguments": { "room_name": "Living Room" } }
-```
-
-#### `get_devices_in_rooms`
-
-Get devices across multiple rooms.
-
-- `rooms` (array of strings, required)
-
-```json
-{
-  "name": "get_devices_in_rooms",
-  "arguments": { "rooms": ["Living Room", "Kitchen"] }
-}
 ```
 
 #### `get_devices_by_type`
@@ -216,22 +184,6 @@ Get recent logs with filtering and pagination. All parameters optional.
 ```
 
 ### Metadata Tools
-
-#### `list_service_types`
-
-List all known HomeKit service types. No arguments.
-
-```json
-{ "name": "list_service_types" }
-```
-
-#### `list_characteristic_types`
-
-List all known characteristic types with their value types, valid values, and accepted aliases. No arguments.
-
-```json
-{ "name": "list_characteristic_types" }
-```
 
 #### `list_device_categories`
 
@@ -347,19 +299,6 @@ Trigger a workflow immediately (fire-and-forget).
 { "name": "trigger_workflow", "arguments": { "workflow_id": "uuid" } }
 ```
 
-#### `trigger_workflow_webhook`
-
-Trigger workflows matching a webhook token (fire-and-forget).
-
-- `token` (string, required)
-
-```json
-{
-  "name": "trigger_workflow_webhook",
-  "arguments": { "token": "my-webhook-token" }
-}
-```
-
 ---
 
 ## Anti-Hallucination Rules
@@ -377,7 +316,7 @@ Trigger workflows matching a webhook token (fire-and-forget).
 | Workflow Field     | Where to Find It                                                               |
 | ------------------ | ------------------------------------------------------------------------------ |
 | `deviceId`         | Device `(id: ...)` in `list_devices`                                           |
-| `characteristicId` | Characteristic `(id: ...)` in `list_devices` or `get_device`                   |
+| `characteristicId` | Characteristic `(id: ...)` in `list_devices` or `get_device_details`           |
 | `serviceId`        | Service `(service_id: ...)` in `list_devices` (only for multi-service devices) |
 | `sceneId`          | Scene ID from `list_scenes`                                                    |
 | `targetWorkflowId` | Workflow ID from `list_workflows`                                              |

@@ -214,11 +214,9 @@ The server implements the [Model Context Protocol](https://modelcontextprotocol.
 | Tool | Description |
 |------|-------------|
 | `list_devices` | List all devices grouped by room with current states |
-| `get_device` | Get a specific device by ID |
+| `get_device_details` | Get detailed state of one or more devices by ID |
 | `control_device` | Set a characteristic value on a device |
 | `list_rooms` | List all rooms with device counts |
-| `get_room_devices` | Get all devices in a specific room |
-| `get_devices_in_rooms` | Get devices from multiple rooms at once |
 | `get_devices_by_type` | Filter devices by service type (e.g. Lightbulb, Switch) |
 
 ### Scene Tools
@@ -245,7 +243,6 @@ The server implements the [Model Context Protocol](https://modelcontextprotocol.
 | `delete_workflow` | Delete a workflow |
 | `enable_workflow` | Enable or disable a workflow |
 | `trigger_workflow` | Manually trigger a workflow for testing |
-| `trigger_workflow_webhook` | Trigger workflows by webhook token |
 | `get_workflow_logs` | Get execution history, optionally filtered by workflow |
 
 ### Tool Details
@@ -255,15 +252,12 @@ The server implements the [Model Context Protocol](https://modelcontextprotocol.
 ```json
 {
   "device_id": "ABC-123",
-  "characteristic_type": "power",
-  "value": true,
-  "service_id": "optional-service-uuid"
+  "characteristic_id": "DEF-456",
+  "value": true
 }
 ```
 
-Use `service_id` when a device has multiple components (e.g. a ceiling fan with separate fan and light services).
-
-**Supported characteristic names:** `power`, `brightness`, `hue`, `saturation`, `color_temperature`, `target_temperature`, `target_position`, `lock_state`, `rotation_speed`, and 35+ more. Full display names (e.g. `Target Temperature`) are also accepted (case-insensitive).
+Use the `characteristic_id` from `list_devices` or `get_device_details` to target the exact characteristic you want to control.
 
 #### `get_logs`
 

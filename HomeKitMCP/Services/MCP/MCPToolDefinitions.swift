@@ -19,7 +19,7 @@ enum MCPToolDefinitions {
 
         [
             "name": "list_devices",
-            "description": "List HomeKit devices with their current states, grouped by room. Optionally filter by room(s), service type, characteristic type, and/or device category. All filters are AND-ed. Use list_service_types, list_characteristic_types, and list_device_categories to discover valid filter values.",
+            "description": "List HomeKit devices with their current states, grouped by room. Optionally filter by room(s) and/or device category. All filters are AND-ed. Use list_device_categories to discover valid category filter values.",
             "inputSchema": [
                 "type": "object",
                 "properties": [
@@ -27,14 +27,6 @@ enum MCPToolDefinitions {
                         "type": "array",
                         "items": ["type": "string"],
                         "description": "Filter by room name(s). Case-insensitive."
-                    ],
-                    "service_type": [
-                        "type": "string",
-                        "description": "Filter to devices that have a service of this type (e.g. 'Lightbulb', 'Fan'). Case-insensitive."
-                    ],
-                    "characteristic_type": [
-                        "type": "string",
-                        "description": "Filter to devices that have a characteristic of this type (e.g. 'Power', 'Brightness'). Case-insensitive."
                     ],
                     "device_category": [
                         "type": "string",
@@ -44,22 +36,23 @@ enum MCPToolDefinitions {
             ] as [String: Any]
         ],
         [
-            "name": "get_device",
-            "description": "Get the current state of a specific HomeKit device by its ID.",
+            "name": "get_device_details",
+            "description": "Get the current state of one or more HomeKit devices by their IDs. Returns detailed information for each requested device.",
             "inputSchema": [
                 "type": "object",
                 "properties": [
-                    "device_id": [
-                        "type": "string",
-                        "description": "Unique device identifier (UUID from the devices list)"
+                    "device_ids": [
+                        "type": "array",
+                        "items": ["type": "string"],
+                        "description": "Array of device identifiers (UUIDs from the devices list)"
                     ]
                 ] as [String: Any],
-                "required": ["device_id"]
+                "required": ["device_ids"]
             ] as [String: Any]
         ],
         [
             "name": "control_device",
-            "description": "Control a HomeKit device by setting a characteristic value. For devices with multiple components (e.g. a ceiling fan with both fan and light), use service_id to target a specific service.",
+            "description": "Control a HomeKit device by setting a characteristic value. Use the characteristic_id from list_devices or get_device_details to target the exact characteristic.",
             "inputSchema": [
                 "type": "object",
                 "properties": [
@@ -67,19 +60,15 @@ enum MCPToolDefinitions {
                         "type": "string",
                         "description": "Unique device identifier (UUID from the devices list)"
                     ],
-                    "characteristic_type": [
+                    "characteristic_id": [
                         "type": "string",
-                        "description": "Characteristic to control. Use human-readable names: power, brightness, hue, saturation, color_temperature, target_temperature, target_position, lock_state, rotation_speed"
+                        "description": "Unique characteristic identifier (UUID from list_devices or get_device_details)"
                     ],
                     "value": [
                         "description": "Value to set. Type depends on characteristic: bool for power/lock, int 0-100 for brightness/saturation/position, int 0-360 for hue, float for temperature"
-                    ],
-                    "service_id": [
-                        "type": "string",
-                        "description": "Optional service UUID to target a specific component. Required when a device has multiple services with the same characteristic (e.g. separate power controls for fan and light). Get service IDs from list_devices or get_device."
                     ]
                 ] as [String: Any],
-                "required": ["device_id", "characteristic_type", "value"]
+                "required": ["device_id", "characteristic_id", "value"]
             ] as [String: Any]
         ],
 
@@ -91,35 +80,6 @@ enum MCPToolDefinitions {
             "inputSchema": [
                 "type": "object",
                 "properties": [:] as [String: Any]
-            ] as [String: Any]
-        ],
-        [
-            "name": "get_room_devices",
-            "description": "Get all devices in a specific room by room name.",
-            "inputSchema": [
-                "type": "object",
-                "properties": [
-                    "room_name": [
-                        "type": "string",
-                        "description": "Name of the room (e.g. 'Living Room', 'Bedroom')"
-                    ]
-                ] as [String: Any],
-                "required": ["room_name"]
-            ] as [String: Any]
-        ],
-        [
-            "name": "get_devices_in_rooms",
-            "description": "Get all devices in specific rooms. Filter by a list of room names. Returns devices for found rooms and optionally reports missing rooms.",
-            "inputSchema": [
-                "type": "object",
-                "properties": [
-                    "rooms": [
-                        "type": "array",
-                        "items": ["type": "string"],
-                        "description": "List of room names to fetch devices for."
-                    ]
-                ] as [String: Any],
-                "required": ["rooms"]
             ] as [String: Any]
         ],
         [
@@ -432,42 +392,12 @@ enum MCPToolDefinitions {
                 "required": ["workflow_id"]
             ] as [String: Any]
         ],
-        [
-            "name": "trigger_workflow_webhook",
-            "description": "Trigger a workflow via its webhook token (fire-and-forget). Any workflow with a matching webhook trigger will be scheduled. Returns the scheduling outcome for each matched workflow.",
-            "inputSchema": [
-                "type": "object",
-                "properties": [
-                    "token": [
-                        "type": "string",
-                        "description": "The webhook token assigned to the trigger"
-                    ]
-                ] as [String: Any],
-                "required": ["token"]
-            ] as [String: Any]
-        ]
     ]
 
     // MARK: - Metadata Tools
 
     /// Metadata tools for AI agent efficiency — always available.
     static let metadataTools: [[String: Any]] = [
-        [
-            "name": "list_service_types",
-            "description": "List all known HomeKit service types. Returns the friendly names that can be used as filter values in list_devices and get_devices_by_type.",
-            "inputSchema": [
-                "type": "object",
-                "properties": [:] as [String: Any]
-            ] as [String: Any]
-        ],
-        [
-            "name": "list_characteristic_types",
-            "description": "List all known HomeKit characteristic types with their value types, valid values, and accepted aliases. Use these names in control_device, workflow triggers, conditions, and actions.",
-            "inputSchema": [
-                "type": "object",
-                "properties": [:] as [String: Any]
-            ] as [String: Any]
-        ],
         [
             "name": "list_device_categories",
             "description": "List all known HomeKit device categories (e.g. Lightbulb, Thermostat, Sensor). Use these names as filter values in list_devices.",
