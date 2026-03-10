@@ -113,10 +113,12 @@ export function WorkflowEditorPage() {
 
   // Temp state for panel editing
   const panelConditionRef = useRef<WorkflowConditionDraft | null>(null);
+  const panelOriginalRef = useRef<string | null>(null); // JSON snapshot of condition when panel opened
   const editingBlockIdRef = useRef<string | null>(null);
   const editingTriggerGuardIndexRef = useRef<number | null>(null);
   // Stack for navigating into nested conditions within the panel
   const panelStackRef = useRef<{ condition: WorkflowConditionDraft; frame: PanelFrame; childIndex: number }[]>([]);
+  const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
   // Force re-render when condition ref changes (buttons derive state from draft prop)
   const [, forcePanel] = useReducer((x: number) => x + 1, 0);
 
@@ -513,6 +515,7 @@ export function WorkflowEditorPage() {
 
         editingBlockIdRef.current = blockId;
         panelConditionRef.current = condDraft;
+        panelOriginalRef.current = JSON.stringify(condDraft);
         setPanel({ type: 'conditionGroup', title: info.label, conditionPath: [0] });
         return;
       }
@@ -536,10 +539,43 @@ export function WorkflowEditorPage() {
   const closePanel = useCallback(() => {
     setPanel(null);
     panelConditionRef.current = null;
+    panelOriginalRef.current = null;
     editingBlockIdRef.current = null;
     editingTriggerGuardIndexRef.current = null;
     panelStackRef.current = [];
+    setShowDiscardConfirm(false);
   }, []);
+
+  /** Reconstruct the full root condition from the current panel + stack, for dirty checking. */
+  const getPanelRootCondition = useCallback(() => {
+    if (!panelConditionRef.current) return null;
+    if (panelStackRef.current.length === 0) return panelConditionRef.current;
+    // Walk the stack from bottom to top, merging current edits back up
+    let result = JSON.parse(JSON.stringify(panelConditionRef.current)) as WorkflowConditionDraft;
+    for (let i = panelStackRef.current.length - 1; i >= 0; i--) {
+      const entry = panelStackRef.current[i]!;
+      const parentCopy: WorkflowConditionDraft = JSON.parse(JSON.stringify(entry.condition));
+      let innerGroup = parentCopy;
+      if (parentCopy.type === 'not' && parentCopy.condition && (parentCopy.condition.type === 'and' || parentCopy.condition.type === 'or')) {
+        innerGroup = parentCopy.condition;
+      }
+      if (innerGroup.conditions) {
+        innerGroup.conditions[entry.childIndex] = result;
+      }
+      result = parentCopy;
+    }
+    return result;
+  }, []);
+
+  const requestClosePanel = useCallback(() => {
+    const rootCondition = getPanelRootCondition();
+    const currentJson = rootCondition ? JSON.stringify(rootCondition) : null;
+    if (panelOriginalRef.current && currentJson !== panelOriginalRef.current) {
+      setShowDiscardConfirm(true);
+    } else {
+      closePanel();
+    }
+  }, [closePanel, getPanelRootCondition]);
 
   // --- Trigger guard panel ---
 
@@ -554,6 +590,7 @@ export function WorkflowEditorPage() {
         panelConditionRef.current = { _draftId: newUUID(), type: 'and', conditions: [] };
       }
       editingTriggerGuardIndexRef.current = triggerIndex;
+      panelOriginalRef.current = JSON.stringify(panelConditionRef.current);
       setPanel({ type: 'conditionGroup', title: `${trigger.name } guard`, conditionPath: [0] });
     },
     [draft.triggers],
@@ -568,6 +605,7 @@ export function WorkflowEditorPage() {
     } else {
       panelConditionRef.current = { _draftId: newUUID(), type: 'and', conditions: [] };
     }
+    panelOriginalRef.current = JSON.stringify(panelConditionRef.current);
     setPanel({ type: 'conditionGroup', title: 'Execution Guards', conditionPath: [0] });
   }, [draft.conditions]);
 
@@ -987,7 +1025,7 @@ export function WorkflowEditorPage() {
       {/* Slide-over Panel (portalled to body to escape stacking context) */}
       {panel && createPortal(
         <>
-          <div className="wfe-panel-overlay" onClick={closePanel} />
+          <div className="wfe-panel-overlay" onClick={requestClosePanel} />
           <div className="wfe-panel">
             <div className="wfe-panel-header">
               {panelStackRef.current.length > 0 && (
@@ -996,7 +1034,7 @@ export function WorkflowEditorPage() {
                 </button>
               )}
               <h3 className="wfe-panel-title">{panel.title}</h3>
-              <button className="wfe-panel-close-btn" onClick={closePanel} type="button">
+              <button className="wfe-panel-close-btn" onClick={requestClosePanel} type="button">
                 <Icon name="xmark" size={16} />
               </button>
             </div>
@@ -1022,7 +1060,7 @@ export function WorkflowEditorPage() {
               )}
             </div>
             <div className="wfe-panel-footer">
-              <button className="wfe-panel-btn discard" onClick={closePanel} type="button">
+              <button className="wfe-panel-btn discard" onClick={requestClosePanel} type="button">
                 Discard
               </button>
               <button
@@ -1036,6 +1074,21 @@ export function WorkflowEditorPage() {
               </button>
             </div>
           </div>
+          {showDiscardConfirm && (
+            <div className="wfe-discard-overlay" onClick={() => setShowDiscardConfirm(false)}>
+              <div className="wfe-discard-dialog" onClick={(e) => e.stopPropagation()}>
+                <p className="wfe-discard-message">You have unsaved changes. Discard them?</p>
+                <div className="wfe-discard-actions">
+                  <button className="wfe-panel-btn discard" onClick={() => { setShowDiscardConfirm(false); closePanel(); }} type="button">
+                    Discard
+                  </button>
+                  <button className="wfe-panel-btn apply" onClick={() => setShowDiscardConfirm(false)} type="button">
+                    Keep Editing
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </>,
         document.body,
       )}

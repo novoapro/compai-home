@@ -537,6 +537,40 @@
   }
 }
 
+/* Discard confirmation dialog */
+.wfe-discard-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.wfe-discard-dialog {
+  background: var(--bg-main);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-lg);
+  max-width: 320px;
+  width: 90%;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+.wfe-discard-message {
+  margin: 0 0 var(--spacing-md);
+  font-size: 14px;
+  color: var(--text-primary);
+  line-height: 1.4;
+}
+
+.wfe-discard-actions {
+  display: flex;
+  gap: var(--spacing-sm);
+  justify-content: flex-end;
+}
+
 /* Sticky footer */
 .wfe-footer {
   position: fixed;
