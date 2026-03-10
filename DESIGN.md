@@ -14,21 +14,12 @@
 
 HomeKit MCP is a two-application system that bridges Apple HomeKit with external clients — AI assistants, web dashboards, and HTTP integrations.
 
-```
-┌──────────────────┐     ┌─────────────────────────────────────────────┐     ┌──────────────────┐
-│   Apple HomeKit   │◄───►│         HomeKitMCP (Swift Server)           │◄───►│   MCP Clients    │
-│   (Accessories,   │     │                                             │     │   (Claude, etc.) │
-│    Scenes)        │     │  ┌─────────┐ ┌──────┐ ┌─────────────────┐  │     └──────────────────┘
-└──────────────────┘     │  │  REST   │ │ MCP  │ │   WebSocket     │  │
-                          │  │  API    │ │ JSON │ │   Real-time     │  │     ┌──────────────────┐
-                          │  │         │ │ -RPC │ │   Push          │  │◄───►│   HK Dashboard   │
-                          │  └─────────┘ └──────┘ └─────────────────┘  │     │   (React Web)    │
-                          │                                             │     └──────────────────┘
-                          │  ┌─────────────────────────────────────┐    │
-                          │  │  Workflow Engine (Automations)      │    │     ┌──────────────────┐
-                          │  └─────────────────────────────────────┘    │◄───►│   Webhooks       │
-                          │                                             │     │   (HTTP POST)    │
-                          └─────────────────────────────────────────────┘     └──────────────────┘
+```mermaid
+graph LR
+    HomeKit["Apple HomeKit<br/>(Accessories, Scenes)"] <--> Server["HomeKitMCP<br/>(Swift Server)"]
+    Server <--> MCP["MCP Clients<br/>(Claude, etc.)"]
+    Server <--> Web["HK Dashboard<br/>(React Web)"]
+    Server --> Webhooks["Outgoing Webhooks<br/>(HTTP POST)"]
 ```
 
 **Swift Server (HomeKitMCP)** — A macOS Mac Catalyst menu bar application. It connects to Apple HomeKit via `HMHomeManager`, maintains a stable device registry, exposes devices through REST and MCP protocol endpoints, runs a workflow automation engine, and broadcasts real-time updates over WebSocket.
@@ -67,13 +58,13 @@ HomeKit MCP is a two-application system that bridges Apple HomeKit with external
 
 The app runs as a **menu bar agent** (`LSUIElement = true`) with no Dock icon.
 
-```
-main() → HomeKitMCPApp (@main)
-  └→ AppDelegate (UIApplicationDelegate)
-       ├→ ServiceContainer.shared  ← creates all services + viewmodels
-       ├→ wireServices()           ← establishes Combine subscriptions between services
-       ├→ MenuBarController        ← NSStatusItem in menu bar (via Catalyst)
-       └→ Signal handlers          ← SIGINT/SIGTERM for graceful shutdown
+```mermaid
+graph TD
+    Main["HomeKitMCPApp (@main)"] --> AppDel["AppDelegate"]
+    AppDel --> SC["ServiceContainer.shared<br/>creates all services + viewmodels"]
+    AppDel --> Wire["wireServices()<br/>Combine subscriptions between services"]
+    AppDel --> Menu["MenuBarController<br/>NSStatusItem (Catalyst)"]
+    AppDel --> Sig["Signal handlers<br/>SIGINT/SIGTERM graceful shutdown"]
 ```
 
 **ServiceContainer** acts as a dependency injection container. All services are created as lazy singletons. `wireServices()` connects cross-service Combine pipelines after initialization (e.g., HomeKitManager state changes → WorkflowEngine triggers).
@@ -89,28 +80,16 @@ main() → HomeKitMCPApp (@main)
 
 ### 2.3 Architecture Layers
 
-```
-┌─────────────────────────────────────────────────────────┐
-│  Views (SwiftUI)                                         │
-│  DeviceListView, WorkflowListView, SettingsView, etc.   │
-└──────────────────────┬──────────────────────────────────┘
-                       │ @ObservedObject / @EnvironmentObject
-┌──────────────────────▼──────────────────────────────────┐
-│  ViewModels (@MainActor, ObservableObject)               │
-│  HomeKitViewModel, WorkflowViewModel, LogViewModel, etc.│
-│  Bridge services → UI via @Published properties          │
-└──────────────────────┬──────────────────────────────────┘
-                       │ async/await, Combine subscriptions
-┌──────────────────────▼──────────────────────────────────┐
-│  Services (actors + @MainActor classes)                  │
-│  HomeKitManager, DeviceRegistryService, MCPServer,       │
-│  WorkflowEngine, LoggingService, WebhookService, etc.   │
-└──────────────────────┬──────────────────────────────────┘
-                       │
-┌──────────────────────▼──────────────────────────────────┐
-│  Models (structs, enums, Codable)                        │
-│  DeviceModel, Workflow, StateChangeLog, etc.            │
-└─────────────────────────────────────────────────────────┘
+```mermaid
+graph TD
+    Views["Views (SwiftUI)<br/>DeviceListView, WorkflowListView, SettingsView, etc."]
+    VMs["ViewModels (@MainActor, ObservableObject)<br/>HomeKitViewModel, WorkflowViewModel, LogViewModel, etc.<br/>Bridge services → UI via @Published"]
+    Services["Services (actors + @MainActor classes)<br/>HomeKitManager, DeviceRegistryService, MCPServer,<br/>WorkflowEngine, LoggingService, WebhookService, etc."]
+    Models["Models (structs, enums, Codable)<br/>DeviceModel, Workflow, StateChangeLog, etc."]
+
+    Views -- "@ObservedObject / @EnvironmentObject" --> VMs
+    VMs -- "async/await, Combine" --> Services
+    Services --> Models
 ```
 
 **Concurrency model:**
@@ -145,14 +124,15 @@ let characteristicValueChangePublisher: PassthroughSubject<CharacteristicValueCh
 
 **State change fan-out:** When a HomeKit characteristic updates, HomeKitManager publishes through `stateChangePublisher`. Multiple subscribers react:
 
-```
-HMAccessoryDelegate callback
-    │
-    ├→ stateChangePublisher ──→ WorkflowEngine (evaluates triggers)
-    │                       ──→ WebhookService (sends HTTP POST)
-    │                       ──→ LoggingService (records log entry)
-    │
-    └→ characteristicValueChangePublisher ──→ MCPServer (WebSocket broadcast)
+```mermaid
+graph LR
+    HK["HMAccessoryDelegate<br/>callback"] --> SCP["stateChangePublisher"]
+    HK --> CVCP["characteristicValue<br/>ChangePublisher"]
+
+    SCP --> WE["WorkflowEngine<br/>(evaluate triggers)"]
+    SCP --> WH["WebhookService<br/>(HTTP POST)"]
+    SCP --> LS["LoggingService<br/>(record entry)"]
+    CVCP --> WS["MCPServer<br/>(WebSocket broadcast)"]
 ```
 
 #### DeviceRegistryService
@@ -244,15 +224,15 @@ Vapor 4.x HTTP server exposing three protocol surfaces from a single port.
 | `GET` | `/settings/temperature-unit` | Get temperature unit |
 | `PATCH` | `/settings/temperature-unit` | Set temperature unit |
 
-**MCP Tools (25+):**
+**MCP Tools (18):**
 
 | Category | Tools |
 |----------|-------|
 | Device | `list_devices`, `get_device_details`, `control_device`, `list_rooms`, `get_devices_by_type` |
-| Scene | `list_scenes`, `get_scene`, `execute_scene` |
+| Scene | `list_scenes`, `execute_scene` |
 | Log | `get_logs` |
 | Workflow | `list_workflows`, `get_workflow`, `create_workflow`, `update_workflow`, `delete_workflow`, `enable_workflow`, `trigger_workflow`, `get_workflow_logs` |
-| Metadata | `list_device_categories`, `get_workflow_schema`, `get_workflow_ai_context` |
+| Metadata | `list_device_categories`, `get_workflow_schema` |
 
 **WebSocket Events (server → client):**
 
@@ -310,14 +290,17 @@ struct Workflow {
 | Block | Kind | Description |
 |-------|------|-------------|
 | `controlDevice` | action | Set a characteristic value |
-| `executeScene` | action | Run a HomeKit scene |
-| `delay` | action | Wait N seconds |
-| `httpRequest` | action | HTTP POST/GET/PUT/DELETE |
-| `executeWorkflow` | action | Call a sub-workflow |
-| `broadcastWebSocket` | action | Send a WebSocket message |
-| `if` | flowControl | Conditional branching (then/else blocks) |
+| `runScene` | action | Run a HomeKit scene |
+| `delay` | flowControl | Wait N seconds |
+| `webhook` | action | HTTP request (any method) |
+| `log` | action | Emit a log entry |
+| `executeWorkflow` | flowControl | Call a sub-workflow (inline/parallel/delegate) |
+| `conditional` | flowControl | If/else branching (then/else blocks) |
 | `repeat` | flowControl | Loop N times |
-| `waitForState` | flowControl | Wait until a condition is met |
+| `repeatWhile` | flowControl | Loop while condition is true (safety-capped) |
+| `waitForState` | flowControl | Wait until a condition is met or timeout |
+| `group` | flowControl | Named sub-sequence of blocks |
+| `return` | flowControl | Exit current scope with outcome |
 
 **Concurrent execution policies:**
 
@@ -350,7 +333,7 @@ Each category has a typed payload — `DeviceStatePayload`, `WebhookLogPayload`,
 - `logUpdatedSubject` — Entry updated (e.g., workflow completed)
 - `logsClearedSubject` — All logs cleared
 
-**Persistence:** JSON file with configurable max entries (default 200), debounced saves.
+**Persistence:** JSON file with configurable max entries (default 500), debounced saves.
 
 #### WebhookService
 
@@ -400,21 +383,21 @@ Integrates LLM providers for natural language → workflow generation.
 |---------|---------|---------|
 | `mcpServerEnabled` | UserDefaults | true |
 | `mcpServerPort` | UserDefaults | 3000 |
-| `mcpServerBindAddress` | UserDefaults | all interfaces |
+| `mcpServerBindAddress` | UserDefaults | `127.0.0.1` |
 | `restApiEnabled` | UserDefaults | true |
 | `mcpProtocolEnabled` | UserDefaults | true |
 | `websocketEnabled` | UserDefaults | true |
 | `workflowsEnabled` | UserDefaults | true |
 | `logAccessEnabled` | UserDefaults | true |
 | `webhookURL` | Keychain | nil |
-| `webhookEnabled` | UserDefaults | false |
+| `webhookEnabled` | UserDefaults | true |
 | `temperatureUnit` | UserDefaults | "celsius" |
-| `corsEnabled` | UserDefaults | false |
+| `corsEnabled` | UserDefaults | true |
 | `corsAllowedOrigins` | UserDefaults | [] |
 | `aiEnabled` | UserDefaults | false |
 | `aiProvider` | UserDefaults | claude |
 | `aiModelId` | UserDefaults | — |
-| `logCacheSize` | UserDefaults | 200 |
+| `logCacheSize` | UserDefaults | 500 |
 | `sunEventLatitude/Longitude` | UserDefaults | 0.0 |
 
 #### Supporting Services
@@ -519,79 +502,64 @@ enum LogPayload: Codable {
 
 #### State Change Flow
 
-```
-Apple HomeKit
-    │
-    ▼
-HMAccessoryDelegate.accessory(_:service:didUpdateValueFor:)
-    │
-    ▼
-HomeKitManager.characteristicDidUpdate()
-    │
-    ├──→ stateChangePublisher ─┬──→ WorkflowEngine.processStateChange()
-    │                          │       │
-    │                          │       ├→ Evaluate trigger conditions
-    │                          │       ├→ Check guard conditions
-    │                          │       └→ Execute blocks (recursive)
-    │                          │
-    │                          ├──→ WebhookService.sendStateChange()
-    │                          │       └→ HTTP POST with retry
-    │                          │
-    │                          └──→ LoggingService.logEntry()
-    │                                  └→ Circular buffer + persist
-    │
-    └──→ characteristicValueChangePublisher
-            └──→ MCPServer WebSocket broadcast (batched 100ms)
+```mermaid
+graph TD
+    AHK["Apple HomeKit"] --> Delegate["HMAccessoryDelegate<br/>didUpdateValueFor:"]
+    Delegate --> HKM["HomeKitManager<br/>characteristicDidUpdate()"]
+
+    HKM --> SCP["stateChangePublisher"]
+    HKM --> CVCP["characteristicValueChangePublisher"]
+
+    SCP --> WE["WorkflowEngine<br/>evaluate triggers → check guards → execute blocks"]
+    SCP --> WHS["WebhookService<br/>HTTP POST with retry"]
+    SCP --> LS["LoggingService<br/>circular buffer + persist"]
+
+    CVCP --> WSB["MCPServer<br/>WebSocket broadcast (batched 100ms)"]
 ```
 
 #### MCP Request Flow
 
-```
-HTTP Client
-    │
-    ▼
-Vapor Route Handler (POST /mcp)
-    │
-    ▼
-Auth Middleware (Bearer token validation)
-    │
-    ▼
-MCPRequestHandler.handle(request)
-    │
-    ├→ tools/call "list_devices" → DeviceRegistryService.stableDevices() → HomeKitManager
-    ├→ tools/call "control_device" → DeviceRegistryService.readHomeKitDeviceId() → HomeKitManager.writeValue()
-    ├→ tools/call "create_workflow" → WorkflowEngine.createWorkflow()
-    └→ resources/read "homekit://devices" → same as list_devices
-    │
-    ▼
-JSON-RPC Response
+```mermaid
+graph TD
+    Client["HTTP Client"] --> Vapor["Vapor Route (POST /mcp)"]
+    Vapor --> Auth["Auth Middleware<br/>(Bearer token)"]
+    Auth --> Handler["MCPRequestHandler.handle()"]
+
+    Handler --> LD["list_devices → Registry → HomeKitManager"]
+    Handler --> CD["control_device → Registry → HomeKitManager.writeValue()"]
+    Handler --> CW["create_workflow → WorkflowEngine"]
+    Handler --> RR["resources/read → same as list_devices"]
+
+    LD --> Resp["JSON-RPC Response"]
+    CD --> Resp
+    CW --> Resp
+    RR --> Resp
 ```
 
 #### Workflow Execution Flow
 
-```
-Trigger fires (state change / schedule / webhook / manual)
-    │
-    ▼
-WorkflowEngine.evaluateTrigger()
-    │ (check: workflow enabled? trigger matches?)
-    ▼
-WorkflowEngine.evaluateConditions()
-    │ (recursive condition tree evaluation)
-    ▼
-WorkflowEngine.executeBlocks([WorkflowBlock])
-    │
-    ├→ action: controlDevice → HomeKitManager.writeValue()
-    ├→ action: executeScene → HomeKitManager.executeScene()
-    ├→ action: delay → Task.sleep()
-    ├→ action: httpRequest → URLSession
-    ├→ flowControl: if → evaluate condition → execute then/else blocks
-    ├→ flowControl: loop → repeat blocks N times
-    └→ flowControl: waitForState → poll condition until true or timeout
-    │
-    ▼
-Log execution result (WorkflowExecutionLog with block results tree)
-Broadcast via WebSocket (workflow_log / workflow_log_updated)
+```mermaid
+graph TD
+    Trigger["Trigger fires<br/>(state change / schedule / webhook / manual)"]
+    Trigger --> Eval["evaluateTrigger()<br/>workflow enabled? trigger matches?"]
+    Eval --> Cond["evaluateConditions()<br/>recursive condition tree"]
+    Cond --> Exec["executeBlocks()"]
+
+    Exec --> A1["controlDevice → HomeKitManager"]
+    Exec --> A2["runScene → HomeKitManager"]
+    Exec --> A3["delay → Task.sleep()"]
+    Exec --> A4["webhook → URLSession"]
+    Exec --> A5["conditional → then/else blocks"]
+    Exec --> A6["repeat / repeatWhile → loop blocks"]
+    Exec --> A7["waitForState → poll until met"]
+
+    A1 --> Log["Log result + WebSocket broadcast"]
+    A2 --> Log
+    A3 --> Log
+    A4 --> Log
+    A5 --> Log
+    A6 --> Log
+    A7 --> Log
 ```
 
 ### 2.7 Persistence
@@ -609,7 +577,7 @@ Broadcast via WebSocket (workflow_log / workflow_log_updated)
 
 - **Authentication**: Bearer token via `Authorization` header (REST/MCP) or `token` query parameter (WebSocket)
 - **Multi-token support**: Multiple tokens for different clients, managed in Keychain
-- **Webhook signing**: HMAC-SHA256 signature in `X-Webhook-Signature` header
+- **Webhook signing**: HMAC-SHA256 signature in `X-Signature-256` header
 - **CORS**: Configurable allowed origins, methods, and headers
 - **Feature flags**: Each API surface (REST, MCP, WebSocket, Workflows, Logs) independently toggleable — disabled surfaces return 404
 - **Dev mode**: `DEV_ENVIRONMENT` flag auto-accepts a well-known dev token
@@ -637,35 +605,18 @@ Broadcast via WebSocket (workflow_log / workflow_log_updated)
 
 ### 3.2 Architecture
 
-```
-┌────────────────────────────────────────────────────────────┐
-│  Pages (lazy-loaded via React Router)                       │
-│  DevicesPage, LogsPage, WorkflowsPage, SettingsPage, etc. │
-└──────────────────────┬─────────────────────────────────────┘
-                       │
-┌──────────────────────▼─────────────────────────────────────┐
-│  Feature Components                                         │
-│  devices/ (DeviceCard, CharacteristicsTable, SceneCard)    │
-│  logs/ (LogRow, LogDetailPanel, FilterBar)                 │
-│  workflows/ (WorkflowCard, editor/*)                       │
-└──────────────────────┬─────────────────────────────────────┘
-                       │
-┌──────────────────────▼─────────────────────────────────────┐
-│  Shared Components                                          │
-│  Icon, ConfirmDialog, EmptyState, Sidebar, TopBar, etc.   │
-└──────────────────────┬─────────────────────────────────────┘
-                       │ useContext(), custom hooks
-┌──────────────────────▼─────────────────────────────────────┐
-│  State Management (React Context)                           │
-│  ConfigContext, WebSocketContext, DeviceRegistryContext,    │
-│  RefreshContext, ThemeContext, TopBarContext                 │
-└──────────────────────┬─────────────────────────────────────┘
-                       │
-┌──────────────────────▼─────────────────────────────────────┐
-│  API Layer                                                  │
-│  lib/api.ts (typed REST client)                            │
-│  hooks/useApi.ts, usePolling.ts, useDebounce.ts            │
-└────────────────────────────────────────────────────────────┘
+```mermaid
+graph TD
+    Pages["Pages (lazy-loaded)<br/>DevicesPage, LogsPage, WorkflowsPage, SettingsPage"]
+    Features["Feature Components<br/>devices/, logs/, workflows/editor/"]
+    Shared["Shared Components<br/>Icon, ConfirmDialog, Sidebar, TopBar"]
+    State["State Management (React Context)<br/>Config, WebSocket, DeviceRegistry,<br/>Refresh, Theme, TopBar"]
+    API["API Layer<br/>lib/api.ts, useApi, usePolling, useDebounce"]
+
+    Pages --> Features
+    Features --> Shared
+    Shared -- "useContext(), hooks" --> State
+    State --> API
 ```
 
 All components are custom-built — no pre-built component library (e.g., no MUI or Ant Design). UI primitives from `@headlessui/react` for accessible dialogs and menus.
@@ -694,16 +645,11 @@ interface Config {
 #### WebSocketContext
 Manages WebSocket lifecycle with event pub-sub.
 
-```
-Connect → ws[s]://host:port/ws?token=<encoded_token>
-    │
-    ├→ Auto-reconnect with exponential backoff
-    │   Delay: min(1s × 2^attempts, 30s), max 10 attempts
-    │
-    ├→ Event subscription system (pub-sub)
-    │   subscribe(eventType, callback) → unsubscribe function
-    │
-    └→ Connection state: disconnected | connecting | connected
+```mermaid
+graph LR
+    Connect["Connect<br/>ws[s]://host:port/ws?token=..."] --> Reconnect["Auto-reconnect<br/>exponential backoff<br/>max 10 attempts"]
+    Connect --> PubSub["Event pub-sub<br/>subscribe(type, cb) → unsub"]
+    Connect --> State["Connection state<br/>disconnected | connecting | connected"]
 ```
 
 **Events handled:** `log`, `workflow_log`, `workflow_log_updated`, `workflows_updated`, `devices_updated`, `characteristic_updated`, `logs_cleared`

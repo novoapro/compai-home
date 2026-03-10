@@ -160,7 +160,7 @@ actor WorkflowEngine: WorkflowEngineProtocol {
                     await workflowStorageService.updateMetadata(
                         id: workflow.id,
                         lastTriggered: execLog.triggeredAt,
-                        incrementExecutions: true,
+                        incrementExecutions: false,
                         resetFailures: false
                     )
                 }
@@ -638,7 +638,7 @@ actor WorkflowEngine: WorkflowEngineProtocol {
                     await workflowStorageService.updateMetadata(
                         id: workflow.id,
                         lastTriggered: execLog.triggeredAt,
-                        incrementExecutions: true,
+                        incrementExecutions: false,
                         resetFailures: false
                     )
                 }

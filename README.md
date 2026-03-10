@@ -1,6 +1,64 @@
-# HomeKit MCP Server
+<p align="center">
+  <img src="screenshots/logo-nobg.png" alt="HomeKit MCP" width="120" />
+</p>
 
-A macOS menu bar app that exposes your Apple HomeKit devices through the [Model Context Protocol (MCP)](https://modelcontextprotocol.io). Connect AI assistants like Claude to your smart home — query device states, control accessories, create automation workflows, and receive real-time updates when things change.
+<h1 align="center">HomeKit MCP Server</h1>
+
+<p align="center">
+A macOS menu bar app that exposes your Apple HomeKit devices through the <a href="https://modelcontextprotocol.io">Model Context Protocol (MCP)</a>. Connect AI assistants like Claude to your smart home — query device states, control accessories, create automation workflows, and receive real-time updates when things change.
+</p>
+
+---
+
+## Screenshots
+
+### Web Dashboard
+
+The companion web dashboard provides a responsive interface that adapts from mobile to desktop layouts.
+
+<p align="center">
+  <img src="screenshots/web-devices-mobile.png" alt="Device list on mobile" width="260" />
+  &nbsp;&nbsp;
+  <img src="screenshots/web-workflows-mobile.png" alt="Workflow list on mobile" width="260" />
+  &nbsp;&nbsp;
+  <img src="screenshots/web-activity-log-mobile.png" alt="Activity log on mobile" width="260" />
+</p>
+
+<p align="center"><em>Mobile layout — Device list, Workflows, and real-time Activity Log with room tags and state change details.</em></p>
+
+<br/>
+
+<p align="center">
+  <img src="screenshots/web-workflow-detail-mobile.png" alt="Workflow detail on mobile" width="280" />
+  &nbsp;&nbsp;&nbsp;
+  <img src="screenshots/web-workflow-detail-desktop.png" alt="Workflow detail on desktop" width="560" />
+</p>
+
+<p align="center"><em>Workflow detail view — mobile (left) and desktop (right) showing triggers, conditional blocks with then/else branches, execution stats, and the sidebar navigation.</em></p>
+
+### Native macOS App
+
+The Mac Catalyst app runs in the menu bar and provides full device management, workflow editing, server configuration, and activity logging.
+
+<p align="center">
+  <img src="screenshots/app-workflows.png" alt="Workflow list in native app" width="420" />
+  &nbsp;&nbsp;
+  <img src="screenshots/app-workflow-editor.png" alt="Workflow editor in native app" width="420" />
+</p>
+
+<p align="center"><em>Workflows list with room-based sidebar navigation (left). Visual workflow editor with execution guards, conditional blocks, and inline editing (right).</em></p>
+
+<br/>
+
+<p align="center">
+  <img src="screenshots/app-server-settings.png" alt="Server settings in native app" width="420" />
+  &nbsp;&nbsp;
+  <img src="screenshots/app-logs.png" alt="Activity logs in native app" width="420" />
+</p>
+
+<p align="center"><em>Server settings — port, CORS origins, binding interface, and API token management (left). Activity logs with device, room, and service type filters (right).</em></p>
+
+---
 
 ## Features
 
@@ -140,26 +198,27 @@ Settings are available in the app's Settings view:
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| Hide Room Name | `false` | Strip room prefix from device display names |
+| Hide Room Name | `true` | Strip room prefix from device display names |
+| Temperature Unit | Celsius | Display temperatures in Celsius or Fahrenheit |
 
 ### Server
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| MCP Server Port | `3000` | HTTP port for the MCP and REST server |
-| Bind Address | All interfaces | Network interface to listen on |
 | Enable External Access | `true` | Start/stop the MCP and REST server |
+| MCP Server Port | `3000` | HTTP port for the MCP and REST server |
+| Bind Address | `127.0.0.1` | Network interface to listen on (`127.0.0.1` or `0.0.0.0`) |
 | MCP Protocol | `true` | Enable MCP JSON-RPC endpoints (`/mcp`, `/sse`) |
 | REST API | `true` | Enable REST endpoints (`/devices`, `/workflows`, etc.) |
-| CORS | `false` | Enable CORS headers with configurable allowed origins |
 | WebSocket | `true` | Enable real-time WebSocket push at `/ws` |
+| CORS | `true` | Enable CORS headers with configurable allowed origins |
 | API Tokens | — | Manage multiple Bearer tokens for authentication |
 
 ### Webhooks
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| Enable Webhooks | `false` | Send HTTP POST on device state changes |
+| Enable Webhooks | `true` | Send HTTP POST on device state changes |
 | Webhook URL | — | Destination URL for webhook notifications |
 | Private IP Allowlist | — | Wildcard patterns for allowed private IPs |
 
@@ -167,11 +226,12 @@ Settings are available in the app's Settings view:
 
 | Setting | Default | Description |
 |---------|---------|-------------|
+| Device State Logging | `true` | Log HomeKit state changes |
 | Detailed Logs | `false` | Log full request/response JSON bodies |
 | Log Access via API | `true` | Expose logs through MCP `get_logs` tool and REST `/logs` endpoint |
-| Device State Logging | `true` | Log HomeKit state changes |
+| Log Skipped Workflows | `true` | Log workflow executions that were skipped (e.g. guard conditions not met) |
 | Log Only Webhook Devices | `false` | Only log changes for webhook-configured devices |
-| Log Cache Size | `500` | Maximum number of log entries to keep in memory |
+| Log Buffer Size | `500` | Maximum number of log entries to keep in memory (100–5000) |
 
 ### Workflows
 
@@ -179,6 +239,7 @@ Settings are available in the app's Settings view:
 |---------|---------|-------------|
 | Enable Workflows | `true` | Enable the workflow automation engine |
 | iCloud Sync | `false` | Sync workflows across devices via CloudKit |
+| Sun Event Location | — | Zip/postal code for sunrise/sunset calculations |
 
 ### AI Assistant
 
@@ -186,15 +247,24 @@ Settings are available in the app's Settings view:
 |---------|---------|-------------|
 | Enable AI | `false` | Enable AI-powered workflow generation |
 | AI Provider | Claude | LLM provider (Claude, OpenAI, or Gemini) |
-| Model ID | — | Specific model to use |
+| Model ID | — | Specific model to use (auto-detected per provider) |
 | API Key | — | Provider API key (stored in Keychain) |
+| System Prompt | — | Custom instructions for AI workflow generation |
+
+### Account & Backup
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| Sign In with Apple | — | Apple ID authentication for cloud features |
+| Auto-Backup to iCloud | `false` | Automatically back up workflows to CloudKit |
+| Backup Frequency | `24h` | Hours between automatic backups (1–48) |
 
 ### Polling
 
 | Setting | Default | Description |
 |---------|---------|-------------|
 | Enable Polling | `false` | Poll for state changes as a fallback to delegate callbacks |
-| Polling Interval | `30s` | Seconds between poll cycles |
+| Polling Interval | `30s` | Seconds between poll cycles (10–300) |
 
 ---
 
@@ -213,11 +283,12 @@ The server implements the [Model Context Protocol](https://modelcontextprotocol.
 
 | Tool | Description |
 |------|-------------|
-| `list_devices` | List all devices grouped by room with current states |
+| `list_devices` | List all devices grouped by room with optional room/category filters |
 | `get_device_details` | Get detailed state of one or more devices by ID |
 | `control_device` | Set a characteristic value on a device |
 | `list_rooms` | List all rooms with device counts |
 | `get_devices_by_type` | Filter devices by service type (e.g. Lightbulb, Switch) |
+| `list_device_categories` | List all known HomeKit device categories |
 
 ### Scene Tools
 
@@ -244,6 +315,7 @@ The server implements the [Model Context Protocol](https://modelcontextprotocol.
 | `enable_workflow` | Enable or disable a workflow |
 | `trigger_workflow` | Manually trigger a workflow for testing |
 | `get_workflow_logs` | Get execution history, optionally filtered by workflow |
+| `get_workflow_schema` | Get structured JSON schema for workflow creation/updates |
 
 ### Tool Details
 
@@ -400,6 +472,12 @@ All endpoints return JSON. The server runs on the same port as MCP (default `300
 | `GET` | `/devices` | List all devices with current state |
 | `GET` | `/devices/:deviceId` | Get a specific device by ID |
 
+### Service Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `PATCH` | `/services/:serviceId` | Rename a service (custom display name) |
+
 ### Scene Endpoints
 
 | Method | Path | Description |
@@ -429,6 +507,20 @@ All endpoints return JSON. The server runs on the same port as MCP (default `300
 | `POST` | `/workflows/generate` | AI-generate a workflow from prompt |
 | `POST` | `/workflows/webhook/:token` | Trigger workflows by webhook token |
 
+### Settings Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/settings/temperature-unit` | Get current temperature unit |
+| `PATCH` | `/settings/temperature-unit` | Set temperature unit (celsius/fahrenheit) |
+
+### Utility Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/health` | Health check (no auth required) |
+| `GET` | `/workflow-runtime` | Get workflow runtime info (sunrise/sunset times) |
+
 ### WebSocket
 
 ```
@@ -437,11 +529,9 @@ GET /ws?token=<bearer-token>
 
 Real-time push of log entries, workflow executions, workflow definition changes, and device updates. See [API.md](API.md) for the full message protocol.
 
-### Utility Endpoints
+**Server → Client message types:** `connected`, `log`, `workflow_log`, `workflow_log_updated`, `workflows_updated`, `devices_updated`, `characteristic_updated`, `logs_cleared`, `pong`
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/health` | Health check (no auth required) |
+**Client → Server:** `ping` (application-level keepalive)
 
 ---
 
@@ -474,12 +564,14 @@ When a device state changes and webhooks are enabled, the server sends an HTTP P
 A companion React web application for monitoring and managing your HomeKit MCP server. See [log-viewer-web/](log-viewer-web/) for setup instructions and details.
 
 Features include:
+- Device and scene browsing with room-based navigation
 - Real-time activity log viewer with filtering and search
 - Workflow management (create, edit, duplicate, delete)
 - Visual workflow editor with drag-and-drop block reordering
 - Workflow execution history and detailed block-level results
 - AI-powered workflow generation from natural language
-- WebSocket-based live updates
+- WebSocket-based live updates (logs, device state, workflow events)
+- Responsive layout adapting from mobile to desktop
 - Configurable server connection with Bearer token auth
 
 ---
@@ -492,38 +584,34 @@ Lightbulb, Fan, Switch, Outlet, Thermostat, Door, Doorbell, Garage Door Opener, 
 
 ## Architecture
 
-```
-                    ┌─────────────────────────────────────────┐
-                    │     MCP / REST / WebSocket Clients       │
-                    └─────┬──────────────┬──────────────┬─────┘
-                          │              │              │
-                    ┌─────▼─────┐  ┌─────▼─────┐  ┌────▼─────┐
-                    │ MCP Tools │  │ REST API  │  │ Webhooks │
-                    └─────┬─────┘  └─────┬─────┘  └────▲─────┘
-                          │              │              │
-                    ┌─────▼──────────────▼─────┐        │
-                    │     MCPServer (Vapor)     │        │
-                    │     MCPRequestHandler     │        │
-                    └─────┬──────────────┬─────┘        │
-                          │              │              │
-               ┌──────────▼───┐    ┌─────▼──────────────┤
-               │HomeKitManager│    │  WorkflowEngine    │
-               │  (HMHome)    │◀───│  (triggers,        │
-               └──────┬───────┘    │   conditions,      │
-                      │            │   block execution)  │
-                      │            └─────┬──────────────┘
-                      │                  │
-               ┌──────▼───────┐    ┌─────▼──────────┐
-               │   Webhook    │    │   Workflow      │
-               │   Service    │    │   Storage       │
-               └──────────────┘    └────────────────┘
+```mermaid
+graph TD
+    Clients["MCP / REST / WebSocket Clients"]
+
+    Clients --> MCP["MCP Protocol<br/>(JSON-RPC)"]
+    Clients --> REST["REST API"]
+    Clients --> WS["WebSocket"]
+
+    MCP --> Server["MCPServer (Vapor)"]
+    REST --> Server
+    WS --> Server
+
+    Server --> HK["HomeKitManager<br/>(HMHome)"]
+    Server --> WE["WorkflowEngine"]
+    Server --> Log["LoggingService"]
+
+    WE --> HK
+    WE --> Storage["WorkflowStorage"]
+
+    HK --> Webhook["WebhookService"]
+    HK --> Registry["DeviceRegistry"]
 ```
 
 **Layers:**
 
-1. **Views** (SwiftUI) — DeviceListView, SceneListView, LogViewerView, SettingsView, WorkflowListView, WorkflowDetailView, WorkflowEditorView, WorkflowBuilderView
+1. **Views** (SwiftUI) — DeviceListView, SceneListView, LogViewerView, SettingsView (with sub-views for Server, Webhooks, General, Workflows, AI, Account), WorkflowListView, WorkflowDetailView, WorkflowEditorView, WorkflowBuilderView, WorkflowExecutionLogDetailView, AIInteractionLogView, CloudBackupListView
 2. **ViewModels** — HomeKitViewModel, LogViewModel, SettingsViewModel, WorkflowViewModel — bridge services to UI via `@Published` properties
-3. **Services** — HomeKitManager, MCPServer, MCPRequestHandler, WorkflowEngine, ScheduleTriggerManager, WebhookService, LoggingService, StorageService, DeviceRegistryService, DeviceConfigurationService, AIWorkflowService, BackupService, CloudBackupService, WorkflowSyncService, KeychainService
+3. **Services** — HomeKitManager, MCPServer, MCPRequestHandler, WorkflowEngine, WorkflowStorageService, ScheduleTriggerManager, SolarCalculator, ConditionEvaluator, WebhookService, LoggingService, StorageService, DeviceRegistryService, AIWorkflowService, AppleSignInService, BackupService, CloudBackupService, WorkflowSyncService, WorkflowMigrationService, KeychainService
 4. **Models** — DeviceModel, Workflow, WorkflowBlock, WorkflowTrigger, WorkflowCondition, StateChangeLog, SceneModel, RESTModels
 
 ## Tech Stack
@@ -537,4 +625,4 @@ Lightbulb, Fan, Switch, Outlet, Thermostat, Door, Doorbell, Garage Door Opener, 
 
 ## License
 
-All rights reserved.
+MIT — see [LICENSE](LICENSE).

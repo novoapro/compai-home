@@ -33,7 +33,7 @@ The HomeKit MCP server exposes Apple HomeKit devices, scenes, logs, and automati
 | Setting | Default |
 |---|---|
 | Port | `3000` (configurable) |
-| Bind address | All interfaces (configurable) |
+| Bind address | `127.0.0.1` (configurable) |
 | Max request body | 1 MB |
 | Temperature unit | `celsius` (configurable: `celsius` or `fahrenheit`) |
 
