@@ -105,7 +105,7 @@ export function WorkflowEditorPage() {
   useEffect(() => {
     if (expandNewTriggerRef.current && draft.triggers.length > prevTriggerCountRef.current) {
       const lastTrigger = draft.triggers[draft.triggers.length - 1];
-      if (lastTrigger) setExpandedTriggerId(lastTrigger._draftId);
+      if (lastTrigger) { setExpandedTriggerId(lastTrigger._draftId); setExpandedBlockId(null); }
       expandNewTriggerRef.current = false;
     }
     prevTriggerCountRef.current = draft.triggers.length;
@@ -805,7 +805,7 @@ export function WorkflowEditorPage() {
               const isExpanded = expandedTriggerId === trigger._draftId;
               return (
                 <div key={trigger._draftId} className={`block-card${isExpanded ? ' expanded' : ''}`}>
-                  <div className="block-card-header" onClick={() => setExpandedTriggerId(isExpanded ? null : trigger._draftId)}>
+                  <div className="block-card-header" onClick={() => { setExpandedTriggerId(isExpanded ? null : trigger._draftId); if (!isExpanded) setExpandedBlockId(null); }}>
                     <span className="bc-icon-wrap action">
                       <Icon name={TRIGGER_ICONS[trigger.type] || 'bolt'} size={15} />
                     </span>
@@ -932,7 +932,7 @@ export function WorkflowEditorPage() {
                     index={i}
                     ordinal={ordinalMap.get(block._draftId)}
                     expandedId={expandedBlockId}
-                    onToggleExpand={(id) => setExpandedBlockId(expandedBlockId === id ? null : id)}
+                    onToggleExpand={(id) => { const next = expandedBlockId === id ? null : id; setExpandedBlockId(next); if (next) setExpandedTriggerId(null); }}
                     onChange={(updated) => handleBlockChange(i, updated)}
                     onNavigateToNested={navigateToNested}
                     reorderMode={reorderMode}

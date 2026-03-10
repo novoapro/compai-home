@@ -37,6 +37,7 @@ const RETRIGGER_POLICIES = [
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
+
 interface TriggerEditorProps {
   draft: WorkflowTriggerDraft;
   onChange: (updated: WorkflowTriggerDraft) => void;
@@ -79,246 +80,20 @@ export function TriggerEditor({ draft, onChange, onOpenGuardPanel }: TriggerEdit
 
   return (
     <div className="trigger-editor">
-      {/* deviceStateChange */}
-      {draft.type === 'deviceStateChange' && (
-        <>
-          <DevicePicker
-            initialDeviceId={draft.deviceId}
-            initialServiceId={draft.serviceId}
-            initialCharId={draft.characteristicId}
-            notifiableOnly
-            onChange={(val) => patch({ deviceId: val.deviceId, serviceId: val.serviceId, characteristicId: val.characteristicId })}
-          />
-          {draft.deviceId && draft.characteristicId && (
-            <CurrentValueIndicator
-              characteristic={registry.lookupCharacteristic(draft.deviceId, draft.characteristicId)}
-              isReachable={registry.lookupDevice(draft.deviceId)?.isReachable}
-            />
-          )}
-          <div className="editor-field">
-            <label>Condition</label>
-            <select
-              className="editor-select"
-              value={conditionType}
-              onChange={(e) => {
-                const type = e.target.value;
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                let condition: any = { type };
-                if (type !== 'changed') condition.value = true;
-                if (type === 'transitioned') { delete condition.value; condition.from = undefined; condition.to = true; }
-                patch({ condition });
-              }}
-            >
-              {TRIGGER_CONDITIONS.map((c) => (
-                <option key={c.value} value={c.value}>{c.label}</option>
-              ))}
-            </select>
-          </div>
-          {conditionType !== 'changed' && conditionType !== 'transitioned' && (
-            <CharacteristicValueInput
-              characteristic={draft.deviceId && draft.characteristicId
-                ? registry.lookupCharacteristic(draft.deviceId, draft.characteristicId)
-                : undefined}
-              value={(draft.condition as any)?.value}
-              forceEditable
-              onChange={(val) => {
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const current = { ...(draft.condition ?? { type: 'equals' }) } as any;
-                current.value = val;
-                patch({ condition: current });
-              }}
-            />
-          )}
-          {conditionType === 'transitioned' && (
-            <div className="editor-field-row">
-              <CharacteristicValueInput
-                characteristic={draft.deviceId && draft.characteristicId
-                  ? registry.lookupCharacteristic(draft.deviceId, draft.characteristicId)
-                  : undefined}
-                value={(draft.condition as any)?.from}
-                label="From"
-                allowAny
-                forceEditable
-                onChange={(val) => {
-                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                  const current = { ...(draft.condition ?? { type: 'transitioned' }) } as any;
-                  current.from = val;
-                  patch({ condition: current });
-                }}
-              />
-              <CharacteristicValueInput
-                characteristic={draft.deviceId && draft.characteristicId
-                  ? registry.lookupCharacteristic(draft.deviceId, draft.characteristicId)
-                  : undefined}
-                value={(draft.condition as any)?.to}
-                label="To"
-                allowAny
-                forceEditable
-                onChange={(val) => {
-                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                  const current = { ...(draft.condition ?? { type: 'transitioned' }) } as any;
-                  current.to = val;
-                  patch({ condition: current });
-                }}
-              />
-            </div>
-          )}
-        </>
-      )}
+      {/* ── Common fields ── */}
 
-      {/* schedule */}
-      {draft.type === 'schedule' && (
-        <>
-          <div className="editor-field">
-            <label>Schedule Type</label>
-            <select
-              className="editor-select"
-              value={draft.scheduleType || 'daily'}
-              onChange={(e) => {
-                const st = e.target.value;
-                patch({
-                  scheduleType: st,
-                  scheduleTime: draft.scheduleTime ?? { hour: 8, minute: 0 },
-                  scheduleDays: st === 'weekly' ? [1, 2, 3, 4, 5] : undefined,
-                });
-              }}
-            >
-              {SCHEDULE_TYPES.map((s) => (
-                <option key={s.value} value={s.value}>{s.label}</option>
-              ))}
-            </select>
-          </div>
+      {/* Label */}
+      <div className="editor-field">
+        <label>Label (optional)</label>
+        <input
+          className="editor-input"
+          value={draft.name || ''}
+          onChange={(e) => patch({ name: e.target.value || undefined })}
+          placeholder="Human-readable label"
+        />
+      </div>
 
-          {(draft.scheduleType || 'daily') === 'once' && (
-            <>
-              <div className="editor-field">
-                <label>Date</label>
-                <input
-                  className="editor-input"
-                  type="date"
-                  value={draft.scheduleDate || ''}
-                  onChange={(e) => patch({ scheduleDate: e.target.value })}
-                />
-              </div>
-              <div className="editor-field">
-                <label>Time</label>
-                <input className="editor-input" type="time" value={timeString(draft.scheduleTime)} onChange={onTimeChange} />
-              </div>
-            </>
-          )}
-
-          {(draft.scheduleType || 'daily') === 'daily' && (
-            <div className="editor-field">
-              <label>Time</label>
-              <input className="editor-input" type="time" value={timeString(draft.scheduleTime)} onChange={onTimeChange} />
-            </div>
-          )}
-
-          {draft.scheduleType === 'weekly' && (
-            <>
-              <div className="editor-field">
-                <label>Time</label>
-                <input className="editor-input" type="time" value={timeString(draft.scheduleTime)} onChange={onTimeChange} />
-              </div>
-              <div className="day-picker-section">
-                <span className="day-label">Days</span>
-                <div className="day-toggle-group">
-                  {DAYS.map((day, i) => (
-                    <button
-                      key={day}
-                      type="button"
-                      className={`day-toggle${(draft.scheduleDays ?? []).includes(i) ? ' active' : ''}`}
-                      onClick={() => toggleDay(i)}
-                    >
-                      {day}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </>
-          )}
-
-          {draft.scheduleType === 'interval' && (
-            <div className="editor-field">
-              <label>Every (seconds)</label>
-              <input
-                className="editor-input"
-                type="number"
-                min={1}
-                value={draft.scheduleIntervalSeconds ?? 60}
-                onChange={(e) => patch({ scheduleIntervalSeconds: +e.target.value })}
-              />
-            </div>
-          )}
-        </>
-      )}
-
-      {/* sunEvent */}
-      {draft.type === 'sunEvent' && (
-        <div className="editor-field-row">
-          <div className="editor-field">
-            <label>Event</label>
-            <select className="editor-select" value={draft.event || 'sunrise'} onChange={(e) => patch({ event: e.target.value as 'sunrise' | 'sunset' })}>
-              <option value="sunrise">Sunrise</option>
-              <option value="sunset">Sunset</option>
-            </select>
-          </div>
-          <div className="editor-field">
-            <label>Offset (minutes)</label>
-            <input
-              className="editor-input"
-              type="number"
-              value={draft.offsetMinutes ?? 0}
-              onChange={(e) => patch({ offsetMinutes: +e.target.value })}
-              placeholder="0 = exact, negative = before"
-            />
-          </div>
-        </div>
-      )}
-
-      {/* webhook */}
-      {draft.type === 'webhook' && (
-        <div className="trigger-info-box">
-          <strong>Token:</strong> {draft.token || '(auto-generated on save)'}
-          {draft.token && (
-            <div className="tree-copy-actions">
-              <button
-                type="button"
-                className="tree-copy-btn"
-                onClick={() => {
-                  navigator.clipboard.writeText(draft.token!);
-                  setCopied('token');
-                  setTimeout(() => setCopied(null), 2000);
-                }}
-              >
-                <Icon name={copied === 'token' ? 'checkmark' : 'doc-on-doc'} size={12} />
-                {copied === 'token' ? 'Copied' : 'Copy token'}
-              </button>
-              <button
-                type="button"
-                className="tree-copy-btn"
-                onClick={() => {
-                  navigator.clipboard.writeText(`${baseUrl}/workflows/webhook/${draft.token}`);
-                  setCopied('url');
-                  setTimeout(() => setCopied(null), 2000);
-                }}
-              >
-                <Icon name={copied === 'url' ? 'checkmark' : 'doc-on-doc'} size={12} />
-                {copied === 'url' ? 'Copied' : 'Copy URL'}
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* workflow */}
-      {draft.type === 'workflow' && (
-        <div className="trigger-info-box">
-          This workflow can be triggered by other workflows using the Execute Workflow block.
-        </div>
-      )}
-
-      {/* Per-trigger conditions */}
+      {/* Trigger guard */}
       <TriggerConditionsSection draft={draft} onChange={onChange} onOpenGuardPanel={onOpenGuardPanel} />
 
       {/* Retrigger policy */}
@@ -337,15 +112,249 @@ export function TriggerEditor({ draft, onChange, onOpenGuardPanel }: TriggerEdit
         </div>
       )}
 
-      {/* Optional label */}
-      <div className="editor-field">
-        <label>Label (optional)</label>
-        <input
-          className="editor-input"
-          value={draft.name || ''}
-          onChange={(e) => patch({ name: e.target.value || undefined })}
-          placeholder="Human-readable label"
-        />
+      {/* ── Type-specific fields ── */}
+      <div className="trigger-type-fields">
+        <span className="trigger-type-fields-label">Event Settings</span>
+
+        {/* deviceStateChange */}
+        {draft.type === 'deviceStateChange' && (
+          <>
+            <DevicePicker
+              initialDeviceId={draft.deviceId}
+              initialServiceId={draft.serviceId}
+              initialCharId={draft.characteristicId}
+              notifiableOnly
+              onChange={(val) => patch({ deviceId: val.deviceId, serviceId: val.serviceId, characteristicId: val.characteristicId })}
+            />
+            {draft.deviceId && draft.characteristicId && (
+              <CurrentValueIndicator
+                characteristic={registry.lookupCharacteristic(draft.deviceId, draft.characteristicId)}
+                isReachable={registry.lookupDevice(draft.deviceId)?.isReachable}
+              />
+            )}
+            <div className="editor-field">
+              <label>Condition</label>
+              <select
+                className="editor-select"
+                value={conditionType}
+                onChange={(e) => {
+                  const type = e.target.value;
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  let condition: any = { type };
+                  if (type !== 'changed') condition.value = true;
+                  if (type === 'transitioned') { delete condition.value; condition.from = undefined; condition.to = true; }
+                  patch({ condition });
+                }}
+              >
+                {TRIGGER_CONDITIONS.map((c) => (
+                  <option key={c.value} value={c.value}>{c.label}</option>
+                ))}
+              </select>
+            </div>
+            {conditionType !== 'changed' && conditionType !== 'transitioned' && (
+              <CharacteristicValueInput
+                characteristic={draft.deviceId && draft.characteristicId
+                  ? registry.lookupCharacteristic(draft.deviceId, draft.characteristicId)
+                  : undefined}
+                value={(draft.condition as any)?.value}
+                forceEditable
+                onChange={(val) => {
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  const current = { ...(draft.condition ?? { type: 'equals' }) } as any;
+                  current.value = val;
+                  patch({ condition: current });
+                }}
+              />
+            )}
+            {conditionType === 'transitioned' && (
+              <div className="editor-field-row">
+                <CharacteristicValueInput
+                  characteristic={draft.deviceId && draft.characteristicId
+                    ? registry.lookupCharacteristic(draft.deviceId, draft.characteristicId)
+                    : undefined}
+                  value={(draft.condition as any)?.from}
+                  label="From"
+                  allowAny
+                  forceEditable
+                  onChange={(val) => {
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    const current = { ...(draft.condition ?? { type: 'transitioned' }) } as any;
+                    current.from = val;
+                    patch({ condition: current });
+                  }}
+                />
+                <CharacteristicValueInput
+                  characteristic={draft.deviceId && draft.characteristicId
+                    ? registry.lookupCharacteristic(draft.deviceId, draft.characteristicId)
+                    : undefined}
+                  value={(draft.condition as any)?.to}
+                  label="To"
+                  allowAny
+                  forceEditable
+                  onChange={(val) => {
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    const current = { ...(draft.condition ?? { type: 'transitioned' }) } as any;
+                    current.to = val;
+                    patch({ condition: current });
+                  }}
+                />
+              </div>
+            )}
+          </>
+        )}
+
+        {/* schedule */}
+        {draft.type === 'schedule' && (
+          <>
+            <div className="editor-field">
+              <label>Schedule Type</label>
+              <select
+                className="editor-select"
+                value={draft.scheduleType || 'daily'}
+                onChange={(e) => {
+                  const st = e.target.value;
+                  patch({
+                    scheduleType: st,
+                    scheduleTime: draft.scheduleTime ?? { hour: 8, minute: 0 },
+                    scheduleDays: st === 'weekly' ? [1, 2, 3, 4, 5] : undefined,
+                  });
+                }}
+              >
+                {SCHEDULE_TYPES.map((s) => (
+                  <option key={s.value} value={s.value}>{s.label}</option>
+                ))}
+              </select>
+            </div>
+
+            {(draft.scheduleType || 'daily') === 'once' && (
+              <>
+                <div className="editor-field">
+                  <label>Date</label>
+                  <input
+                    className="editor-input"
+                    type="date"
+                    value={draft.scheduleDate || ''}
+                    onChange={(e) => patch({ scheduleDate: e.target.value })}
+                  />
+                </div>
+                <div className="editor-field">
+                  <label>Time</label>
+                  <input className="editor-input" type="time" value={timeString(draft.scheduleTime)} onChange={onTimeChange} />
+                </div>
+              </>
+            )}
+
+            {(draft.scheduleType || 'daily') === 'daily' && (
+              <div className="editor-field">
+                <label>Time</label>
+                <input className="editor-input" type="time" value={timeString(draft.scheduleTime)} onChange={onTimeChange} />
+              </div>
+            )}
+
+            {draft.scheduleType === 'weekly' && (
+              <>
+                <div className="editor-field">
+                  <label>Time</label>
+                  <input className="editor-input" type="time" value={timeString(draft.scheduleTime)} onChange={onTimeChange} />
+                </div>
+                <div className="day-picker-section">
+                  <span className="day-label">Days</span>
+                  <div className="day-toggle-group">
+                    {DAYS.map((day, i) => (
+                      <button
+                        key={day}
+                        type="button"
+                        className={`day-toggle${(draft.scheduleDays ?? []).includes(i) ? ' active' : ''}`}
+                        onClick={() => toggleDay(i)}
+                      >
+                        {day}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
+
+            {draft.scheduleType === 'interval' && (
+              <div className="editor-field">
+                <label>Every (seconds)</label>
+                <input
+                  className="editor-input"
+                  type="number"
+                  min={1}
+                  value={draft.scheduleIntervalSeconds ?? 60}
+                  onChange={(e) => patch({ scheduleIntervalSeconds: +e.target.value })}
+                />
+              </div>
+            )}
+          </>
+        )}
+
+        {/* sunEvent */}
+        {draft.type === 'sunEvent' && (
+          <div className="editor-field-row">
+            <div className="editor-field">
+              <label>Event</label>
+              <select className="editor-select" value={draft.event || 'sunrise'} onChange={(e) => patch({ event: e.target.value as 'sunrise' | 'sunset' })}>
+                <option value="sunrise">Sunrise</option>
+                <option value="sunset">Sunset</option>
+              </select>
+            </div>
+            <div className="editor-field">
+              <label>Offset (minutes)</label>
+              <input
+                className="editor-input"
+                type="number"
+                value={draft.offsetMinutes ?? 0}
+                onChange={(e) => patch({ offsetMinutes: +e.target.value })}
+                placeholder="0 = exact, negative = before"
+              />
+            </div>
+          </div>
+        )}
+
+        {/* webhook */}
+        {draft.type === 'webhook' && (
+          <div className="trigger-info-box">
+            <strong>Token:</strong> {draft.token || '(auto-generated on save)'}
+            {draft.token && (
+              <div className="tree-copy-actions">
+                <button
+                  type="button"
+                  className="tree-copy-btn"
+                  onClick={() => {
+                    navigator.clipboard.writeText(draft.token!);
+                    setCopied('token');
+                    setTimeout(() => setCopied(null), 2000);
+                  }}
+                >
+                  <Icon name={copied === 'token' ? 'checkmark' : 'doc-on-doc'} size={12} />
+                  {copied === 'token' ? 'Copied' : 'Copy token'}
+                </button>
+                <button
+                  type="button"
+                  className="tree-copy-btn"
+                  onClick={() => {
+                    navigator.clipboard.writeText(`${baseUrl}/workflows/webhook/${draft.token}`);
+                    setCopied('url');
+                    setTimeout(() => setCopied(null), 2000);
+                  }}
+                >
+                  <Icon name={copied === 'url' ? 'checkmark' : 'doc-on-doc'} size={12} />
+                  {copied === 'url' ? 'Copied' : 'Copy URL'}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* workflow */}
+        {draft.type === 'workflow' && (
+          <div className="trigger-info-box">
+            This workflow can be triggered by other workflows using the Execute Workflow block.
+          </div>
+        )}
+
       </div>
     </div>
   );

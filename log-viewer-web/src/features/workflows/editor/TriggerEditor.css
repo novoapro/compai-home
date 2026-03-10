@@ -4,6 +4,32 @@
   gap: 10px;
 }
 
+.trigger-type-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 2px;
+}
+
+.trigger-type-fields-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 10px;
+  font-weight: var(--font-weight-bold);
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  white-space: nowrap;
+}
+.trigger-type-fields-label::before,
+.trigger-type-fields-label::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border-color);
+}
+
 .trigger-header {
   display: flex;
   align-items: center;
