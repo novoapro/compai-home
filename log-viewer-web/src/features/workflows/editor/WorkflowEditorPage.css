@@ -453,6 +453,26 @@
   white-space: nowrap;
 }
 
+.wfe-panel-back-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  border: none;
+  background: none;
+  color: var(--tint-main);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background var(--transition-fast);
+}
+@media (hover: hover) {
+  .wfe-panel-back-btn:hover {
+    background: color-mix(in srgb, var(--tint-main) 10%, transparent);
+  }
+}
+
 .wfe-panel-close-btn {
   display: flex;
   align-items: center;

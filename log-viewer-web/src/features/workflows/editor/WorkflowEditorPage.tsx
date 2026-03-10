@@ -115,6 +115,8 @@ export function WorkflowEditorPage() {
   const panelConditionRef = useRef<WorkflowConditionDraft | null>(null);
   const editingBlockIdRef = useRef<string | null>(null);
   const editingTriggerGuardIndexRef = useRef<number | null>(null);
+  // Stack for navigating into nested conditions within the panel
+  const panelStackRef = useRef<{ condition: WorkflowConditionDraft; frame: PanelFrame; childIndex: number }[]>([]);
   // Force re-render when condition ref changes (buttons derive state from draft prop)
   const [, forcePanel] = useReducer((x: number) => x + 1, 0);
 
@@ -536,6 +538,7 @@ export function WorkflowEditorPage() {
     panelConditionRef.current = null;
     editingBlockIdRef.current = null;
     editingTriggerGuardIndexRef.current = null;
+    panelStackRef.current = [];
   }, []);
 
   // --- Trigger guard panel ---
@@ -571,7 +574,7 @@ export function WorkflowEditorPage() {
   const openNestedConditionPanel = useCallback(
     (info: { field: string; index: number; label: string }) => {
       const parent = panelConditionRef.current;
-      if (!parent) return;
+      if (!parent || !panel) return;
 
       let innerGroup = parent;
       if (parent.type === 'not' && parent.condition && (parent.condition.type === 'and' || parent.condition.type === 'or')) {
@@ -581,25 +584,40 @@ export function WorkflowEditorPage() {
       const child = innerGroup.conditions?.[info.index];
       if (!child) return;
 
+      // Push current state onto the stack before navigating deeper
+      panelStackRef.current = [...panelStackRef.current, { condition: JSON.parse(JSON.stringify(parent)), frame: panel, childIndex: info.index }];
+
       const isGroup = child.type === 'and' || child.type === 'or' || child.type === 'not';
-      if (isGroup) {
-        panelConditionRef.current = JSON.parse(JSON.stringify(child));
-        setPanel({
-          type: 'conditionGroup',
-          title: info.label,
-          conditionPath: [...(panel?.conditionPath ?? [0]), info.index],
-        });
-      } else {
-        panelConditionRef.current = JSON.parse(JSON.stringify(child));
-        setPanel({
-          type: 'condition',
-          title: info.label,
-          conditionPath: [...(panel?.conditionPath ?? [0]), info.index],
-        });
-      }
+      panelConditionRef.current = JSON.parse(JSON.stringify(child));
+      setPanel({
+        type: isGroup ? 'conditionGroup' : 'condition',
+        title: info.label,
+        conditionPath: [...(panel.conditionPath ?? [0]), info.index],
+      });
     },
     [panel],
   );
+
+  const navigatePanelBack = useCallback(() => {
+    const stack = panelStackRef.current;
+    if (stack.length === 0) return;
+
+    const popped = stack[stack.length - 1]!;
+    panelStackRef.current = stack.slice(0, -1);
+
+    // Apply current edits back into the parent's conditions array
+    const parentCopy: WorkflowConditionDraft = JSON.parse(JSON.stringify(popped.condition));
+    let innerGroup = parentCopy;
+    if (parentCopy.type === 'not' && parentCopy.condition && (parentCopy.condition.type === 'and' || parentCopy.condition.type === 'or')) {
+      innerGroup = parentCopy.condition;
+    }
+    if (innerGroup.conditions && panelConditionRef.current) {
+      innerGroup.conditions[popped.childIndex] = panelConditionRef.current;
+    }
+
+    panelConditionRef.current = parentCopy;
+    setPanel(popped.frame);
+  }, []);
 
   const applyConditionPanel = useCallback(() => {
     if (!panelConditionRef.current) { setPanel(null); return; }
@@ -972,6 +990,11 @@ export function WorkflowEditorPage() {
           <div className="wfe-panel-overlay" onClick={closePanel} />
           <div className="wfe-panel">
             <div className="wfe-panel-header">
+              {panelStackRef.current.length > 0 && (
+                <button className="wfe-panel-back-btn" onClick={navigatePanelBack} type="button">
+                  <Icon name="chevron-left" size={14} />
+                </button>
+              )}
               <h3 className="wfe-panel-title">{panel.title}</h3>
               <button className="wfe-panel-close-btn" onClick={closePanel} type="button">
                 <Icon name="xmark" size={16} />
