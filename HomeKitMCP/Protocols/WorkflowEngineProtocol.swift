@@ -10,6 +10,7 @@ protocol WorkflowEngineProtocol: AnyObject, Sendable {
     func scheduleTrigger(id: UUID) async -> TriggerResult
     func scheduleTrigger(id: UUID, triggerEvent: TriggerEvent) async -> TriggerResult
     func scheduleTrigger(id: UUID, triggerEvent: TriggerEvent, policy: ConcurrentExecutionPolicy?) async -> TriggerResult
+    func scheduleTrigger(id: UUID, triggerEvent: TriggerEvent, policy: ConcurrentExecutionPolicy?, triggerConditions: [WorkflowCondition]?) async -> TriggerResult
     func cancelExecution(executionId: UUID) async
     func cancelRunningExecutions(forWorkflow workflowId: UUID) async
 }

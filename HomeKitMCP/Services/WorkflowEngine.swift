@@ -126,32 +126,72 @@ actor WorkflowEngine: WorkflowEngineProtocol {
         for workflow in workflows {
             // Evaluate ALL workflows regardless of slot availability —
             // previously used `break` which silently skipped unevaluated workflows.
-            guard let matchedPolicy = await checkTriggers(workflow.triggers, context: context) else { continue }
+            let triggerResult = await checkTriggers(workflow.triggers, context: context)
 
-            // Already running?
-            if runningTasks[workflow.id] != nil {
-                switch matchedPolicy {
-                case .ignoreNew:
-                    AppLogger.workflow.debug("[\(workflow.name)] Ignoring new trigger — workflow already running (ignoreNew policy)")
-                    continue
-                case .cancelAndRestart:
-                    AppLogger.workflow.debug("[\(workflow.name)] Cancelling running execution — restarting (cancelAndRestart policy)")
-                    cancellationReasons[workflow.id] = "Cancelled and restarted — new device state trigger fired while running (cancelAndRestart policy)"
-                    cancelWorkflowTree(workflow.id)
-                    runningTasks.removeValue(forKey: workflow.id)
-                case .queueAndExecute:
-                    enqueueWorkflow(workflow, change: change)
-                    continue
-                case .cancelOnly:
-                    AppLogger.workflow.debug("[\(workflow.name)] Cancelling running execution — no restart (cancelOnly policy)")
-                    cancellationReasons[workflow.id] = "Cancelled — new device state trigger fired while running (cancelOnly policy)"
-                    cancelWorkflowTree(workflow.id)
-                    runningTasks.removeValue(forKey: workflow.id)
-                    continue
+            switch triggerResult {
+            case .noMatch:
+                continue
+
+            case .guardFailed(let condResults):
+                // Log trigger guard failure using the same mechanism as execution guards
+                if storage.readLogSkippedWorkflows() {
+                    let charName = CharacteristicTypes.displayName(for: change.characteristicType)
+                    let triggerDesc = "\(change.deviceName) \(charName) changed"
+                    var execLog = WorkflowExecutionLog(
+                        workflowId: workflow.id,
+                        workflowName: workflow.name,
+                        triggerEvent: TriggerEvent(
+                            deviceId: change.deviceId,
+                            deviceName: change.deviceName,
+                            serviceName: change.serviceName,
+                            characteristicName: charName,
+                            roomName: change.roomName,
+                            oldValue: change.oldValue.map { AnyCodable($0) },
+                            newValue: change.newValue.map { AnyCodable($0) },
+                            triggerDescription: triggerDesc
+                        )
+                    )
+                    execLog.status = .conditionNotMet
+                    execLog.conditionResults = condResults
+                    let failedDescriptions = condResults.filter { !$0.passed }.map { $0.conditionDescription }
+                    execLog.errorMessage = "Trigger guard not met: \(failedDescriptions.joined(separator: "; "))"
+                    execLog.completedAt = Date()
+                    await executionLogService.logEntry(execLog.toStateChangeLog())
+                    await workflowStorageService.updateMetadata(
+                        id: workflow.id,
+                        lastTriggered: execLog.triggeredAt,
+                        incrementExecutions: true,
+                        resetFailures: false
+                    )
                 }
-            }
+                continue
 
-            startExecution(workflow, change: change)
+            case .matched(let matchedPolicy):
+                // Already running?
+                if runningTasks[workflow.id] != nil {
+                    switch matchedPolicy {
+                    case .ignoreNew:
+                        AppLogger.workflow.debug("[\(workflow.name)] Ignoring new trigger — workflow already running (ignoreNew policy)")
+                        continue
+                    case .cancelAndRestart:
+                        AppLogger.workflow.debug("[\(workflow.name)] Cancelling running execution — restarting (cancelAndRestart policy)")
+                        cancellationReasons[workflow.id] = "Cancelled and restarted — new device state trigger fired while running (cancelAndRestart policy)"
+                        cancelWorkflowTree(workflow.id)
+                        runningTasks.removeValue(forKey: workflow.id)
+                    case .queueAndExecute:
+                        enqueueWorkflow(workflow, change: change)
+                        continue
+                    case .cancelOnly:
+                        AppLogger.workflow.debug("[\(workflow.name)] Cancelling running execution — no restart (cancelOnly policy)")
+                        cancellationReasons[workflow.id] = "Cancelled — new device state trigger fired while running (cancelOnly policy)"
+                        cancelWorkflowTree(workflow.id)
+                        runningTasks.removeValue(forKey: workflow.id)
+                        continue
+                    }
+                }
+
+                startExecution(workflow, change: change)
+            }
         }
     }
 
@@ -280,14 +320,46 @@ actor WorkflowEngine: WorkflowEngineProtocol {
 
     /// Fire-and-forget trigger with a custom event — returns immediately with the scheduling outcome.
     func scheduleTrigger(id: UUID, triggerEvent: TriggerEvent) async -> TriggerResult {
-        return await scheduleTrigger(id: id, triggerEvent: triggerEvent, policy: nil)
+        return await scheduleTrigger(id: id, triggerEvent: triggerEvent, policy: nil, triggerConditions: nil)
     }
 
-    /// Fire-and-forget trigger with a custom event and explicit policy from the matched trigger.
+    /// Fire-and-forget trigger with a custom event and explicit policy (no trigger guards).
     func scheduleTrigger(id: UUID, triggerEvent: TriggerEvent, policy: ConcurrentExecutionPolicy?) async -> TriggerResult {
+        return await scheduleTrigger(id: id, triggerEvent: triggerEvent, policy: policy, triggerConditions: nil)
+    }
+
+    /// Fire-and-forget trigger with a custom event, explicit policy, and optional per-trigger guard conditions.
+    func scheduleTrigger(id: UUID, triggerEvent: TriggerEvent, policy: ConcurrentExecutionPolicy?, triggerConditions: [WorkflowCondition]?) async -> TriggerResult {
         guard storage.readWorkflowsEnabled() else { return .disabled }
         guard let workflow = await workflowStorageService.getWorkflow(id: id) else { return .notFound }
         guard workflow.isEnabled else { return .workflowDisabled(workflowId: id, workflowName: workflow.name) }
+
+        // Evaluate per-trigger guard conditions
+        if let conditions = triggerConditions, !conditions.isEmpty {
+            let (allPassed, condResults) = await conditionEvaluator.evaluateAll(conditions)
+            if !allPassed {
+                if storage.readLogSkippedWorkflows() {
+                    var execLog = WorkflowExecutionLog(
+                        workflowId: workflow.id,
+                        workflowName: workflow.name,
+                        triggerEvent: triggerEvent
+                    )
+                    execLog.status = .conditionNotMet
+                    execLog.conditionResults = condResults
+                    let failedDescriptions = condResults.filter { !$0.passed }.map { $0.conditionDescription }
+                    execLog.errorMessage = "Trigger guard not met: \(failedDescriptions.joined(separator: "; "))"
+                    execLog.completedAt = Date()
+                    await executionLogService.logEntry(execLog.toStateChangeLog())
+                    await workflowStorageService.updateMetadata(
+                        id: workflow.id,
+                        lastTriggered: execLog.triggeredAt,
+                        incrementExecutions: true,
+                        resetFailures: false
+                    )
+                }
+                return .guardNotMet(workflowId: id, workflowName: workflow.name)
+            }
+        }
 
         let effectivePolicy = policy ?? workflow.retriggerPolicy
 
@@ -479,9 +551,18 @@ actor WorkflowEngine: WorkflowEngineProtocol {
 
     // MARK: - Trigger Evaluation
 
-    /// Returns the retrigger policy of the first matching trigger, or nil if no trigger matched.
-    /// Per-trigger guards are evaluated after the trigger matches — if they fail, the trigger is silently skipped.
-    private func checkTriggers(_ triggers: [WorkflowTrigger], context: TriggerContext) async -> ConcurrentExecutionPolicy? {
+    private enum TriggerCheckResult {
+        case matched(ConcurrentExecutionPolicy)
+        case guardFailed(conditionResults: [ConditionResult])
+        case noMatch
+    }
+
+    /// Evaluates triggers and returns the result: matched (with policy), guard failed, or no match.
+    /// When a trigger matches but its guard fails, returns `.guardFailed` with condition results for logging.
+    /// If multiple triggers match but all have failing guards, the last guard failure is returned.
+    private func checkTriggers(_ triggers: [WorkflowTrigger], context: TriggerContext) async -> TriggerCheckResult {
+        var lastGuardFailure: [ConditionResult]?
+
         for trigger in triggers {
             var matched = false
             for evaluator in evaluators {
@@ -494,17 +575,22 @@ actor WorkflowEngine: WorkflowEngineProtocol {
             }
             guard matched else { continue }
 
-            // Evaluate per-trigger guards — if they fail, skip this trigger silently
+            // Evaluate per-trigger guards
             if let conditions = trigger.conditions, !conditions.isEmpty {
-                let (allPassed, _) = await conditionEvaluator.evaluateAll(conditions)
+                let (allPassed, condResults) = await conditionEvaluator.evaluateAll(conditions)
                 if !allPassed {
+                    lastGuardFailure = condResults
                     continue
                 }
             }
 
-            return trigger.resolvedRetriggerPolicy
+            return .matched(trigger.resolvedRetriggerPolicy)
         }
-        return nil
+
+        if let condResults = lastGuardFailure {
+            return .guardFailed(conditionResults: condResults)
+        }
+        return .noMatch
     }
 
     // MARK: - Workflow Execution

@@ -146,7 +146,7 @@ actor ScheduleTriggerManager {
             newValue: nil,
             triggerDescription: description
         )
-        _ = await engine.scheduleTrigger(id: workflowId, triggerEvent: event, policy: policy)
+        _ = await engine.scheduleTrigger(id: workflowId, triggerEvent: event, policy: policy, triggerConditions: trigger.conditions)
     }
 
     // MARK: - Date Calculation
@@ -295,7 +295,7 @@ actor ScheduleTriggerManager {
             newValue: nil,
             triggerDescription: description
         )
-        _ = await engine.scheduleTrigger(id: workflowId, triggerEvent: event, policy: policy)
+        _ = await engine.scheduleTrigger(id: workflowId, triggerEvent: event, policy: policy, triggerConditions: trigger.conditions)
     }
 
     private static func sunEventDescription(_ trigger: SunEventTrigger) -> String {

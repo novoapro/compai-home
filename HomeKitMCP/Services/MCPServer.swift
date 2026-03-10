@@ -1117,6 +1117,11 @@ class MCPServer: ObservableObject, MCPServerProtocol, @unchecked Sendable {
 
         var results: [TriggerResult] = []
         for workflow in matchingWorkflows {
+            // Find the matching webhook trigger to extract its per-trigger guard conditions
+            let matchingTrigger = workflow.triggers.first { trigger in
+                if case .webhook(let wt) = trigger { return wt.token == token }
+                return false
+            }
             let triggerEvent = TriggerEvent(
                 deviceId: nil,
                 deviceName: nil,
@@ -1127,7 +1132,7 @@ class MCPServer: ObservableObject, MCPServerProtocol, @unchecked Sendable {
                 newValue: nil,
                 triggerDescription: "Webhook received (token \(String(token.prefix(8)))…)"
             )
-            let result = await workflowEngine.scheduleTrigger(id: workflow.id, triggerEvent: triggerEvent)
+            let result = await workflowEngine.scheduleTrigger(id: workflow.id, triggerEvent: triggerEvent, policy: nil, triggerConditions: matchingTrigger?.conditions)
             results.append(result)
         }
 

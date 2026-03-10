@@ -1713,6 +1713,7 @@ enum TriggerResult: Codable {
     case queued(workflowId: UUID, workflowName: String)
     case ignored(workflowId: UUID, workflowName: String)
     case cancelled(workflowId: UUID, workflowName: String)
+    case guardNotMet(workflowId: UUID, workflowName: String)
     case notFound
     case disabled
     case workflowDisabled(workflowId: UUID, workflowName: String)
@@ -1729,6 +1730,8 @@ enum TriggerResult: Codable {
             return "Trigger ignored: '\(name)' is already running."
         case .cancelled(_, let name):
             return "Running execution of '\(name)' was cancelled. No new execution started."
+        case .guardNotMet(_, let name):
+            return "Trigger guard not met for '\(name)'. Execution skipped."
         case .notFound:
             return "Workflow not found."
         case .disabled:
@@ -1741,7 +1744,7 @@ enum TriggerResult: Codable {
     var isAccepted: Bool {
         switch self {
         case .scheduled, .replaced, .queued, .cancelled: return true
-        case .ignored, .notFound, .disabled, .workflowDisabled: return false
+        case .ignored, .notFound, .disabled, .workflowDisabled, .guardNotMet: return false
         }
     }
 
@@ -1754,6 +1757,7 @@ enum TriggerResult: Codable {
         switch self {
         case .scheduled, .replaced, .queued, .cancelled: return 202
         case .ignored: return 409
+        case .guardNotMet: return 412
         case .notFound: return 404
         case .disabled, .workflowDisabled: return 503
         }
@@ -1772,6 +1776,7 @@ enum TriggerResult: Codable {
         case .queued: return "queued"
         case .ignored: return "ignored"
         case .cancelled: return "cancelled"
+        case .guardNotMet: return "guard_not_met"
         case .notFound: return "not_found"
         case .disabled: return "disabled"
         case .workflowDisabled: return "workflow_disabled"
@@ -1789,6 +1794,7 @@ enum TriggerResult: Codable {
              .queued(let id, let name),
              .ignored(let id, let name),
              .cancelled(let id, let name),
+             .guardNotMet(let id, let name),
              .workflowDisabled(let id, let name):
             try container.encode(id, forKey: .workflowId)
             try container.encode(name, forKey: .workflowName)
