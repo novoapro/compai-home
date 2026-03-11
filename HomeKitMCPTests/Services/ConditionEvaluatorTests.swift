@@ -4,14 +4,14 @@ import XCTest
 final class ConditionEvaluatorTests: XCTestCase {
 
     private var mockHomeKitManager: MockHomeKitManager!
-    private var mockStorage: MockStorageService!
+    private var mockStorage: MockStorageServiceForConditions!
     private var mockRegistry: MockDeviceRegistryService!
     private var evaluator: ConditionEvaluator!
 
     override func setUp() {
         super.setUp()
         mockHomeKitManager = MockHomeKitManager()
-        mockStorage = MockStorageService()
+        mockStorage = MockStorageServiceForConditions()
         mockRegistry = MockDeviceRegistryService()
         evaluator = ConditionEvaluator(
             homeKitManager: mockHomeKitManager,
@@ -310,8 +310,8 @@ final class ConditionEvaluatorTests: XCTestCase {
     }
 
     func testEvaluateTimeCondition_beforeSunriseNoLocation_returnsFailed() async {
-        mockStorage.sunEventLatitude = 0
-        mockStorage.sunEventLongitude = 0
+        mockStorage.mockLatitude = 0
+        mockStorage.mockLongitude = 0
         let condition = WorkflowCondition.timeCondition(
             TimeCondition(mode: .beforeSunrise)
         )
@@ -548,12 +548,14 @@ class MockHomeKitManager: HomeKitManager {
     }
 }
 
-class MockStorageService: StorageService {
-    var sunEventLatitude: Double = 0
-    var sunEventLongitude: Double = 0
+class MockStorageServiceForConditions: StorageService {
+    // Use differently-named backing vars — cannot redeclare stored properties
+    // that the parent already owns as @Published vars.
+    var mockLatitude: Double = 0
+    var mockLongitude: Double = 0
 
-    override func readSunEventLatitude() -> Double { sunEventLatitude }
-    override func readSunEventLongitude() -> Double { sunEventLongitude }
+    override func readSunEventLatitude() -> Double { mockLatitude }
+    override func readSunEventLongitude() -> Double { mockLongitude }
 }
 
 class MockDeviceRegistryService: DeviceRegistryService {
