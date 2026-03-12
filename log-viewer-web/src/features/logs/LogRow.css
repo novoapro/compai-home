@@ -219,6 +219,7 @@
 
 .toggle-indicator.on .toggle-dot {
   background: var(--status-active);
+  display: none;
 }
 
 .toggle-indicator.off {
@@ -232,6 +233,7 @@
 
 .toggle-indicator.off .toggle-dot {
   background: var(--status-inactive);
+  display: none;
 }
 
 /* State change: value indicator */
@@ -259,7 +261,7 @@
 }
 
 .value-indicator .old {
-  color: var(--status-inactive);
+  color: var(--text-secondary);
   font-weight: var(--font-weight-semibold);
 }
 
