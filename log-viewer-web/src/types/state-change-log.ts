@@ -30,9 +30,16 @@ export interface AIInteractionPayload {
   durationSeconds: number;
 }
 
-export interface StateChangeLog {
+// --- Per-category log types ---
+
+interface BaseLog {
   id: string;
   timestamp: string;
+  category: LogCategory;
+}
+
+export interface DeviceStateLog extends BaseLog {
+  category: LogCategory.StateChange;
   deviceId: string;
   deviceName: string;
   roomName?: string;
@@ -41,15 +48,256 @@ export interface StateChangeLog {
   characteristicType: string;
   oldValue?: unknown;
   newValue?: unknown;
-  category: LogCategory;
+  unit?: string;
+}
+
+export interface WebhookLog extends BaseLog {
+  category: LogCategory.WebhookCall | LogCategory.WebhookError;
+  deviceId: string;
+  deviceName: string;
+  roomName?: string;
+  serviceId?: string;
+  serviceName?: string;
+  characteristicType: string;
+  oldValue?: unknown;
+  newValue?: unknown;
+  unit?: string;
+  summary: string;
+  result: string;
   errorDetails?: string;
-  returnOutcome?: string;
-  requestBody?: string;
-  responseBody?: string;
-  detailedRequestBody?: string;
-  detailedResponseBody?: string;
-  workflowExecution?: WorkflowExecutionLog;
-  aiInteractionPayload?: AIInteractionPayload;
+  detailedRequest?: string;
+}
+
+export interface APICallLog extends BaseLog {
+  category: LogCategory.McpCall | LogCategory.RestCall;
+  method: string;
+  summary: string;
+  result: string;
+  detailedRequest?: string;
+  detailedResponse?: string;
+}
+
+export interface ServerErrorLog extends BaseLog {
+  category: LogCategory.ServerError;
+  errorDetails: string;
+}
+
+export interface WorkflowLog extends BaseLog {
+  category: LogCategory.WorkflowExecution | LogCategory.WorkflowError;
+  workflowExecution: WorkflowExecutionLog;
+}
+
+export interface SceneLog extends BaseLog {
+  category: LogCategory.SceneExecution | LogCategory.SceneError;
+  sceneId: string;
+  sceneName: string;
+  succeeded: boolean;
+  summary?: string;
+  errorDetails?: string;
+}
+
+export interface BackupRestoreLog extends BaseLog {
+  category: LogCategory.BackupRestore;
+  subtype: string;
+  summary: string;
+}
+
+export interface AIInteractionLog extends BaseLog {
+  category: LogCategory.AIInteraction | LogCategory.AIInteractionError;
+  aiInteractionPayload: AIInteractionPayload;
+}
+
+export type StateChangeLog =
+  | DeviceStateLog
+  | WebhookLog
+  | APICallLog
+  | ServerErrorLog
+  | WorkflowLog
+  | SceneLog
+  | BackupRestoreLog
+  | AIInteractionLog;
+
+// --- Helper functions for polymorphic access ---
+
+export function getLogDisplayName(log: StateChangeLog): string {
+  switch (log.category) {
+    case LogCategory.StateChange:
+      return log.deviceName;
+    case LogCategory.WebhookCall:
+    case LogCategory.WebhookError:
+      return log.deviceName;
+    case LogCategory.McpCall:
+      return 'MCP';
+    case LogCategory.RestCall:
+      return 'MCP Server';
+    case LogCategory.ServerError:
+      return 'MCP Server';
+    case LogCategory.WorkflowExecution:
+    case LogCategory.WorkflowError:
+      return log.workflowExecution.workflowName;
+    case LogCategory.SceneExecution:
+    case LogCategory.SceneError:
+      return log.sceneName;
+    case LogCategory.BackupRestore:
+      return 'Backup Restore';
+    case LogCategory.AIInteraction:
+    case LogCategory.AIInteractionError:
+      return `AI (${log.aiInteractionPayload.model})`;
+  }
+}
+
+export function getLogRoomName(log: StateChangeLog): string | undefined {
+  if (log.category === LogCategory.StateChange ||
+      log.category === LogCategory.WebhookCall ||
+      log.category === LogCategory.WebhookError) {
+    return log.roomName;
+  }
+  return undefined;
+}
+
+export function getLogServiceName(log: StateChangeLog): string | undefined {
+  if (log.category === LogCategory.StateChange ||
+      log.category === LogCategory.WebhookCall ||
+      log.category === LogCategory.WebhookError) {
+    return log.serviceName;
+  }
+  return undefined;
+}
+
+export function getLogErrorDetails(log: StateChangeLog): string | undefined {
+  switch (log.category) {
+    case LogCategory.WebhookError:
+      return log.errorDetails;
+    case LogCategory.ServerError:
+      return log.errorDetails;
+    case LogCategory.WorkflowExecution:
+    case LogCategory.WorkflowError:
+      return log.workflowExecution.errorMessage;
+    case LogCategory.SceneError:
+      return log.errorDetails;
+    case LogCategory.BackupRestore:
+      return log.summary;
+    case LogCategory.AIInteractionError:
+      return log.aiInteractionPayload.errorMessage;
+    default:
+      return undefined;
+  }
+}
+
+export function getLogSummary(log: StateChangeLog): string | undefined {
+  switch (log.category) {
+    case LogCategory.WebhookCall:
+    case LogCategory.WebhookError:
+      return log.summary;
+    case LogCategory.McpCall:
+    case LogCategory.RestCall:
+      return log.summary;
+    case LogCategory.WorkflowExecution:
+    case LogCategory.WorkflowError:
+      return log.workflowExecution.triggerEvent?.triggerDescription;
+    case LogCategory.SceneExecution:
+    case LogCategory.SceneError:
+      return log.summary;
+    case LogCategory.AIInteraction:
+    case LogCategory.AIInteractionError:
+      return log.aiInteractionPayload.userMessage.slice(0, 200);
+    default:
+      return undefined;
+  }
+}
+
+export function getLogResult(log: StateChangeLog): string | undefined {
+  switch (log.category) {
+    case LogCategory.WebhookCall:
+    case LogCategory.WebhookError:
+      return log.result;
+    case LogCategory.McpCall:
+    case LogCategory.RestCall:
+      return log.result;
+    default:
+      return undefined;
+  }
+}
+
+export function getLogDetailedRequest(log: StateChangeLog): string | undefined {
+  switch (log.category) {
+    case LogCategory.WebhookCall:
+    case LogCategory.WebhookError:
+      return log.detailedRequest;
+    case LogCategory.McpCall:
+    case LogCategory.RestCall:
+      return log.detailedRequest;
+    default:
+      return undefined;
+  }
+}
+
+export function getLogDetailedResponse(log: StateChangeLog): string | undefined {
+  if (log.category === LogCategory.McpCall || log.category === LogCategory.RestCall) {
+    return log.detailedResponse;
+  }
+  return undefined;
+}
+
+export function isLogExpandable(log: StateChangeLog): boolean {
+  switch (log.category) {
+    case LogCategory.WorkflowExecution:
+    case LogCategory.WorkflowError:
+      return true;
+    case LogCategory.AIInteraction:
+    case LogCategory.AIInteractionError:
+      return true;
+    case LogCategory.WebhookCall:
+    case LogCategory.WebhookError:
+      return !!(log.detailedRequest || log.summary || log.result);
+    case LogCategory.McpCall:
+    case LogCategory.RestCall:
+      return !!(log.detailedRequest || log.detailedResponse || log.summary || log.result);
+    default:
+      return false;
+  }
+}
+
+export function getLogSearchableText(log: StateChangeLog): string {
+  const parts: string[] = [getLogDisplayName(log)];
+  const room = getLogRoomName(log);
+  if (room) parts.push(room);
+  const service = getLogServiceName(log);
+  if (service) parts.push(service);
+  const error = getLogErrorDetails(log);
+  if (error) parts.push(error);
+
+  switch (log.category) {
+    case LogCategory.StateChange:
+      parts.push(log.characteristicType);
+      break;
+    case LogCategory.WebhookCall:
+    case LogCategory.WebhookError:
+      parts.push(log.characteristicType, log.summary, log.result);
+      break;
+    case LogCategory.McpCall:
+    case LogCategory.RestCall:
+      parts.push(log.method, log.summary, log.result);
+      break;
+    case LogCategory.WorkflowExecution:
+    case LogCategory.WorkflowError: {
+      const wf = log.workflowExecution;
+      parts.push(wf.workflowName);
+      if (wf.triggerEvent?.deviceName) parts.push(wf.triggerEvent.deviceName);
+      if (wf.triggerEvent?.triggerDescription) parts.push(wf.triggerEvent.triggerDescription);
+      if (wf.errorMessage) parts.push(wf.errorMessage);
+      break;
+    }
+    case LogCategory.AIInteraction:
+    case LogCategory.AIInteractionError: {
+      const ai = log.aiInteractionPayload;
+      parts.push(ai.operation, ai.provider, ai.model);
+      break;
+    }
+    default:
+      break;
+  }
+  return parts.join(' ').toLowerCase();
 }
 
 export interface CategoryMeta {

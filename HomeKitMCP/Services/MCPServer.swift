@@ -287,6 +287,7 @@ class MCPServer: ObservableObject, MCPServerProtocol, @unchecked Sendable {
                                 "characteristicId": change.characteristicId,
                                 "characteristicType": change.characteristicType,
                                 "value": valueJson,
+                                "oldValue": change.oldValue,
                                 "timestamp": isoFormatter.string(from: change.timestamp)
                             ] as [String: Any]
                         ]

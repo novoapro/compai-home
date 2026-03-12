@@ -155,6 +155,33 @@ enum CharacteristicTypes {
         return reverseMapping[name.lowercased()]
     }
 
+    /// Returns the unit suffix for a characteristic type, if applicable.
+    /// For temperature, returns the user's preferred unit suffix (°C or °F).
+    static func unitForCharacteristicType(_ characteristicType: String) -> String? {
+        switch characteristicType {
+        case HMCharacteristicTypeBrightness,
+             HMCharacteristicTypeSaturation,
+             HMCharacteristicTypeBatteryLevel,
+             HMCharacteristicTypeCurrentRelativeHumidity,
+             HMCharacteristicTypeTargetRelativeHumidity,
+             HMCharacteristicTypeCurrentPosition,
+             HMCharacteristicTypeTargetPosition,
+             HMCharacteristicTypeRotationSpeed:
+            return "%"
+        case HMCharacteristicTypeCurrentTemperature,
+             HMCharacteristicTypeTargetTemperature:
+            return TemperatureConversion.unitSuffix
+        case HMCharacteristicTypeHue:
+            return "°"
+        case HMCharacteristicTypeColorTemperature:
+            return "K"
+        case HMCharacteristicTypeCurrentLightLevel:
+            return "lux"
+        default:
+            return nil
+        }
+    }
+
     static func formatValue(_ value: Any, characteristicType: String) -> String {
         switch characteristicType {
         case HMCharacteristicTypePowerState,

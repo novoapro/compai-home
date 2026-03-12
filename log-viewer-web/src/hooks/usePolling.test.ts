@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { usePolling } from './usePolling';
-import type { StateChangeLog } from '@/types/state-change-log';
+import type { StateChangeLog, DeviceStateLog, WorkflowLog } from '@/types/state-change-log';
 import { LogCategory } from '@/types/state-change-log';
 import type { WorkflowExecutionLog, ExecutionStatus } from '@/types/workflow-log';
 
@@ -17,8 +17,8 @@ function makeWorkflowExec(status: ExecutionStatus = 'success'): WorkflowExecutio
   };
 }
 
-/** Create a minimal valid StateChangeLog for use in tests. */
-function makeLog(overrides: Partial<StateChangeLog> & { id: string }): StateChangeLog {
+/** Create a device state log for use in tests. */
+function makeDeviceLog(overrides: Partial<DeviceStateLog> & { id: string }): DeviceStateLog {
   return {
     deviceId: 'device-1',
     deviceName: 'Test Device',
@@ -27,6 +27,20 @@ function makeLog(overrides: Partial<StateChangeLog> & { id: string }): StateChan
     timestamp: new Date().toISOString(),
     ...overrides,
   };
+}
+
+/** Create a minimal valid StateChangeLog for use in tests. */
+function makeLog(overrides: { id: string; timestamp?: string; workflowExecution?: WorkflowExecutionLog }): StateChangeLog {
+  if (overrides.workflowExecution) {
+    const isError = overrides.workflowExecution.status === 'failure';
+    return {
+      id: overrides.id,
+      timestamp: overrides.timestamp ?? new Date().toISOString(),
+      category: isError ? LogCategory.WorkflowError : LogCategory.WorkflowExecution,
+      workflowExecution: overrides.workflowExecution,
+    } as WorkflowLog;
+  }
+  return makeDeviceLog({ id: overrides.id, timestamp: overrides.timestamp });
 }
 
 // Mock the useApi hook
@@ -182,7 +196,8 @@ describe('usePolling', () => {
       result.current.updateLog(updatedLog);
     });
 
-    expect(result.current.logs[0]?.workflowExecution?.status).toBe('success');
+    const updated = result.current.logs[0] as WorkflowLog;
+    expect(updated.workflowExecution.status).toBe('success');
     expect(result.current.logs).toHaveLength(1);
   });
 
@@ -201,7 +216,8 @@ describe('usePolling', () => {
       result.current.updateLog(staleUpdate);
     });
 
-    expect(result.current.logs[0]?.workflowExecution?.status).toBe('success');
+    const kept = result.current.logs[0] as WorkflowLog;
+    expect(kept.workflowExecution.status).toBe('success');
   });
 
   it('clearAll removes all logs', async () => {

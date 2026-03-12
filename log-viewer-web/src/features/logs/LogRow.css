@@ -192,7 +192,7 @@
 /* State change: toggle pill */
 .toggle-indicator {
   display: inline-flex;
-  align-items: center;
+  align-items: baseline;
   gap: 6px;
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-semibold);
@@ -209,10 +209,12 @@
 .toggle-indicator .characteristic {
   font-weight: var(--font-weight-regular);
   color: var(--text-secondary);
+  font-size: var(--font-size-sm);
 }
 
 .toggle-indicator.on {
   color: var(--status-active);
+  font-size: var(--font-size-md);
 }
 
 .toggle-indicator.on .toggle-dot {
@@ -221,6 +223,11 @@
 
 .toggle-indicator.off {
   color: var(--text-secondary);
+  font-size: var(--font-size-md);
+}
+
+.toggle-indicator .toggle-label{
+  align-self: baseline;
 }
 
 .toggle-indicator.off .toggle-dot {
@@ -247,8 +254,13 @@
 }
 
 .value-indicator .new {
+  font-weight: var(--font-weight-bold);
+  color: var(--tint-main);
+}
+
+.value-indicator .old {
+  color: var(--status-inactive);
   font-weight: var(--font-weight-semibold);
-  color: var(--text-primary);
 }
 
 /* API content */

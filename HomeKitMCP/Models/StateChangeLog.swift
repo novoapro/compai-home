@@ -29,6 +29,7 @@ struct DeviceStatePayload: Codable {
     let characteristicType: String
     let oldValue: AnyCodable?
     let newValue: AnyCodable?
+    let unit: String?
 }
 
 struct WebhookLogPayload: Codable {
@@ -40,6 +41,7 @@ struct WebhookLogPayload: Codable {
     let characteristicType: String
     let oldValue: AnyCodable?
     let newValue: AnyCodable?
+    let unit: String?
     let summary: String
     let result: String
     let errorDetails: String?
@@ -123,7 +125,8 @@ extension StateChangeLog {
         serviceName: String? = nil,
         characteristicType: String,
         oldValue: AnyCodable? = nil,
-        newValue: AnyCodable? = nil
+        newValue: AnyCodable? = nil,
+        unit: String? = nil
     ) -> StateChangeLog {
         StateChangeLog(
             id: UUID(), timestamp: Date(), category: .stateChange,
@@ -132,7 +135,8 @@ extension StateChangeLog {
                 roomName: roomName,
                 serviceId: serviceId, serviceName: serviceName,
                 characteristicType: characteristicType,
-                oldValue: oldValue, newValue: newValue
+                oldValue: oldValue, newValue: newValue,
+                unit: unit
             ))
         )
     }
@@ -146,6 +150,7 @@ extension StateChangeLog {
         characteristicType: String,
         oldValue: AnyCodable? = nil,
         newValue: AnyCodable? = nil,
+        unit: String? = nil,
         summary: String,
         result: String,
         detailedRequest: String? = nil
@@ -158,6 +163,7 @@ extension StateChangeLog {
                 serviceId: serviceId, serviceName: serviceName,
                 characteristicType: characteristicType,
                 oldValue: oldValue, newValue: newValue,
+                unit: unit,
                 summary: summary, result: result,
                 errorDetails: nil, detailedRequest: detailedRequest
             ))
@@ -173,6 +179,7 @@ extension StateChangeLog {
         characteristicType: String,
         oldValue: AnyCodable? = nil,
         newValue: AnyCodable? = nil,
+        unit: String? = nil,
         summary: String,
         result: String,
         errorDetails: String,
@@ -186,6 +193,7 @@ extension StateChangeLog {
                 serviceId: serviceId, serviceName: serviceName,
                 characteristicType: characteristicType,
                 oldValue: oldValue, newValue: newValue,
+                unit: unit,
                 summary: summary, result: result,
                 errorDetails: errorDetails, detailedRequest: detailedRequest
             ))
@@ -299,7 +307,7 @@ extension StateChangeLog {
     }
 }
 
-// MARK: - Convenience Accessors
+// MARK: - Convenience Accessors (used by native UI and MCP text formatter; NOT serialized)
 
 extension StateChangeLog {
     var deviceId: String {
@@ -397,12 +405,6 @@ extension StateChangeLog {
         case .stateChange(let p): return p.newValue
         case .webhookCall(let p): return p.newValue
         case .webhookError(let p): return p.newValue
-        case .sceneExecution(let p): return AnyCodable(p.succeeded)
-        case .sceneError(let p): return AnyCodable(p.succeeded)
-        case .workflowExecution(let e): return AnyCodable(e.status.rawValue)
-        case .workflowError(let e): return AnyCodable(e.status.rawValue)
-        case .aiInteraction(let p): return AnyCodable(p.parsedSuccessfully)
-        case .aiInteractionError(let p): return AnyCodable(p.parsedSuccessfully)
         default: return nil
         }
     }
@@ -503,6 +505,7 @@ extension StateChangeLog {
                 serviceId: p.serviceId, serviceName: p.serviceName,
                 characteristicType: p.characteristicType,
                 oldValue: p.oldValue, newValue: p.newValue,
+                unit: p.unit,
                 summary: p.summary, result: p.result,
                 errorDetails: p.errorDetails.map { Self.truncate($0) },
                 detailedRequest: p.detailedRequest.map { Self.truncate($0) }
@@ -515,6 +518,7 @@ extension StateChangeLog {
                 serviceId: p.serviceId, serviceName: p.serviceName,
                 characteristicType: p.characteristicType,
                 oldValue: p.oldValue, newValue: p.newValue,
+                unit: p.unit,
                 summary: p.summary, result: p.result,
                 errorDetails: p.errorDetails.map { Self.truncate($0) },
                 detailedRequest: p.detailedRequest.map { Self.truncate($0) }
@@ -582,151 +586,212 @@ extension StateChangeLog {
 }
 
 
-// MARK: - Codable (flat JSON; workflow entries include full WorkflowExecutionLog)
+// MARK: - Codable (polymorphic: each category encodes only its relevant fields)
 
 extension StateChangeLog: Codable {
     private enum CodingKeys: String, CodingKey {
+        // Common
         case id, timestamp, category
+        // Device-related (stateChange, webhook)
         case deviceId, deviceName, roomName, serviceId, serviceName
-        case characteristicType, oldValue, newValue
-        case errorDetails, requestBody, responseBody, detailedRequestBody, detailedResponseBody
+        case characteristicType, oldValue, newValue, unit
+        // API calls (mcpCall, restCall)
+        case method, summary, result, detailedRequest, detailedResponse
+        // Errors
+        case errorDetails
+        // Scenes
+        case sceneId, sceneName, succeeded
+        // Backup
+        case subtype
+        // Rich payloads
         case workflowExecution
         case aiInteractionPayload
+        // Legacy keys (read-only, for backwards compatibility)
+        case requestBody, responseBody, detailedRequestBody, detailedResponseBody
     }
 
     func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(id, forKey: .id)
-        try container.encode(timestamp, forKey: .timestamp)
-        try container.encode(category, forKey: .category)
-        try container.encode(deviceId, forKey: .deviceId)
-        try container.encode(deviceName, forKey: .deviceName)
-        try container.encodeIfPresent(roomName, forKey: .roomName)
-        try container.encodeIfPresent(serviceId, forKey: .serviceId)
-        try container.encodeIfPresent(serviceName, forKey: .serviceName)
-        try container.encode(characteristicType, forKey: .characteristicType)
-        try container.encodeIfPresent(oldValue, forKey: .oldValue)
-        try container.encodeIfPresent(newValue, forKey: .newValue)
-        try container.encodeIfPresent(errorDetails, forKey: .errorDetails)
-        try container.encodeIfPresent(requestBody, forKey: .requestBody)
-        try container.encodeIfPresent(responseBody, forKey: .responseBody)
-        try container.encodeIfPresent(detailedRequestBody, forKey: .detailedRequestBody)
-        try container.encodeIfPresent(detailedResponseBody, forKey: .detailedResponseBody)
-        // Workflow entries: encode the full execution log for rich API consumers.
-        if let execLog = workflowExecution {
-            try container.encode(execLog, forKey: .workflowExecution)
-        }
-        // AI interaction entries: encode the full payload.
-        if let aiPayload = aiInteraction {
-            try container.encode(aiPayload, forKey: .aiInteractionPayload)
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(id, forKey: .id)
+        try c.encode(timestamp, forKey: .timestamp)
+        try c.encode(category, forKey: .category)
+
+        switch payload {
+        case .stateChange(let p):
+            try c.encode(p.deviceId, forKey: .deviceId)
+            try c.encode(p.deviceName, forKey: .deviceName)
+            try c.encodeIfPresent(p.roomName, forKey: .roomName)
+            try c.encodeIfPresent(p.serviceId, forKey: .serviceId)
+            try c.encodeIfPresent(p.serviceName, forKey: .serviceName)
+            try c.encode(p.characteristicType, forKey: .characteristicType)
+            try c.encodeIfPresent(p.oldValue, forKey: .oldValue)
+            try c.encodeIfPresent(p.newValue, forKey: .newValue)
+            try c.encodeIfPresent(p.unit, forKey: .unit)
+
+        case .webhookCall(let p), .webhookError(let p):
+            try c.encode(p.deviceId, forKey: .deviceId)
+            try c.encode(p.deviceName, forKey: .deviceName)
+            try c.encodeIfPresent(p.roomName, forKey: .roomName)
+            try c.encodeIfPresent(p.serviceId, forKey: .serviceId)
+            try c.encodeIfPresent(p.serviceName, forKey: .serviceName)
+            try c.encode(p.characteristicType, forKey: .characteristicType)
+            try c.encodeIfPresent(p.oldValue, forKey: .oldValue)
+            try c.encodeIfPresent(p.newValue, forKey: .newValue)
+            try c.encodeIfPresent(p.unit, forKey: .unit)
+            try c.encode(p.summary, forKey: .summary)
+            try c.encode(p.result, forKey: .result)
+            try c.encodeIfPresent(p.errorDetails, forKey: .errorDetails)
+            try c.encodeIfPresent(p.detailedRequest, forKey: .detailedRequest)
+
+        case .mcpCall(let p), .restCall(let p):
+            try c.encode(p.method, forKey: .method)
+            try c.encode(p.summary, forKey: .summary)
+            try c.encode(p.result, forKey: .result)
+            try c.encodeIfPresent(p.detailedRequest, forKey: .detailedRequest)
+            try c.encodeIfPresent(p.detailedResponse, forKey: .detailedResponse)
+
+        case .serverError(let p):
+            try c.encode(p.errorDetails, forKey: .errorDetails)
+
+        case .workflowExecution(let e), .workflowError(let e):
+            try c.encode(e, forKey: .workflowExecution)
+
+        case .sceneExecution(let p), .sceneError(let p):
+            try c.encode(p.sceneId, forKey: .sceneId)
+            try c.encode(p.sceneName, forKey: .sceneName)
+            try c.encode(p.succeeded, forKey: .succeeded)
+            try c.encodeIfPresent(p.summary, forKey: .summary)
+            try c.encodeIfPresent(p.errorDetails, forKey: .errorDetails)
+
+        case .backupRestore(let p):
+            try c.encode(p.subtype, forKey: .subtype)
+            try c.encode(p.summary, forKey: .summary)
+
+        case .aiInteraction(let p), .aiInteractionError(let p):
+            try c.encode(p, forKey: .aiInteractionPayload)
         }
     }
 
     init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        id = try container.decode(UUID.self, forKey: .id)
-        timestamp = try container.decode(Date.self, forKey: .timestamp)
-        category = try container.decode(LogCategory.self, forKey: .category)
-
-        let deviceId = try container.decodeIfPresent(String.self, forKey: .deviceId) ?? ""
-        let deviceName = try container.decodeIfPresent(String.self, forKey: .deviceName) ?? ""
-        let roomName = try container.decodeIfPresent(String.self, forKey: .roomName)
-        let serviceId = try container.decodeIfPresent(String.self, forKey: .serviceId)
-        let serviceName = try container.decodeIfPresent(String.self, forKey: .serviceName)
-        let characteristicType = try container.decodeIfPresent(String.self, forKey: .characteristicType) ?? ""
-        let oldValue = try container.decodeIfPresent(AnyCodable.self, forKey: .oldValue)
-        let newValue = try container.decodeIfPresent(AnyCodable.self, forKey: .newValue)
-        let errorDetails = try container.decodeIfPresent(String.self, forKey: .errorDetails)
-        let requestBody = try container.decodeIfPresent(String.self, forKey: .requestBody)
-        let responseBody = try container.decodeIfPresent(String.self, forKey: .responseBody)
-        let detailedRequestBody = try container.decodeIfPresent(String.self, forKey: .detailedRequestBody)
-        let detailedResponseBody = try container.decodeIfPresent(String.self, forKey: .detailedResponseBody)
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id)
+        timestamp = try c.decode(Date.self, forKey: .timestamp)
+        category = try c.decode(LogCategory.self, forKey: .category)
 
         switch category {
         case .stateChange:
             payload = .stateChange(DeviceStatePayload(
-                deviceId: deviceId, deviceName: deviceName,
-                roomName: roomName,
-                serviceId: serviceId, serviceName: serviceName,
-                characteristicType: characteristicType,
-                oldValue: oldValue, newValue: newValue
+                deviceId: try c.decodeIfPresent(String.self, forKey: .deviceId) ?? "",
+                deviceName: try c.decodeIfPresent(String.self, forKey: .deviceName) ?? "",
+                roomName: try c.decodeIfPresent(String.self, forKey: .roomName),
+                serviceId: try c.decodeIfPresent(String.self, forKey: .serviceId),
+                serviceName: try c.decodeIfPresent(String.self, forKey: .serviceName),
+                characteristicType: try c.decodeIfPresent(String.self, forKey: .characteristicType) ?? "",
+                oldValue: try c.decodeIfPresent(AnyCodable.self, forKey: .oldValue),
+                newValue: try c.decodeIfPresent(AnyCodable.self, forKey: .newValue),
+                unit: try c.decodeIfPresent(String.self, forKey: .unit)
             ))
-        case .webhookCall:
-            payload = .webhookCall(WebhookLogPayload(
-                deviceId: deviceId, deviceName: deviceName,
-                roomName: roomName,
-                serviceId: serviceId, serviceName: serviceName,
-                characteristicType: characteristicType,
-                oldValue: oldValue, newValue: newValue,
-                summary: requestBody ?? "", result: responseBody ?? "",
-                errorDetails: errorDetails, detailedRequest: detailedRequestBody
-            ))
-        case .webhookError:
-            payload = .webhookError(WebhookLogPayload(
-                deviceId: deviceId, deviceName: deviceName,
-                roomName: roomName,
-                serviceId: serviceId, serviceName: serviceName,
-                characteristicType: characteristicType,
-                oldValue: oldValue, newValue: newValue,
-                summary: requestBody ?? "", result: responseBody ?? "",
-                errorDetails: errorDetails, detailedRequest: detailedRequestBody
-            ))
-        case .mcpCall:
-            payload = .mcpCall(APICallPayload(
-                method: characteristicType,
-                summary: requestBody ?? "", result: responseBody ?? "",
-                detailedRequest: detailedRequestBody,
-                detailedResponse: detailedResponseBody
-            ))
-        case .restCall:
-            payload = .restCall(APICallPayload(
-                method: characteristicType,
-                summary: requestBody ?? "", result: responseBody ?? "",
-                detailedRequest: detailedRequestBody,
-                detailedResponse: detailedResponseBody
-            ))
+
+        case .webhookCall, .webhookError:
+            // New format uses summary/result; legacy uses requestBody/responseBody
+            let summary = try c.decodeIfPresent(String.self, forKey: .summary)
+                ?? c.decodeIfPresent(String.self, forKey: .requestBody) ?? ""
+            let result = try c.decodeIfPresent(String.self, forKey: .result)
+                ?? c.decodeIfPresent(String.self, forKey: .responseBody) ?? ""
+            let detailedReq = try c.decodeIfPresent(String.self, forKey: .detailedRequest)
+                ?? c.decodeIfPresent(String.self, forKey: .detailedRequestBody)
+            let p = WebhookLogPayload(
+                deviceId: try c.decodeIfPresent(String.self, forKey: .deviceId) ?? "",
+                deviceName: try c.decodeIfPresent(String.self, forKey: .deviceName) ?? "",
+                roomName: try c.decodeIfPresent(String.self, forKey: .roomName),
+                serviceId: try c.decodeIfPresent(String.self, forKey: .serviceId),
+                serviceName: try c.decodeIfPresent(String.self, forKey: .serviceName),
+                characteristicType: try c.decodeIfPresent(String.self, forKey: .characteristicType) ?? "",
+                oldValue: try c.decodeIfPresent(AnyCodable.self, forKey: .oldValue),
+                newValue: try c.decodeIfPresent(AnyCodable.self, forKey: .newValue),
+                unit: try c.decodeIfPresent(String.self, forKey: .unit),
+                summary: summary, result: result,
+                errorDetails: try c.decodeIfPresent(String.self, forKey: .errorDetails),
+                detailedRequest: detailedReq
+            )
+            payload = category == .webhookError ? .webhookError(p) : .webhookCall(p)
+
+        case .mcpCall, .restCall:
+            // New format uses method; legacy uses characteristicType
+            let method = try c.decodeIfPresent(String.self, forKey: .method)
+                ?? c.decodeIfPresent(String.self, forKey: .characteristicType) ?? ""
+            let summary = try c.decodeIfPresent(String.self, forKey: .summary)
+                ?? c.decodeIfPresent(String.self, forKey: .requestBody) ?? ""
+            let result = try c.decodeIfPresent(String.self, forKey: .result)
+                ?? c.decodeIfPresent(String.self, forKey: .responseBody) ?? ""
+            let detailedReq = try c.decodeIfPresent(String.self, forKey: .detailedRequest)
+                ?? c.decodeIfPresent(String.self, forKey: .detailedRequestBody)
+            let detailedResp = try c.decodeIfPresent(String.self, forKey: .detailedResponse)
+                ?? c.decodeIfPresent(String.self, forKey: .detailedResponseBody)
+            let p = APICallPayload(
+                method: method, summary: summary, result: result,
+                detailedRequest: detailedReq, detailedResponse: detailedResp
+            )
+            payload = category == .mcpCall ? .mcpCall(p) : .restCall(p)
+
         case .serverError:
             payload = .serverError(ServerErrorPayload(
-                errorDetails: errorDetails ?? ""
+                errorDetails: try c.decodeIfPresent(String.self, forKey: .errorDetails) ?? ""
             ))
+
         case .workflowExecution, .workflowError:
-            // Workflow entries are synthesised at query time and should not be persisted
-            // in logs.json. If we decode one (stale file), reconstruct from embedded data.
-            if let execLog = try? container.decode(WorkflowExecutionLog.self, forKey: .workflowExecution) {
+            if let execLog = try? c.decode(WorkflowExecutionLog.self, forKey: .workflowExecution) {
                 payload = category == .workflowError ? .workflowError(execLog) : .workflowExecution(execLog)
             } else {
-                payload = .serverError(ServerErrorPayload(errorDetails: errorDetails ?? "legacy workflow log"))
+                let err = try c.decodeIfPresent(String.self, forKey: .errorDetails) ?? "legacy workflow log"
+                payload = .serverError(ServerErrorPayload(errorDetails: err))
             }
-        case .sceneExecution:
-            let succeeded = (newValue?.value as? Bool) ?? true
-            payload = .sceneExecution(ScenePayload(
-                sceneId: deviceId, sceneName: deviceName,
-                succeeded: succeeded, summary: requestBody,
-                errorDetails: errorDetails
-            ))
-        case .sceneError:
-            let succeeded = (newValue?.value as? Bool) ?? false
-            payload = .sceneError(ScenePayload(
-                sceneId: deviceId, sceneName: deviceName,
-                succeeded: succeeded, summary: requestBody,
-                errorDetails: errorDetails
-            ))
+
+        case .sceneExecution, .sceneError:
+            // New format uses sceneId/sceneName; legacy uses deviceId/deviceName
+            let sceneId = try c.decodeIfPresent(String.self, forKey: .sceneId)
+                ?? c.decodeIfPresent(String.self, forKey: .deviceId) ?? ""
+            let sceneName = try c.decodeIfPresent(String.self, forKey: .sceneName)
+                ?? c.decodeIfPresent(String.self, forKey: .deviceName) ?? ""
+            let succeeded: Bool
+            if let s = try? c.decodeIfPresent(Bool.self, forKey: .succeeded) {
+                succeeded = s
+            } else {
+                // Legacy: succeeded was stored as newValue bool
+                let nv = try c.decodeIfPresent(AnyCodable.self, forKey: .newValue)
+                succeeded = (nv?.value as? Bool) ?? (category == .sceneExecution)
+            }
+            let summary = try c.decodeIfPresent(String.self, forKey: .summary)
+                ?? c.decodeIfPresent(String.self, forKey: .requestBody)
+            let p = ScenePayload(
+                sceneId: sceneId, sceneName: sceneName,
+                succeeded: succeeded, summary: summary,
+                errorDetails: try c.decodeIfPresent(String.self, forKey: .errorDetails)
+            )
+            payload = category == .sceneError ? .sceneError(p) : .sceneExecution(p)
+
         case .backupRestore:
-            payload = .backupRestore(BackupRestorePayload(
-                subtype: characteristicType,
-                summary: errorDetails ?? ""
-            ))
+            // New format uses subtype/summary; legacy uses characteristicType/errorDetails
+            let subtype = try c.decodeIfPresent(String.self, forKey: .subtype)
+                ?? c.decodeIfPresent(String.self, forKey: .characteristicType) ?? ""
+            let summary = try c.decodeIfPresent(String.self, forKey: .summary)
+                ?? c.decodeIfPresent(String.self, forKey: .errorDetails) ?? ""
+            payload = .backupRestore(BackupRestorePayload(subtype: subtype, summary: summary))
+
         case .aiInteraction:
-            if let aiPayload = try? container.decode(AIInteractionPayload.self, forKey: .aiInteractionPayload) {
+            if let aiPayload = try? c.decode(AIInteractionPayload.self, forKey: .aiInteractionPayload) {
                 payload = .aiInteraction(aiPayload)
             } else {
-                payload = .serverError(ServerErrorPayload(errorDetails: errorDetails ?? "legacy AI interaction log"))
+                let err = try c.decodeIfPresent(String.self, forKey: .errorDetails) ?? "legacy AI interaction log"
+                payload = .serverError(ServerErrorPayload(errorDetails: err))
             }
+
         case .aiInteractionError:
-            if let aiPayload = try? container.decode(AIInteractionPayload.self, forKey: .aiInteractionPayload) {
+            if let aiPayload = try? c.decode(AIInteractionPayload.self, forKey: .aiInteractionPayload) {
                 payload = .aiInteractionError(aiPayload)
             } else {
-                payload = .serverError(ServerErrorPayload(errorDetails: errorDetails ?? "legacy AI interaction log"))
+                let err = try c.decodeIfPresent(String.self, forKey: .errorDetails) ?? "legacy AI interaction log"
+                payload = .serverError(ServerErrorPayload(errorDetails: err))
             }
         }
     }

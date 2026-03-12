@@ -9,6 +9,7 @@ struct CharacteristicValueChange {
     let characteristicId: String // stable registry ID
     let characteristicType: String
     let value: Any?
+    let oldValue: Any?
     let timestamp: Date
 }
 
@@ -600,6 +601,8 @@ class HomeKitManager: NSObject, ObservableObject, HomeKitManaging {
                 return AnyCodable(v)
             }
 
+            let unit = CharacteristicTypes.unitForCharacteristicType(characteristic.characteristicType)
+
             let logEntry = StateChangeLog.stateChange(
                 deviceId: deviceId,
                 deviceName: formattedName,
@@ -607,7 +610,8 @@ class HomeKitManager: NSObject, ObservableObject, HomeKitManaging {
                 serviceName: serviceName,
                 characteristicType: characteristic.characteristicType,
                 oldValue: convertedOld,
-                newValue: convertedNew
+                newValue: convertedNew,
+                unit: unit
             )
 
             // Translate to stable registry IDs for published StateChange
@@ -639,6 +643,7 @@ class HomeKitManager: NSObject, ObservableObject, HomeKitManaging {
                     characteristicId: stableCharId,
                     characteristicType: characteristic.characteristicType,
                     value: newValue,
+                    oldValue: change.oldValue,
                     timestamp: Date()
                 ))
             }
@@ -1016,6 +1021,8 @@ extension HomeKitManager: HMAccessoryDelegate {
                 return AnyCodable(v)
             }
 
+            let unit = CharacteristicTypes.unitForCharacteristicType(characteristic.characteristicType)
+
             let logEntry = StateChangeLog.stateChange(
                 deviceId: accessory.uniqueIdentifier.uuidString,
                 deviceName: formattedName,
@@ -1023,7 +1030,8 @@ extension HomeKitManager: HMAccessoryDelegate {
                 serviceName: ServiceTypes.displayName(for: service.serviceType),
                 characteristicType: characteristic.characteristicType,
                 oldValue: convertedOld,
-                newValue: convertedNew
+                newValue: convertedNew,
+                unit: unit
             )
 
             // Translate to stable registry IDs for published StateChange.
@@ -1056,6 +1064,7 @@ extension HomeKitManager: HMAccessoryDelegate {
                     characteristicId: stableCharId,
                     characteristicType: characteristic.characteristicType,
                     value: value,
+                    oldValue: change.oldValue,
                     timestamp: Date()
                 ))
             }

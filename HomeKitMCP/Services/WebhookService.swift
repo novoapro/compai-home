@@ -87,6 +87,7 @@ actor WebhookService: WebhookServiceProtocol {
                 characteristicType: payload.characteristicType,
                 oldValue: payload.oldValue,
                 newValue: payload.newValue,
+                unit: CharacteristicTypes.unitForCharacteristicType(payload.characteristicType),
                 summary: "POST \(deviceName) (\(payload.characteristicName))",
                 result: "HTTP \(httpResponse.statusCode) OK",
                 detailedRequest: detailedPayloadJSON(payload)
@@ -110,6 +111,7 @@ actor WebhookService: WebhookServiceProtocol {
                     characteristicType: payload.characteristicType,
                     oldValue: payload.oldValue,
                     newValue: payload.newValue,
+                    unit: CharacteristicTypes.unitForCharacteristicType(payload.characteristicType),
                     summary: "POST \(deviceName) (\(payload.characteristicName))",
                     result: errorDesc,
                     errorDetails: "Failed after \(maxRetries) retries: \(errorDesc)",

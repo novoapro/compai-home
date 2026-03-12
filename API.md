@@ -265,7 +265,7 @@ Requires: **REST API enabled** + **Log Access enabled**
 }
 ```
 
-Each log entry is a flat JSON object (see [StateChangeLog](#statechangelog) in Data Models). Workflow entries (categories `workflow_execution` and `workflow_error`) include a nested `workflowExecution` object with the full execution tree (see [WorkflowExecutionLog](#workflowexecutionlog)). Running (in-progress) workflow executions are included in the response.
+Each log entry is a polymorphic JSON object — the `category` field determines which fields are present (see [StateChangeLog](#statechangelog) in Data Models). Running (in-progress) workflow executions are included in the response.
 
 ---
 
@@ -1318,25 +1318,101 @@ Returned by workflow trigger endpoints. Encoded as flat JSON.
 
 ### StateChangeLog
 
-Serialized as flat JSON for all log categories.
+Polymorphic JSON — the `category` field determines which fields are present. Every entry has the common fields; additional fields depend on category.
+
+#### Common fields (all categories)
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | UUID | Log entry ID |
+| `timestamp` | string (ISO 8601) | When it occurred |
+| `category` | string | Log category (see below) |
+
+#### Category-specific fields
+
+**`state_change`** — Device characteristic changed
 
 | Field | Type | Nullable | Description |
 |---|---|---|---|
-| `id` | UUID | no | Log entry ID |
-| `timestamp` | string (ISO 8601) | no | When it occurred |
-| `category` | string | no | Log category (see below) |
-| `deviceId` | string | no | Device/workflow/scene ID or synthetic ID |
-| `deviceName` | string | no | Device/workflow/scene name or synthetic name |
-| `serviceId` | string | yes | Service ID (device events only) |
-| `serviceName` | string | yes | Service name (device events only) |
-| `characteristicType` | string | no | Characteristic type, method name, or subtype |
+| `deviceId` | string | no | Device ID |
+| `deviceName` | string | no | Device name |
+| `roomName` | string | yes | Room name |
+| `serviceId` | string | yes | Service ID |
+| `serviceName` | string | yes | Service name |
+| `characteristicType` | string | no | Characteristic type |
 | `oldValue` | any | yes | Previous value |
-| `newValue` | any | yes | New value or status |
-| `errorDetails` | string | yes | Error description |
-| `requestBody` | string | yes | Summary/trigger description |
-| `responseBody` | string | yes | Result/block summary |
-| `detailedRequestBody` | string | yes | Full request detail |
-| `workflowExecution` | WorkflowExecutionLog | yes | Full workflow execution data (present only for `workflow_execution` and `workflow_error` categories) |
+| `newValue` | any | yes | New value |
+| `unit` | string | yes | Value unit suffix (e.g. `"%"`, `"°C"`, `"°F"`, `"K"`, `"°"`, `"lux"`) |
+
+**`webhook_call`** / **`webhook_error`** — Outgoing webhook sent/failed
+
+Same device fields as `state_change` (including `unit`), plus:
+
+| Field | Type | Nullable | Description |
+|---|---|---|---|
+| `summary` | string | no | Webhook request summary |
+| `result` | string | no | Webhook response summary |
+| `errorDetails` | string | yes | Error description (webhook_error only) |
+| `detailedRequest` | string | yes | Full request body |
+
+**`mcp_call`** / **`rest_call`** — API call
+
+| Field | Type | Nullable | Description |
+|---|---|---|---|
+| `method` | string | no | HTTP method and path (e.g. `"GET /devices"`) |
+| `summary` | string | no | Request summary |
+| `result` | string | no | Response summary (e.g. `"200 OK (3 devices)"`) |
+| `detailedRequest` | string | yes | Full request body |
+| `detailedResponse` | string | yes | Full response body |
+
+**`server_error`** — Server error
+
+| Field | Type | Nullable | Description |
+|---|---|---|---|
+| `errorDetails` | string | no | Error description |
+
+**`workflow_execution`** / **`workflow_error`** — Workflow executed/failed
+
+| Field | Type | Description |
+|---|---|---|
+| `workflowExecution` | WorkflowExecutionLog | Full workflow execution data |
+
+**`scene_execution`** / **`scene_error`** — Scene executed/failed
+
+| Field | Type | Nullable | Description |
+|---|---|---|---|
+| `sceneId` | string | no | Scene ID |
+| `sceneName` | string | no | Scene name |
+| `succeeded` | boolean | no | Whether the scene succeeded |
+| `summary` | string | yes | Execution summary |
+| `errorDetails` | string | yes | Error description (scene_error only) |
+
+**`backup_restore`** — Backup/restore operation
+
+| Field | Type | Description |
+|---|---|---|
+| `subtype` | string | Operation subtype (e.g. `"backup"`, `"restore"`, `"orphan-detection"`) |
+| `summary` | string | Operation summary |
+
+**`ai_interaction`** / **`ai_interaction_error`** — AI workflow operation
+
+| Field | Type | Description |
+|---|---|---|
+| `aiInteractionPayload` | AIInteractionPayload | Full AI interaction data |
+
+#### AIInteractionPayload
+
+| Field | Type | Nullable | Description |
+|---|---|---|---|
+| `provider` | string | no | AI provider name |
+| `model` | string | no | Model name |
+| `operation` | string | no | Operation type |
+| `systemPrompt` | string | no | System prompt used |
+| `userMessage` | string | no | User message sent |
+| `rawResponse` | string | yes | Raw AI response |
+| `parsedSuccessfully` | boolean | no | Whether the response was parsed |
+| `errorMessage` | string | yes | Error message if failed |
+| `durationSeconds` | number | no | Request duration in seconds |
 
 ### LogCategory
 
@@ -1353,6 +1429,8 @@ Serialized as flat JSON for all log categories.
 | `scene_execution` | Scene executed |
 | `scene_error` | Scene execution failed |
 | `backup_restore` | Backup/restore operation |
+| `ai_interaction` | AI workflow operation succeeded |
+| `ai_interaction_error` | AI workflow operation failed |
 
 ### WorkflowExecutionLog
 

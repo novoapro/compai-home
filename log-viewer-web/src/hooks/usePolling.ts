@@ -1,8 +1,17 @@
 import { useReducer, useRef, useEffect, useCallback } from 'react';
 import { useApi } from './useApi';
 import { useConfig } from '@/contexts/ConfigContext';
+import { LogCategory } from '@/types/state-change-log';
 import type { StateChangeLog } from '@/types/state-change-log';
 import type { LogQueryParams } from '@/types/api-response';
+
+function getWorkflowStatus(log: StateChangeLog | undefined): string | undefined {
+  if (!log) return undefined;
+  if (log.category === LogCategory.WorkflowExecution || log.category === LogCategory.WorkflowError) {
+    return log.workflowExecution.status;
+  }
+  return undefined;
+}
 
 interface PollingState {
   logs: StateChangeLog[];
@@ -68,8 +77,8 @@ function pollingReducer(state: PollingState, action: PollingAction): PollingStat
         };
       }
       // Don't let stale "running" overwrite terminal status
-      const existingStatus = state.logs[idx]?.workflowExecution?.status;
-      const incomingStatus = action.payload.workflowExecution?.status;
+      const existingStatus = getWorkflowStatus(state.logs[idx]);
+      const incomingStatus = getWorkflowStatus(action.payload);
       if (existingStatus && TERMINAL_STATUSES.has(existingStatus) && incomingStatus === 'running') {
         return state;
       }

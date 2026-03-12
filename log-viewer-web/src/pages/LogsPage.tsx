@@ -12,8 +12,8 @@ import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { FilterBar } from '@/features/logs/FilterBar';
 import { LogRow } from '@/features/logs/LogRow';
 import { useApi } from '@/hooks/useApi';
-import { LogCategory } from '@/types/state-change-log';
-import type { StateChangeLog } from '@/types/state-change-log';
+import { LogCategory, getLogDisplayName, getLogRoomName, getLogSearchableText } from '@/types/state-change-log';
+import type { StateChangeLog, WorkflowLog } from '@/types/state-change-log';
 import type { WorkflowExecutionLog } from '@/types/workflow-log';
 import './LogsPage.css';
 
@@ -23,18 +23,14 @@ interface LogGroup {
   logs: StateChangeLog[];
 }
 
-function workflowExecToStateChangeLog(e: WorkflowExecutionLog): StateChangeLog {
+function workflowExecToStateChangeLog(e: WorkflowExecutionLog): WorkflowLog {
   const isError = e.status === 'failure';
   return {
     id: e.id,
     timestamp: e.triggeredAt,
-    deviceId: e.workflowId,
-    deviceName: e.workflowName,
-    characteristicType: isError ? 'workflow-error' : 'workflow-execution',
     category: isError ? LogCategory.WorkflowError : LogCategory.WorkflowExecution,
-    newValue: e.status,
     workflowExecution: e,
-  };
+  } as WorkflowLog;
 }
 
 const FILTERS_STORAGE_KEY = 'logs-filters';
@@ -162,8 +158,9 @@ export function LogsPage() {
   const availableDevices = useMemo(() => {
     const devices = new Set<string>();
     for (const log of polling.logs) {
-      if (log.deviceName && log.deviceName !== 'REST API') {
-        devices.add(log.deviceName);
+      const name = getLogDisplayName(log);
+      if (name && name !== 'REST API') {
+        devices.add(name);
       }
     }
     return Array.from(devices).sort();
@@ -172,7 +169,8 @@ export function LogsPage() {
   const availableRooms = useMemo(() => {
     const rooms = new Set<string>();
     for (const log of polling.logs) {
-      if (log.roomName) rooms.add(log.roomName);
+      const room = getLogRoomName(log);
+      if (room) rooms.add(room);
     }
     return Array.from(rooms).sort();
   }, [polling.logs]);
@@ -183,14 +181,7 @@ export function LogsPage() {
     const search = debouncedSearch.toLowerCase();
 
     if (search) {
-      logs = logs.filter(l =>
-        l.deviceName.toLowerCase().includes(search) ||
-        l.characteristicType.toLowerCase().includes(search) ||
-        (l.serviceName && l.serviceName.toLowerCase().includes(search)) ||
-        (l.errorDetails && l.errorDetails.toLowerCase().includes(search)) ||
-        (l.requestBody && l.requestBody.toLowerCase().includes(search)) ||
-        (l.responseBody && l.responseBody.toLowerCase().includes(search))
-      );
+      logs = logs.filter(l => getLogSearchableText(l).includes(search));
     }
 
     const cats = selectedCategories;
@@ -208,11 +199,14 @@ export function LogsPage() {
     }
 
     if (selectedDevices.size > 0) {
-      logs = logs.filter(l => selectedDevices.has(l.deviceName));
+      logs = logs.filter(l => selectedDevices.has(getLogDisplayName(l)));
     }
 
     if (selectedRooms.size > 0) {
-      logs = logs.filter(l => l.roomName && selectedRooms.has(l.roomName));
+      logs = logs.filter(l => {
+        const room = getLogRoomName(l);
+        return room != null && selectedRooms.has(room);
+      });
     }
 
     return logs;

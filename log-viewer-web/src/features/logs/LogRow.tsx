@@ -8,7 +8,12 @@ import { ConditionResultTree } from '@/features/workflows/ConditionResultTree';
 import { characteristicDisplayName, formatCharacteristicValue } from '@/utils/characteristic-types';
 import { getServiceIcon } from '@/utils/service-icons';
 import { formatTime } from '@/utils/date-utils';
-import { LogCategory, CATEGORY_META } from '@/types/state-change-log';
+import {
+  LogCategory, CATEGORY_META,
+  getLogDisplayName, getLogRoomName, getLogServiceName,
+  getLogSummary, getLogResult,
+  getLogDetailedRequest, getLogDetailedResponse, isLogExpandable,
+} from '@/types/state-change-log';
 import type { StateChangeLog } from '@/types/state-change-log';
 import type { ExecutionStatus } from '@/types/workflow-log';
 import './LogRow.css';
@@ -54,14 +59,6 @@ const STATUS_LABEL_MAP: Record<ExecutionStatus, string> = {
   cancelled: 'Cancelled',
 };
 
-function formatValue(val: unknown): string {
-  if (val === undefined || val === null) return '\u2014';
-  if (typeof val === 'boolean') return val ? 'on' : 'off';
-  if (typeof val === 'number') return String(val);
-  if (typeof val === 'string') return val;
-  return JSON.stringify(val);
-}
-
 interface LogRowProps {
   log: StateChangeLog;
   index: number;
@@ -70,11 +67,7 @@ interface LogRowProps {
 export const LogRow = memo(function LogRow({ log, index }: LogRowProps) {
   const [expanded, setExpanded] = useState(false);
 
-  const isExpandable = useMemo(() => {
-    if (log.workflowExecution) return true;
-    if (log.aiInteractionPayload) return true;
-    return !!(log.detailedRequestBody || log.detailedResponseBody || log.requestBody || log.responseBody);
-  }, [log]);
+  const expandable = useMemo(() => isLogExpandable(log), [log]);
 
   const isError = useMemo(() => {
     const cat = log.category;
@@ -90,20 +83,39 @@ export const LogRow = memo(function LogRow({ log, index }: LogRowProps) {
     return meta?.color || 'var(--tint-main)';
   }, [log]);
 
-  const displayCharacteristicType = useMemo(() => characteristicDisplayName(log.characteristicType), [log.characteristicType]);
+  const displayName = useMemo(() => getLogDisplayName(log), [log]);
+  const roomName = useMemo(() => getLogRoomName(log), [log]);
+  const serviceName = useMemo(() => getLogServiceName(log), [log]);
+  const timeStr = useMemo(() => formatTime(log.timestamp), [log.timestamp]);
+
+  const displayCharacteristicType = useMemo(() => {
+    if (log.category === LogCategory.StateChange ||
+        log.category === LogCategory.WebhookCall ||
+        log.category === LogCategory.WebhookError) {
+      return characteristicDisplayName(log.characteristicType);
+    }
+    return '';
+  }, [log]);
 
   const isBooleanChange = useMemo(() => {
     if (log.category !== LogCategory.StateChange) return false;
     return typeof log.newValue === 'boolean' || typeof log.oldValue === 'boolean';
   }, [log]);
 
-  const timeStr = useMemo(() => formatTime(log.timestamp), [log.timestamp]);
-
   const formattedNewValue = useMemo(() => {
     if (log.category === LogCategory.StateChange) {
-      return formatCharacteristicValue(log.newValue, log.characteristicType);
+      const val = formatCharacteristicValue(log.newValue, log.characteristicType);
+      return log.unit && val !== '--' && val !== 'On' && val !== 'Off' ? `${val}${log.unit}` : val;
     }
-    return formatValue(log.newValue);
+    return '';
+  }, [log]);
+
+  const formattedOldValue = useMemo(() => {
+    if (log.category === LogCategory.StateChange) {
+      const val = formatCharacteristicValue(log.oldValue, log.characteristicType);
+      return log.unit && val !== '--' && val !== 'On' && val !== 'Off' ? `${val}${log.unit}` : val;
+    }
+    return '';
   }, [log]);
 
   const showValueChange = useMemo(() => {
@@ -111,30 +123,26 @@ export const LogRow = memo(function LogRow({ log, index }: LogRowProps) {
   }, [log]);
 
   const roomBadgeColors = useMemo((): [string, string] => {
-    if (!log.roomName) return ['transparent', 'inherit'];
-    return ROOM_COLORS[hashName(log.roomName)] ?? ['transparent', 'inherit'];
-  }, [log.roomName]);
+    if (!roomName) return ['transparent', 'inherit'];
+    return ROOM_COLORS[hashName(roomName)] ?? ['transparent', 'inherit'];
+  }, [roomName]);
 
   const serviceBadgeColors = useMemo((): [string, string] => {
-    if (!log.serviceName) return ['transparent', 'inherit'];
-    return ROOM_COLORS[hashName(log.serviceName)] ?? ['transparent', 'inherit'];
-  }, [log.serviceName]);
+    if (!serviceName) return ['transparent', 'inherit'];
+    return ROOM_COLORS[hashName(serviceName)] ?? ['transparent', 'inherit'];
+  }, [serviceName]);
 
-  const showServiceBadge = useMemo(() => {
-    return log.serviceName &&
-      log.category !== LogCategory.McpCall &&
-      log.category !== LogCategory.RestCall;
-  }, [log]);
+  const serviceIcon = useMemo(() => getServiceIcon(serviceName), [serviceName]);
 
-  const serviceIcon = useMemo(() => getServiceIcon(log.serviceName), [log.serviceName]);
-
-  const workflowStatus = log.workflowExecution?.status ?? null;
+  const workflowStatus = (log.category === LogCategory.WorkflowExecution || log.category === LogCategory.WorkflowError)
+    ? log.workflowExecution.status
+    : null;
   const workflowStatusColor = workflowStatus ? (STATUS_COLOR_MAP[workflowStatus] || 'var(--text-secondary)') : 'var(--status-active)';
   const workflowStatusLabel = workflowStatus ? (STATUS_LABEL_MAP[workflowStatus] || workflowStatus) : '';
 
   const workflowTriggerDescription = useMemo(() => {
+    if (log.category !== LogCategory.WorkflowExecution && log.category !== LogCategory.WorkflowError) return null;
     const e = log.workflowExecution;
-    if (!e) return log.requestBody ?? null;
     if (e.triggerEvent?.triggerDescription) return e.triggerEvent.triggerDescription;
     const te = e.triggerEvent;
     if (te?.deviceName) {
@@ -145,8 +153,8 @@ export const LogRow = memo(function LogRow({ log, index }: LogRowProps) {
     return null;
   }, [log]);
 
-  const parsedResponseBody = useMemo(() => {
-    const body = log.responseBody;
+  const parsedResult = useMemo(() => {
+    const body = getLogResult(log);
     if (!body) return null;
     const match = body.match(/^(\d{3})(\s.*|$)/s);
     if (!match) return { code: null, color: '', rest: body };
@@ -157,22 +165,22 @@ export const LogRow = memo(function LogRow({ log, index }: LogRowProps) {
         ? 'var(--status-warning)'
         : 'var(--status-error)';
     return { code: match[1]!, color, rest: (match[2] ?? '').trim() };
-  }, [log.responseBody]);
+  }, [log]);
 
   const backupSubtype = useMemo(() => {
     if (log.category !== LogCategory.BackupRestore) return '';
-    return log.characteristicType
+    return log.subtype
       .replace(/-/g, ' ')
       .replace(/\b\w/g, (c) => c.toUpperCase());
   }, [log]);
 
   const toggle = () => {
-    if (isExpandable) setExpanded(prev => !prev);
+    if (expandable) setExpanded(prev => !prev);
   };
 
   const cardClasses = [
     'log-card',
-    isExpandable ? 'expandable' : '',
+    expandable ? 'expandable' : '',
     expanded ? 'expanded' : '',
     isError ? 'error' : '',
   ].filter(Boolean).join(' ');
@@ -187,7 +195,7 @@ export const LogRow = memo(function LogRow({ log, index }: LogRowProps) {
         <div className="header-row">
           <div className="header-left">
             <CategoryIcon category={log.category} size={24} />
-            <span className="device-name">{log.deviceName}</span>
+            <span className="device-name">{displayName}</span>
           </div>
           <div className="header-end">
             <div className="header-right">
@@ -203,20 +211,20 @@ export const LogRow = memo(function LogRow({ log, index }: LogRowProps) {
               style={{ color: workflowStatusColor, backgroundColor: `${workflowStatusColor}22` }}
             >{workflowStatusLabel}</span>
           </div>
-        ) : (showServiceBadge || log.roomName) ? (
+        ) : (serviceName || roomName) ? (
           <div className="room-row">
-            {log.roomName && (
+            {roomName && (
               <span
                 className="room-badge"
                 style={{ background: roomBadgeColors[0], color: roomBadgeColors[1] }}
-              >{log.roomName}</span>
+              >{roomName}</span>
             )}
-            {showServiceBadge && (
+            {serviceName && (
               serviceIcon ? (
                 <span
                   className="service-badge-icon"
                   style={{ color: categoryColor }}
-                  title={log.serviceName}
+                  title={serviceName}
                 >
                   <Icon name={serviceIcon} size={20} />
                 </span>
@@ -224,7 +232,7 @@ export const LogRow = memo(function LogRow({ log, index }: LogRowProps) {
                 <span
                   className="service-badge"
                   style={{ background: serviceBadgeColors[0], color: serviceBadgeColors[1] }}
-                >{log.serviceName}</span>
+                >{serviceName}</span>
               )
             )}
           </div>
@@ -241,6 +249,7 @@ export const LogRow = memo(function LogRow({ log, index }: LogRowProps) {
           ) : showValueChange ? (
             <div className="value-indicator">
               <span className="characteristic">{displayCharacteristicType}</span>
+              <span className="old">{formattedOldValue}</span>
               <Icon name="arrow-right" size={10} />
               <span className="new">{formattedNewValue}</span>
             </div>
@@ -251,15 +260,15 @@ export const LogRow = memo(function LogRow({ log, index }: LogRowProps) {
           <>
             <div className="api-content">
               <span className="method-badge mcp">MCP</span>
-              {log.requestBody && <span className="api-text">{log.requestBody}</span>}
+              {log.summary && <span className="api-text">{log.summary}</span>}
             </div>
-            {parsedResponseBody && (
+            {parsedResult && (
               <div className="api-result">
-                {parsedResponseBody.code && (
-                  <span className="result-status" style={{ color: parsedResponseBody.color }}>{parsedResponseBody.code} -&gt;</span>
+                {parsedResult.code && (
+                  <span className="result-status" style={{ color: parsedResult.color }}>{parsedResult.code} -&gt;</span>
                 )}
-                {parsedResponseBody.rest && (
-                  <span className="result-text" style={{ color: parsedResponseBody.color }}>{parsedResponseBody.rest}</span>
+                {parsedResult.rest && (
+                  <span className="result-text" style={{ color: parsedResult.color }}>{parsedResult.rest}</span>
                 )}
               </div>
             )}
@@ -269,15 +278,15 @@ export const LogRow = memo(function LogRow({ log, index }: LogRowProps) {
         {log.category === LogCategory.RestCall && (
           <>
             <div className="api-content">
-              <span className="method-badge rest">{log.characteristicType || 'REST'}</span>
+              <span className="method-badge rest">{log.method || 'REST'}</span>
             </div>
-            {parsedResponseBody && (
+            {parsedResult && (
               <div className="api-result">
-                {parsedResponseBody.code && (
-                  <span className="result-status" style={{ color: parsedResponseBody.color }}>{parsedResponseBody.code} -&gt;</span>
+                {parsedResult.code && (
+                  <span className="result-status" style={{ color: parsedResult.color }}>{parsedResult.code} -&gt;</span>
                 )}
-                {parsedResponseBody.rest && (
-                  <span className="result-text" style={{ color: parsedResponseBody.color }}>{parsedResponseBody.rest}</span>
+                {parsedResult.rest && (
+                  <span className="result-text" style={{ color: parsedResult.color }}>{parsedResult.rest}</span>
                 )}
               </div>
             )}
@@ -288,15 +297,15 @@ export const LogRow = memo(function LogRow({ log, index }: LogRowProps) {
           <>
             <div className="api-content">
               <span className="method-badge webhook">Webhook</span>
-              {log.requestBody && <span className="api-text">{log.requestBody}</span>}
+              {log.summary && <span className="api-text">{log.summary}</span>}
             </div>
-            {parsedResponseBody && (
+            {parsedResult && (
               <div className="api-result">
-                {parsedResponseBody.code && (
-                  <span className="result-status" style={{ color: parsedResponseBody.color }}>{parsedResponseBody.code} -&gt;</span>
+                {parsedResult.code && (
+                  <span className="result-status" style={{ color: parsedResult.color }}>{parsedResult.code} -&gt;</span>
                 )}
-                {parsedResponseBody.rest && (
-                  <span className="result-text" style={{ color: parsedResponseBody.color }}>{parsedResponseBody.rest}</span>
+                {parsedResult.rest && (
+                  <span className="result-text" style={{ color: parsedResult.color }}>{parsedResult.rest}</span>
                 )}
               </div>
             )}
@@ -305,10 +314,10 @@ export const LogRow = memo(function LogRow({ log, index }: LogRowProps) {
 
         {log.category === LogCategory.WebhookError && (
           <>
-            {log.requestBody && (
+            {log.summary && (
               <div className="api-content">
                 <span className="method-badge webhook">Webhook</span>
-                <span className="api-text">{log.requestBody}</span>
+                <span className="api-text">{log.summary}</span>
               </div>
             )}
             <div className="error-banner-inline">
@@ -332,7 +341,7 @@ export const LogRow = memo(function LogRow({ log, index }: LogRowProps) {
                 <span className="api-text workflow-trigger">{workflowTriggerDescription}</span>
               </div>
             )}
-            {log.workflowExecution?.errorMessage && (
+            {log.workflowExecution.errorMessage && (
               <div className="api-result">
                 <span className="result-text" style={{ color: workflowStatusColor }}>{log.workflowExecution.errorMessage}</span>
               </div>
@@ -347,7 +356,7 @@ export const LogRow = memo(function LogRow({ log, index }: LogRowProps) {
                 <span className="api-text workflow-trigger">{workflowTriggerDescription}</span>
               </div>
             )}
-            {log.workflowExecution?.errorMessage ? (
+            {log.workflowExecution.errorMessage ? (
               <div className="error-banner-inline">
                 <Icon name="exclamation-circle-fill" size={14} />
                 <span>{log.workflowExecution.errorMessage}</span>
@@ -355,20 +364,20 @@ export const LogRow = memo(function LogRow({ log, index }: LogRowProps) {
             ) : isError ? (
               <div className="error-banner-inline">
                 <Icon name="exclamation-circle-fill" size={14} />
-                <span>{log.errorDetails || 'Workflow error'}</span>
+                <span>Workflow error</span>
               </div>
             ) : null}
           </>
         )}
 
-        {log.category === LogCategory.SceneExecution && log.requestBody && (
-          <div className="sub-content">{log.requestBody}</div>
+        {log.category === LogCategory.SceneExecution && log.summary && (
+          <div className="sub-content">{log.summary}</div>
         )}
 
         {log.category === LogCategory.SceneError && (
           <>
-            {log.requestBody && (
-              <div className="sub-content error-text">{log.requestBody}</div>
+            {log.summary && (
+              <div className="sub-content error-text">{log.summary}</div>
             )}
             <div className="error-banner-inline">
               <Icon name="exclamation-circle-fill" size={14} />
@@ -382,15 +391,15 @@ export const LogRow = memo(function LogRow({ log, index }: LogRowProps) {
             <div className="api-content">
               <span className="method-badge backup">{backupSubtype}</span>
             </div>
-            {log.errorDetails && (
-              <div className={`sub-content ${log.characteristicType === 'orphan-detection' ? 'error-text' : ''}`}>
-                {log.errorDetails}
+            {log.summary && (
+              <div className={`sub-content ${log.subtype === 'orphan-detection' ? 'error-text' : ''}`}>
+                {log.summary}
               </div>
             )}
           </>
         )}
 
-        {(log.category === LogCategory.AIInteraction || log.category === LogCategory.AIInteractionError) && log.aiInteractionPayload && (
+        {(log.category === LogCategory.AIInteraction || log.category === LogCategory.AIInteractionError) && (
           <>
             <div className="api-content">
               <span className="method-badge ai">{log.aiInteractionPayload.operation}</span>
@@ -406,18 +415,7 @@ export const LogRow = memo(function LogRow({ log, index }: LogRowProps) {
           </>
         )}
 
-        {/* Default: show responseBody if category not handled above */}
-        {![
-          LogCategory.StateChange, LogCategory.McpCall, LogCategory.RestCall,
-          LogCategory.WebhookCall, LogCategory.WebhookError, LogCategory.ServerError,
-          LogCategory.WorkflowExecution, LogCategory.WorkflowError,
-          LogCategory.SceneExecution, LogCategory.SceneError, LogCategory.BackupRestore,
-          LogCategory.AIInteraction, LogCategory.AIInteractionError,
-        ].includes(log.category) && log.responseBody && (
-          <div className="sub-content">{log.responseBody}</div>
-        )}
-
-        {isExpandable && (
+        {expandable && (
           <div className="interact-hint">
             <span className="hint-text">{expanded ? 'Collapse details' : 'View full details'}</span>
             <Icon name={expanded ? 'chevron-up' : 'chevron-down'} size={12} />
@@ -426,9 +424,9 @@ export const LogRow = memo(function LogRow({ log, index }: LogRowProps) {
       </div>
 
       {/* Expandable Detail Panel */}
-      {expanded && isExpandable && (
+      {expanded && expandable && (
         <div className="detail-inline">
-          {log.aiInteractionPayload ? (
+          {(log.category === LogCategory.AIInteraction || log.category === LogCategory.AIInteractionError) ? (
             <div className="ai-interaction-detail" onClick={(e) => e.stopPropagation()}>
               <div className="execution-section-label">User Message</div>
               <pre className="ai-detail-pre">{log.aiInteractionPayload.userMessage}</pre>
@@ -441,7 +439,7 @@ export const LogRow = memo(function LogRow({ log, index }: LogRowProps) {
               <div className="execution-section-label">System Prompt</div>
               <pre className="ai-detail-pre ai-system-prompt">{log.aiInteractionPayload.systemPrompt}</pre>
             </div>
-          ) : log.workflowExecution ? (
+          ) : (log.category === LogCategory.WorkflowExecution || log.category === LogCategory.WorkflowError) ? (
             <div className="workflow-execution-detail" onClick={(e) => e.stopPropagation()}>
               {log.workflowExecution.conditionResults && log.workflowExecution.conditionResults.length > 0 && (
                 <>
@@ -478,8 +476,8 @@ export const LogRow = memo(function LogRow({ log, index }: LogRowProps) {
             </div>
           ) : (
             <LogDetailPanel
-              requestBody={log.detailedRequestBody || log.requestBody || ''}
-              responseBody={log.detailedResponseBody || log.responseBody || ''}
+              requestBody={getLogDetailedRequest(log) || getLogSummary(log) || ''}
+              responseBody={getLogDetailedResponse(log) || getLogResult(log) || ''}
             />
           )}
         </div>

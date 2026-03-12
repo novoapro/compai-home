@@ -879,11 +879,41 @@ final class MCPRequestHandler: Sendable {
         formatter.timeStyle = .medium
 
         for log in logs {
-            let charName = CharacteristicTypes.displayName(for: log.characteristicType)
-            let oldVal = log.oldValue.map { CharacteristicTypes.formatValue($0.value, characteristicType: log.characteristicType) } ?? "nil"
-            let newVal = log.newValue.map { CharacteristicTypes.formatValue($0.value, characteristicType: log.characteristicType) } ?? "nil"
-            let serviceLabel = log.serviceName.map { " [\($0)]" } ?? ""
-            lines.append("[\(formatter.string(from: log.timestamp))] \(log.deviceName)\(serviceLabel) — \(charName): \(oldVal) → \(newVal) (\(log.category.rawValue))")
+            let time = formatter.string(from: log.timestamp)
+            let cat = log.category.rawValue
+            let line: String
+            switch log.payload {
+            case .stateChange(let p):
+                let charName = CharacteristicTypes.displayName(for: p.characteristicType)
+                let oldVal = p.oldValue.map { CharacteristicTypes.formatValue($0.value, characteristicType: p.characteristicType) } ?? "nil"
+                let newVal = p.newValue.map { CharacteristicTypes.formatValue($0.value, characteristicType: p.characteristicType) } ?? "nil"
+                let serviceLabel = p.serviceName.map { " [\($0)]" } ?? ""
+                line = "[\(time)] \(p.deviceName)\(serviceLabel) — \(charName): \(oldVal) → \(newVal) (\(cat))"
+            case .webhookCall(let p), .webhookError(let p):
+                let charName = CharacteristicTypes.displayName(for: p.characteristicType)
+                line = "[\(time)] Webhook \(p.deviceName) — \(charName): \(p.summary) → \(p.result) (\(cat))"
+            case .mcpCall(let p):
+                line = "[\(time)] MCP \(p.method) — \(p.result) (\(cat))"
+            case .restCall(let p):
+                line = "[\(time)] REST \(p.method) — \(p.result) (\(cat))"
+            case .serverError(let p):
+                line = "[\(time)] Server Error: \(p.errorDetails) (\(cat))"
+            case .workflowExecution(let e), .workflowError(let e):
+                let trigger = e.triggerEvent?.triggerDescription ?? ""
+                let triggerSuffix = trigger.isEmpty ? "" : " ← \(trigger)"
+                line = "[\(time)] Workflow \"\(e.workflowName)\" — \(e.status.rawValue)\(triggerSuffix) (\(cat))"
+            case .sceneExecution(let p), .sceneError(let p):
+                let status = p.succeeded ? "succeeded" : "failed"
+                let detail = p.errorDetails ?? p.summary ?? ""
+                let detailSuffix = detail.isEmpty ? "" : " — \(detail)"
+                line = "[\(time)] Scene \"\(p.sceneName)\" \(status)\(detailSuffix) (\(cat))"
+            case .backupRestore(let p):
+                line = "[\(time)] Backup \(p.subtype) — \(p.summary) (\(cat))"
+            case .aiInteraction(let p), .aiInteractionError(let p):
+                let status = p.errorMessage != nil ? "error" : "ok"
+                line = "[\(time)] AI \(p.operation) (\(p.provider)/\(p.model)) — \(String(format: "%.1fs", p.durationSeconds)) \(status) (\(cat))"
+            }
+            lines.append(line)
         }
 
         if logs.isEmpty {
