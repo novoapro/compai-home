@@ -452,6 +452,7 @@ actor WorkflowEngine: WorkflowEngineProtocol {
         AppLogger.workflow.info("Cancelling execution \(executionId) for workflow \(workflowId)")
         cancellationReasons[workflowId] = "Cancelled by user request"
         cancelWorkflowTree(workflowId)
+        runningTasks.removeValue(forKey: workflowId)
     }
 
     /// Cancel all running executions for a specific workflow.
@@ -459,6 +460,7 @@ actor WorkflowEngine: WorkflowEngineProtocol {
         AppLogger.workflow.info("Cancelling running execution for workflow \(workflowId)")
         cancellationReasons[workflowId] = "Cancelled by user request"
         cancelWorkflowTree(workflowId)
+        runningTasks.removeValue(forKey: workflowId)
         // Also remove any pending queue entries for this workflow
         pendingQueue.removeAll { $0.workflow.id == workflowId }
     }

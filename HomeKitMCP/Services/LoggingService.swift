@@ -83,6 +83,33 @@ actor LoggingService: LoggingServiceProtocol {
         }
     }
 
+    /// Marks any persisted workflow execution logs still in `.running` status as failed.
+    /// Called on startup to clean up stale entries from a previous session that never completed
+    /// (e.g., app was quit while a workflow was executing).
+    func cleanupStaleRunningEntries() {
+        var changed = false
+        for i in 0..<logs.count {
+            guard let execution = logs[i].workflowExecution,
+                  execution.status == .running else { continue }
+            var updated = execution
+            updated.status = .failure
+            updated.errorMessage = "Interrupted — app was quit while workflow was running"
+            updated.completedAt = updated.triggeredAt
+            // Re-wrap in the correct payload/category
+            logs[i] = StateChangeLog(
+                id: updated.id,
+                timestamp: updated.triggeredAt,
+                category: .workflowError,
+                payload: .workflowError(updated)
+            )
+            changed = true
+        }
+        if changed {
+            logsSubject.send(logs.reversed())
+            saveNow()
+        }
+    }
+
     func clearLogs() {
         logs.removeAll()
         logsSubject.send(logs)

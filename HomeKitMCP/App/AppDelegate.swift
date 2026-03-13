@@ -85,6 +85,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         // Wire cross-service subscriptions (HomeKitManager → WorkflowEngine via Combine).
         container.wireServices()
         Task {
+            // Mark any workflow executions left in "running" state from a previous session as failed
+            await container.loggingService.cleanupStaleRunningEntries()
             await container.workflowEngine.registerEvaluator(DeviceStateChangeTriggerEvaluator(registry: container.deviceRegistryService))
             await container.scheduleTriggerManager.setEngine(container.workflowEngine)
             await container.scheduleTriggerManager.setStorage(container.storageService)
