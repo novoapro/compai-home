@@ -673,12 +673,19 @@ export function WorkflowEditorPage() {
     const path = panel?.conditionPath ?? [0];
     const blockId = editingBlockIdRef.current;
 
+    // Check if the root condition has no actual children (empty group)
+    const isRootEmpty = path.length === 1 && (() => {
+      const c = panelConditionRef.current!;
+      const inner = c.type === 'not' && c.condition && (c.condition.type === 'and' || c.condition.type === 'or') ? c.condition : c;
+      return (inner.type === 'and' || inner.type === 'or') && (!inner.conditions || inner.conditions.length === 0);
+    })();
+
     if (blockId) {
       // Applying to a block's condition
       const blockIndex = currentBlocks.findIndex((b) => b._draftId === blockId);
       if (blockIndex >= 0) {
         if (path.length === 1) {
-          handleBlockChange(blockIndex, { ...currentBlocks[blockIndex]!, condition: panelConditionRef.current });
+          handleBlockChange(blockIndex, { ...currentBlocks[blockIndex]!, condition: isRootEmpty ? undefined : panelConditionRef.current });
         } else {
           const rootCopy: WorkflowConditionDraft = JSON.parse(JSON.stringify(
             currentBlocks[blockIndex]!.condition ?? { _draftId: newUUID(), type: 'and', conditions: [] }
@@ -706,7 +713,7 @@ export function WorkflowEditorPage() {
       const trigger = draft.triggers[triggerIdx];
       if (trigger) {
         if (path.length === 1) {
-          setTrigger(triggerIdx, { ...trigger, conditions: [panelConditionRef.current] });
+          setTrigger(triggerIdx, { ...trigger, conditions: isRootEmpty ? [] : [panelConditionRef.current] });
         } else {
           const rootCopy: WorkflowConditionDraft = JSON.parse(JSON.stringify(
             trigger.conditions?.[0] ?? { _draftId: newUUID(), type: 'and', conditions: [] }
@@ -731,7 +738,7 @@ export function WorkflowEditorPage() {
     } else {
       // Applying to root guard conditions
       if (path.length === 1) {
-        setRootConditions([panelConditionRef.current]);
+        setRootConditions(isRootEmpty ? [] : [panelConditionRef.current]);
       } else {
         const rootCopy: WorkflowConditionDraft = JSON.parse(JSON.stringify(draft.conditions[0] ?? { _draftId: newUUID(), type: 'and', conditions: [] }));
         let current = rootCopy;
@@ -916,28 +923,38 @@ export function WorkflowEditorPage() {
       <div className="wfe-section">
         <h3 className="wfe-section-title">Execution Guards</h3>
         {draft.conditions.length > 0 && draft.conditions[0] && (
-          <div className="trigger-guard-summary" onClick={openConditionGroupPanel}>
-            <Icon name="arrow-triangle-branch" size={14} style={{ opacity: 0.5 }} />
-            <div className="trigger-guard-summary-info">
-              <span className="trigger-guard-summary-name">
-                {conditionAutoName(draft.conditions[0], registry, allBlocks)}
+          <div className="trigger-guard-summary-row">
+            <div className="trigger-guard-summary" onClick={openConditionGroupPanel} style={{ flex: 1 }}>
+              <Icon name="arrow-triangle-branch" size={14} style={{ opacity: 0.5 }} />
+              <div className="trigger-guard-summary-info">
+                <span className="trigger-guard-summary-name">
+                  {conditionAutoName(draft.conditions[0], registry, allBlocks)}
+                </span>
+                <span className="trigger-guard-summary-meta">
+                  {(() => {
+                    function countLeaves(c: WorkflowConditionDraft): number {
+                      if (c.type === 'and' || c.type === 'or') return (c.conditions ?? []).reduce((s, ch) => s + countLeaves(ch), 0);
+                      if (c.type === 'not') return c.condition ? countLeaves(c.condition) : 0;
+                      return 1;
+                    }
+                    const n = countLeaves(draft.conditions[0]!);
+                    return `${n} condition${n !== 1 ? 's' : ''} — tap to edit`;
+                  })()}
+                </span>
+              </div>
+              <span className="child-badge logic">
+                {draft.conditions[0].type === 'not' ? 'NOT' : draft.conditions[0].type.toUpperCase()}
               </span>
-              <span className="trigger-guard-summary-meta">
-                {(() => {
-                  function countLeaves(c: WorkflowConditionDraft): number {
-                    if (c.type === 'and' || c.type === 'or') return (c.conditions ?? []).reduce((s, ch) => s + countLeaves(ch), 0);
-                    if (c.type === 'not') return c.condition ? countLeaves(c.condition) : 0;
-                    return 1;
-                  }
-                  const n = countLeaves(draft.conditions[0]!);
-                  return `${n} condition${n !== 1 ? 's' : ''} — tap to edit`;
-                })()}
-              </span>
+              <Icon name="chevron-right" size={12} style={{ color: 'var(--text-tertiary)', opacity: 0.3 }} />
             </div>
-            <span className="child-badge logic">
-              {draft.conditions[0].type === 'not' ? 'NOT' : draft.conditions[0].type.toUpperCase()}
-            </span>
-            <Icon name="chevron-right" size={12} style={{ color: 'var(--text-tertiary)', opacity: 0.3 }} />
+            <button
+              className="wfe-remove-btn"
+              type="button"
+              title="Remove execution guards"
+              onClick={(e) => { e.stopPropagation(); setRootConditions([]); }}
+            >
+              <Icon name="trash" size={14} />
+            </button>
           </div>
         )}
         {draft.conditions.length === 0 && (

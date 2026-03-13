@@ -102,7 +102,7 @@ export function draftToPayload(draft: WorkflowDraft): Partial<WorkflowDefinition
   // Pass 2: convert conditions, rewriting blockResultScope.blockId from _draftId to new blockId
   const conditions = draft.conditions.length > 0
     ? draft.conditions.map(conditionDraftToPayload)
-    : undefined;
+    : [];
 
   // Rewrite block result references in both root conditions and block-level conditions
   if (conditions) rewritePayloadConditionBlockRefs(conditions, draftIdToBlockId);

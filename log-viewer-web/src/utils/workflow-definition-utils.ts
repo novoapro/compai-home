@@ -167,15 +167,29 @@ export function formatConditionSummary(
       return formatTimeConditionMode(mode, c.startTime as Parameters<typeof formatTimeConditionMode>[1], c.endTime as Parameters<typeof formatTimeConditionMode>[2]);
     }
     case 'and': {
-      const subs = c.conditions as unknown[];
-      return subs ? `All of ${subs.length} condition(s)` : undefined;
+      const subs = c.conditions as unknown[] | undefined;
+      if (!subs || subs.length === 0) return undefined;
+      if (subs.length === 1) return formatConditionSummary(subs[0], lookupDevice, lookupChar);
+      if (subs.length <= 3) {
+        const parts = subs.map(s => formatConditionSummary(s, lookupDevice, lookupChar)).filter(Boolean);
+        if (parts.length === subs.length) return parts.join(' & ');
+      }
+      return `All of ${subs.length} conditions`;
     }
     case 'or': {
-      const subs = c.conditions as unknown[];
-      return subs ? `Any of ${subs.length} condition(s)` : undefined;
+      const subs = c.conditions as unknown[] | undefined;
+      if (!subs || subs.length === 0) return undefined;
+      if (subs.length === 1) return formatConditionSummary(subs[0], lookupDevice, lookupChar);
+      if (subs.length <= 3) {
+        const parts = subs.map(s => formatConditionSummary(s, lookupDevice, lookupChar)).filter(Boolean);
+        if (parts.length === subs.length) return parts.join(' | ');
+      }
+      return `Any of ${subs.length} conditions`;
     }
-    case 'not':
-      return 'NOT condition';
+    case 'not': {
+      const inner = formatConditionSummary(c.condition, lookupDevice, lookupChar);
+      return inner ? `NOT ${inner}` : 'NOT condition';
+    }
     default:
       return type;
   }

@@ -275,6 +275,31 @@
   font-size: 10px;
   color: var(--text-tertiary);
 }
+.trigger-guard-summary-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+}
+.wfe-remove-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: none;
+  background: none;
+  color: var(--status-error);
+  opacity: 0.5;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+@media (hover: hover) {
+  .wfe-remove-btn:hover {
+    opacity: 1;
+    background: color-mix(in srgb, var(--status-error) 8%, transparent);
+  }
+}
 
 /* Cross-midnight indicator */
 .time-range-midnight {

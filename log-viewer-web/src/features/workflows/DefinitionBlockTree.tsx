@@ -60,6 +60,15 @@ export function DefinitionBlockTree({ block, depth = 0, index, isLast = true, is
         const scene = block.sceneId ? registry.lookupScene(block.sceneId) : undefined;
         return scene?.name || 'Run Scene';
       }
+      case 'conditional': {
+        if (!block.condition) return 'If …';
+        const summary = formatConditionSummary(
+          block.condition,
+          (id) => registry.lookupDevice(id),
+          (dId, cId) => registry.lookupCharacteristic(dId, cId),
+        );
+        return summary ? `If ${summary}` : 'If …';
+      }
       default: return formatBlockType(block.type);
     }
   }, [block, registry]);
@@ -90,6 +99,8 @@ export function DefinitionBlockTree({ block, depth = 0, index, isLast = true, is
       case 'executeWorkflow':
         return block.executionMode || undefined;
       case 'conditional':
+        // condition info is already in displayName for conditionals
+        return undefined;
       case 'waitForState':
       case 'repeatWhile':
         return block.condition

@@ -25,6 +25,26 @@ export function validateDraft(draft: WorkflowDraft): string[] {
     }
   }
 
+  // Validate execution guards — if present, must have actual conditions
+  for (const cond of draft.conditions) {
+    if (!isConditionComplete(cond)) {
+      errors.push('Execution guard has no conditions — add conditions or remove it');
+      break;
+    }
+  }
+
+  // Validate trigger guard conditions
+  for (const trigger of draft.triggers) {
+    if (trigger.conditions?.length) {
+      for (const cond of trigger.conditions) {
+        if (!isConditionComplete(cond)) {
+          errors.push(`Trigger guard for "${trigger.name || trigger.type}" has no conditions — add conditions or remove it`);
+          break;
+        }
+      }
+    }
+  }
+
   validateBlocksConditions(draft.blocks, errors);
 
   if (hasBlockResultConditions(draft) && !draft.continueOnError) {
@@ -38,6 +58,10 @@ function validateBlocksConditions(blocks: WorkflowBlockDraft[], errors: string[]
   for (const block of blocks) {
     if (block.type === 'conditional' && !isConditionComplete(block.condition)) {
       errors.push('Conditional block requires a condition');
+    }
+    if ((block.type === 'waitForCondition' || block.type === 'loop') && block.condition && !isConditionComplete(block.condition)) {
+      const label = block.type === 'waitForCondition' ? 'Wait block' : 'Loop block';
+      errors.push(`${label} condition is empty — add conditions or remove it`);
     }
     if (block.thenBlocks?.length) validateBlocksConditions(block.thenBlocks, errors);
     if (block.elseBlocks?.length) validateBlocksConditions(block.elseBlocks, errors);

@@ -31,6 +31,7 @@
 
 .log-card.expandable {
   cursor: pointer;
+  padding-bottom: 8px;
 }
 
 @media (hover: hover) {
