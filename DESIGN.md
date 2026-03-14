@@ -1,9 +1,9 @@
-# HomeKit MCP — Engineering Design Document
+# CompAI - Home — Engineering Design Document
 
 ## Table of Contents
 
 - [1. System Overview](#1-system-overview)
-- [2. Swift Server Application (HomeKitMCP)](#2-swift-server-application-homekitmcp)
+- [2. Swift Server Application (CompAI-Home)](#2-swift-server-application-compai-home)
 - [3. Web Application (HK Dashboard)](#3-web-application-hk-dashboard)
 - [4. Cross-Cutting Concerns](#4-cross-cutting-concerns)
 - [5. Directory Structure](#5-directory-structure)
@@ -12,33 +12,33 @@
 
 ## 1. System Overview
 
-HomeKit MCP is a two-application system that bridges Apple HomeKit with external clients — AI assistants, web dashboards, and HTTP integrations.
+CompAI - Home is a two-application system that bridges Apple HomeKit with external clients — AI assistants, web dashboards, and HTTP integrations.
 
 ```mermaid
 graph LR
-    HomeKit["Apple HomeKit<br/>(Accessories, Scenes)"] <--> Server["HomeKitMCP<br/>(Swift Server)"]
+    HomeKit["Apple HomeKit<br/>(Accessories, Scenes)"] <--> Server["CompAI-Home<br/>(Swift Server)"]
     Server <--> MCP["MCP Clients<br/>(Claude, etc.)"]
     Server <--> Web["HK Dashboard<br/>(React Web)"]
     Server --> Webhooks["Outgoing Webhooks<br/>(HTTP POST)"]
 ```
 
-**Swift Server (HomeKitMCP)** — A macOS Mac Catalyst menu bar application. It connects to Apple HomeKit via `HMHomeManager`, maintains a stable device registry, exposes devices through REST and MCP protocol endpoints, runs a workflow automation engine, and broadcasts real-time updates over WebSocket.
+**Swift Server (CompAI-Home)** — A macOS Mac Catalyst menu bar application. It connects to Apple HomeKit via `HMHomeManager`, maintains a stable device registry, exposes devices through REST and MCP protocol endpoints, runs an automation engine, and broadcasts real-time updates over WebSocket.
 
-**Web Application (HK Dashboard)** — A React SPA that connects to the Swift server's REST API and WebSocket. Provides device browsing, activity log viewing, visual workflow editing with drag-and-drop, and settings configuration.
+**Web Application (HK Dashboard)** — A React SPA that connects to the Swift server's REST API and WebSocket. Provides device browsing, activity log viewing, visual automation editing with drag-and-drop, and settings configuration.
 
 ### Communication Protocols
 
 | Protocol | Direction | Transport | Purpose |
 |----------|-----------|-----------|---------|
-| REST API | Client → Server | HTTP | CRUD operations on devices, scenes, logs, workflows |
+| REST API | Client → Server | HTTP | CRUD operations on devices, scenes, logs, automations |
 | MCP JSON-RPC | AI Client → Server | HTTP (Streamable / SSE) | AI tool use — query and control HomeKit |
-| WebSocket | Server → Client | WS | Real-time push of state changes, logs, workflow events |
+| WebSocket | Server → Client | WS | Real-time push of state changes, logs, automation events |
 | Outgoing Webhook | Server → External | HTTP POST | Notify external services of state changes |
 | HomeKit | Server ↔ Apple | HMHomeManager | Device discovery, monitoring, control |
 
 ---
 
-## 2. Swift Server Application (HomeKitMCP)
+## 2. Swift Server Application (CompAI-Home)
 
 ### 2.1 Tech Stack
 
@@ -60,32 +60,32 @@ The app runs as a **menu bar agent** (`LSUIElement = true`) with no Dock icon.
 
 ```mermaid
 graph TD
-    Main["HomeKitMCPApp (@main)"] --> AppDel["AppDelegate"]
+    Main["CompAI-HomeApp (@main)"] --> AppDel["AppDelegate"]
     AppDel --> SC["ServiceContainer.shared<br/>creates all services + viewmodels"]
     AppDel --> Wire["wireServices()<br/>Combine subscriptions between services"]
     AppDel --> Menu["MenuBarController<br/>NSStatusItem (Catalyst)"]
     AppDel --> Sig["Signal handlers<br/>SIGINT/SIGTERM graceful shutdown"]
 ```
 
-**ServiceContainer** acts as a dependency injection container. All services are created as lazy singletons. `wireServices()` connects cross-service Combine pipelines after initialization (e.g., HomeKitManager state changes → WorkflowEngine triggers).
+**ServiceContainer** acts as a dependency injection container. All services are created as lazy singletons. `wireServices()` connects cross-service Combine pipelines after initialization (e.g., HomeKitManager state changes → AutomationEngine triggers).
 
 **Build Configurations:**
 
 | Configuration | Scheme | Flag | Notes |
 |---------------|--------|------|-------|
-| Dev Debug | HomeKitMCP | `DEV_ENVIRONMENT` | Auto-accepts `dev-token-homekit-mcp` |
-| Dev Release | HomeKitMCP | `DEV_ENVIRONMENT` | Optimized dev build |
-| Prod Debug | HomeKitMCP-Prod | — | Real Keychain tokens required |
-| Prod Release | HomeKitMCP-Prod | — | Distribution build |
+| Dev Debug | CompAI-Home | `DEV_ENVIRONMENT` | Auto-accepts `dev-token-compai-home` |
+| Dev Release | CompAI-Home | `DEV_ENVIRONMENT` | Optimized dev build |
+| Prod Debug | CompAI-Home-Prod | — | Real Keychain tokens required |
+| Prod Release | CompAI-Home-Prod | — | Distribution build |
 
 ### 2.3 Architecture Layers
 
 ```mermaid
 graph TD
-    Views["Views (SwiftUI)<br/>DeviceListView, WorkflowListView, SettingsView, etc."]
-    VMs["ViewModels (@MainActor, ObservableObject)<br/>HomeKitViewModel, WorkflowViewModel, LogViewModel, etc.<br/>Bridge services → UI via @Published"]
-    Services["Services (actors + @MainActor classes)<br/>HomeKitManager, DeviceRegistryService, MCPServer,<br/>WorkflowEngine, LoggingService, WebhookService, etc."]
-    Models["Models (structs, enums, Codable)<br/>DeviceModel, Workflow, StateChangeLog, etc."]
+    Views["Views (SwiftUI)<br/>DeviceListView, AutomationListView, SettingsView, etc."]
+    VMs["ViewModels (@MainActor, ObservableObject)<br/>HomeKitViewModel, AutomationViewModel, LogViewModel, etc.<br/>Bridge services → UI via @Published"]
+    Services["Services (actors + @MainActor classes)<br/>HomeKitManager, DeviceRegistryService, MCPServer,<br/>AutomationEngine, LoggingService, WebhookService, etc."]
+    Models["Models (structs, enums, Codable)<br/>DeviceModel, automation, StateChangeLog, etc."]
 
     Views -- "@ObservedObject / @EnvironmentObject" --> VMs
     VMs -- "async/await, Combine" --> Services
@@ -93,7 +93,7 @@ graph TD
 ```
 
 **Concurrency model:**
-- **Actors**: DeviceRegistryService, WorkflowEngine, LoggingService, WebhookService, WorkflowStorageService — thread-safe by isolation
+- **Actors**: DeviceRegistryService, AutomationEngine, LoggingService, WebhookService, AutomationStorageService — thread-safe by isolation
 - **@MainActor**: HomeKitManager, StorageService, ViewModels — UI-bound, HomeKit API requires main thread
 - **Nonisolated**: Combine publishers on actor services exposed as `nonisolated let` for zero-await subscription
 
@@ -129,7 +129,7 @@ graph LR
     HK["HMAccessoryDelegate<br/>callback"] --> SCP["stateChangePublisher"]
     HK --> CVCP["characteristicValue<br/>ChangePublisher"]
 
-    SCP --> WE["WorkflowEngine<br/>(evaluate triggers)"]
+    SCP --> WE["AutomationEngine<br/>(evaluate triggers)"]
     SCP --> WH["WebhookService<br/>(HTTP POST)"]
     SCP --> LS["LoggingService<br/>(record entry)"]
     CVCP --> WS["MCPServer<br/>(WebSocket broadcast)"]
@@ -212,15 +212,15 @@ Vapor 4.x HTTP server exposing three protocol surfaces from a single port.
 | `POST` | `/scenes/:sceneId/execute` | Execute a scene |
 | `GET` | `/logs` | Filtered, paginated logs |
 | `DELETE` | `/logs` | Clear all logs |
-| `GET` | `/workflows` | List all workflows |
-| `POST` | `/workflows` | Create workflow |
-| `GET` | `/workflows/:id` | Get workflow definition |
-| `PUT` | `/workflows/:id` | Update workflow |
-| `DELETE` | `/workflows/:id` | Delete workflow |
-| `POST` | `/workflows/:id/trigger` | Trigger workflow manually |
-| `GET` | `/workflows/:id/logs` | Workflow execution history |
-| `POST` | `/workflows/generate` | AI-generate workflow from prompt |
-| `POST` | `/workflows/webhook/:token` | Webhook-triggered workflow |
+| `GET` | `/automations` | List all automations |
+| `POST` | `/automations` | Create automation |
+| `GET` | `/automations/:id` | Get automation definition |
+| `PUT` | `/automations/:id` | Update automation |
+| `DELETE` | `/automations/:id` | Delete automation |
+| `POST` | `/automations/:id/trigger` | Trigger automation manually |
+| `GET` | `/automations/:id/logs` | automation execution history |
+| `POST` | `/automations/generate` | AI-generate automation from prompt |
+| `POST` | `/automations/webhook/:token` | Webhook-triggered automation |
 | `GET` | `/settings/temperature-unit` | Get temperature unit |
 | `PATCH` | `/settings/temperature-unit` | Set temperature unit |
 
@@ -231,7 +231,7 @@ Vapor 4.x HTTP server exposing three protocol surfaces from a single port.
 | Device | `list_devices`, `get_device_details`, `control_device`, `list_rooms`, `get_devices_by_type` |
 | Scene | `list_scenes`, `execute_scene` |
 | Log | `get_logs` |
-| Workflow | `list_workflows`, `get_workflow`, `create_workflow`, `update_workflow`, `delete_workflow`, `enable_workflow`, `trigger_workflow`, `get_workflow_logs` |
+| automation | `list_automations`, `get_workflow`, `create_workflow`, `update_workflow`, `delete_workflow`, `enable_workflow`, `trigger_workflow`, `get_workflow_logs` |
 | Metadata | `list_device_categories`, `get_workflow_schema` |
 
 **WebSocket Events (server → client):**
@@ -240,27 +240,27 @@ Vapor 4.x HTTP server exposing three protocol surfaces from a single port.
 |------------|---------|---------|
 | `connected` | — | Client connects |
 | `log` | StateChangeLog | New log entry created |
-| `workflow_log` | WorkflowExecutionLog | Workflow execution started |
-| `workflow_log_updated` | WorkflowExecutionLog | Workflow execution completed/failed |
-| `workflows_updated` | — | Workflow definitions changed |
+| `automation_log` | WorkflowExecutionLog | automation execution started |
+| `automation_log_updated` | WorkflowExecutionLog | automation execution completed/failed |
+| `automations_updated` | — | automation definitions changed |
 | `devices_updated` | — | Device structure changed |
 | `characteristic_updated` | `{deviceId, serviceId, characteristicId, value}` | Observed characteristic changed (batched 100ms) |
 | `logs_cleared` | — | All logs cleared |
 | `pong` | — | Response to client ping |
 
-#### WorkflowEngine
+#### AutomationEngine
 
 Actor that orchestrates automation. Evaluates triggers, checks conditions, and executes blocks.
 
-**Workflow structure:**
+**automation structure:**
 ```swift
-struct Workflow {
+struct automation {
     let id: UUID
     var name: String
     var isEnabled: Bool
-    var triggers: [WorkflowTrigger]           // What fires the workflow (OR logic)
-    var conditions: [WorkflowCondition]?      // Guards before execution (AND logic)
-    var blocks: [WorkflowBlock]               // Actions to execute (sequential)
+    var triggers: [AutomationTrigger]           // What fires the automation (OR logic)
+    var conditions: [AutomationCondition]?      // Guards before execution (AND logic)
+    var blocks: [AutomationBlock]               // Actions to execute (sequential)
     var continueOnError: Bool
     var retriggerPolicy: ConcurrentExecutionPolicy
     var metadata: WorkflowMetadata
@@ -274,7 +274,7 @@ struct Workflow {
 | `deviceState` | Fires when an observed characteristic changes (equals, transitioned, threshold) |
 | `schedule` | Cron-like scheduling (once, daily, weekly, interval) |
 | `sunEvent` | Sunrise/sunset with offset (uses SolarCalculator) |
-| `webhook` | External HTTP POST to `/workflows/webhook/:token` |
+| `webhook` | External HTTP POST to `/automations/webhook/:token` |
 | `manual` | Triggered via API or UI |
 
 **Condition types (recursive tree):**
@@ -294,7 +294,7 @@ struct Workflow {
 | `delay` | flowControl | Wait N seconds |
 | `webhook` | action | HTTP request (any method) |
 | `log` | action | Emit a log entry |
-| `executeWorkflow` | flowControl | Call a sub-workflow (inline/parallel/delegate) |
+| `executeAutomation` | flowControl | Call a sub-automation (inline/parallel/delegate) |
 | `conditional` | flowControl | If/else branching (then/else blocks) |
 | `repeat` | flowControl | Loop N times |
 | `repeatWhile` | flowControl | Loop while condition is true (safety-capped) |
@@ -330,7 +330,7 @@ Each category has a typed payload — `DeviceStatePayload`, `WebhookLogPayload`,
 **Broadcasting (nonisolated Combine subjects):**
 - `logsSubject` — Full logs array
 - `logEntrySubject` — Individual new entry
-- `logUpdatedSubject` — Entry updated (e.g., workflow completed)
+- `logUpdatedSubject` — Entry updated (e.g., automation completed)
 - `logsClearedSubject` — All logs cleared
 
 **Persistence:** JSON file with configurable max entries (default 500), debounced saves.
@@ -360,18 +360,18 @@ Actor that sends HTTP POST notifications on observed state changes.
 }
 ```
 
-#### AIWorkflowService
+#### AIAutomationService
 
-Integrates LLM providers for natural language → workflow generation.
+Integrates LLM providers for natural language → automation generation.
 
 **Supported providers:**
 - Claude (Anthropic API) via `ClaudeClient`
 - OpenAI via `OpenAIClient`
 - Gemini (Google) via `GeminiClient`
 
-**Flow:** Prompt → enrich with device context → LLM call → parse JSON response → validate → save workflow
+**Flow:** Prompt → enrich with device context → LLM call → parse JSON response → validate → save automation
 
-**Endpoint:** `POST /workflows/generate` with `{ "prompt": "..." }`
+**Endpoint:** `POST /automations/generate` with `{ "prompt": "..." }`
 
 #### StorageService
 
@@ -405,11 +405,11 @@ Integrates LLM providers for natural language → workflow generation.
 | Service | Purpose |
 |---------|---------|
 | **KeychainService** | Secure storage for API tokens, webhook URLs, AI API keys |
-| **WorkflowStorageService** | Workflow CRUD persistence to `workflows.json` |
-| **BackupService** | Local workflow/device backup and restore |
-| **CloudBackupService** | iCloud/CloudKit workflow sync across devices |
-| **WorkflowSyncService** | Coordinates cloud sync timing and conflict resolution |
-| **WorkflowMigrationService** | Migrates workflow definitions on schema changes |
+| **AutomationStorageService** | automation CRUD persistence to `automations.json` |
+| **BackupService** | Local automation/device backup and restore |
+| **CloudBackupService** | iCloud/CloudKit automation sync across devices |
+| **AutomationSyncService** | Coordinates cloud sync timing and conflict resolution |
+| **AutomationMigrationService** | Migrates automation definitions on schema changes |
 
 ### 2.5 Data Models
 
@@ -453,10 +453,10 @@ struct CharacteristicModel: Identifiable, Codable {
 }
 ```
 
-#### Workflow Models
+#### automation Models
 
 ```swift
-indirect enum WorkflowBlock: Codable {
+indirect enum AutomationBlock: Codable {
     case action(WorkflowAction, blockId: UUID)
     case flowControl(FlowControlBlock, blockId: UUID)
 }
@@ -466,14 +466,14 @@ enum WorkflowAction: Codable {
     case executeScene(sceneId: String, sceneName: String)
     case delay(seconds: Double)
     case httpRequest(url: String, method: String, headers: [String:String]?, body: String?)
-    case executeWorkflow(targetWorkflowId: String)
+    case executeAutomation(targetAutomationId: String)
     case broadcastWebSocket(message: String)
 }
 
 enum FlowControlBlock: Codable {
-    case ifCondition(condition: WorkflowCondition, thenBlocks: [WorkflowBlock], elseBlocks: [WorkflowBlock]?)
-    case loop(maxIterations: Int, blocks: [WorkflowBlock])
-    case waitForState(condition: WorkflowCondition, timeoutSeconds: Double?)
+    case ifCondition(condition: AutomationCondition, thenBlocks: [AutomationBlock], elseBlocks: [AutomationBlock]?)
+    case loop(maxIterations: Int, blocks: [AutomationBlock])
+    case waitForState(condition: AutomationCondition, timeoutSeconds: Double?)
 }
 ```
 
@@ -510,7 +510,7 @@ graph TD
     HKM --> SCP["stateChangePublisher"]
     HKM --> CVCP["characteristicValueChangePublisher"]
 
-    SCP --> WE["WorkflowEngine<br/>evaluate triggers → check guards → execute blocks"]
+    SCP --> WE["AutomationEngine<br/>evaluate triggers → check guards → execute blocks"]
     SCP --> WHS["WebhookService<br/>HTTP POST with retry"]
     SCP --> LS["LoggingService<br/>circular buffer + persist"]
 
@@ -527,7 +527,7 @@ graph TD
 
     Handler --> LD["list_devices → Registry → HomeKitManager"]
     Handler --> CD["control_device → Registry → HomeKitManager.writeValue()"]
-    Handler --> CW["create_workflow → WorkflowEngine"]
+    Handler --> CW["create_workflow → AutomationEngine"]
     Handler --> RR["resources/read → same as list_devices"]
 
     LD --> Resp["JSON-RPC Response"]
@@ -536,12 +536,12 @@ graph TD
     RR --> Resp
 ```
 
-#### Workflow Execution Flow
+#### automation Execution Flow
 
 ```mermaid
 graph TD
     Trigger["Trigger fires<br/>(state change / schedule / webhook / manual)"]
-    Trigger --> Eval["evaluateTrigger()<br/>workflow enabled? trigger matches?"]
+    Trigger --> Eval["evaluateTrigger()<br/>automation enabled? trigger matches?"]
     Eval --> Cond["evaluateConditions()<br/>recursive condition tree"]
     Cond --> Exec["executeBlocks()"]
 
@@ -567,11 +567,11 @@ graph TD
 | File | Location | Content |
 |------|----------|---------|
 | `device-registry.json` | Application Support | Stable device/scene IDs → HomeKit UUID mappings, enabled/observed settings |
-| `workflows.json` | Application Support | Workflow definitions |
+| `automations.json` | Application Support | automation definitions |
 | `logs.json` | Application Support | Circular buffer of log entries |
 | Keychain items | macOS Keychain | API tokens, webhook URL, AI API keys |
 
-**Migration on startup:** Reads legacy `device-config.json`, merges settings into registry, deduplicates orphaned entries, validates workflow references.
+**Migration on startup:** Reads legacy `device-config.json`, merges settings into registry, deduplicates orphaned entries, validates automation references.
 
 ### 2.8 Security
 
@@ -579,7 +579,7 @@ graph TD
 - **Multi-token support**: Multiple tokens for different clients, managed in Keychain
 - **Webhook signing**: HMAC-SHA256 signature in `X-Signature-256` header
 - **CORS**: Configurable allowed origins, methods, and headers
-- **Feature flags**: Each API surface (REST, MCP, WebSocket, Workflows, Logs) independently toggleable — disabled surfaces return 404
+- **Feature flags**: Each API surface (REST, MCP, WebSocket, automations, Logs) independently toggleable — disabled surfaces return 404
 - **Dev mode**: `DEV_ENVIRONMENT` flag auto-accepts a well-known dev token
 
 ---
@@ -607,8 +607,8 @@ graph TD
 
 ```mermaid
 graph TD
-    Pages["Pages (lazy-loaded)<br/>DevicesPage, LogsPage, WorkflowsPage, SettingsPage"]
-    Features["Feature Components<br/>devices/, logs/, workflows/editor/"]
+    Pages["Pages (lazy-loaded)<br/>DevicesPage, LogsPage, AutomationsPage, SettingsPage"]
+    Features["Feature Components<br/>devices/, logs/, automations/editor/"]
     Shared["Shared Components<br/>Icon, ConfirmDialog, Sidebar, TopBar"]
     State["State Management (React Context)<br/>Config, WebSocket, DeviceRegistry,<br/>Refresh, Theme, TopBar"]
     API["API Layer<br/>lib/api.ts, useApi, usePolling, useDebounce"]
@@ -652,7 +652,7 @@ graph LR
     Connect --> State["Connection state<br/>disconnected | connecting | connected"]
 ```
 
-**Events handled:** `log`, `workflow_log`, `workflow_log_updated`, `workflows_updated`, `devices_updated`, `characteristic_updated`, `logs_cleared`
+**Events handled:** `log`, `automation_log`, `automation_log_updated`, `automations_updated`, `devices_updated`, `characteristic_updated`, `logs_cleared`
 
 #### DeviceRegistryContext
 In-memory device/scene cache with lookup helpers.
@@ -690,17 +690,17 @@ Dynamic page title, badge count, and loading indicator set by active page via `u
 - Logs grouped by date (Today, Yesterday, specific dates)
 - Infinite scroll with "Load More"
 - Expandable rows showing request/response bodies for API calls
-- Embedded workflow execution logs
+- Embedded automation execution logs
 - Clear all with confirmation
 
-#### Workflows Page
-- Workflow list with search and enable/disable toggles (optimistic updates)
+#### automations Page
+- automation list with search and enable/disable toggles (optimistic updates)
 - Trigger type badges on each card
 - **Selection mode**: long-press enters multi-select for bulk enable/disable/delete
-- **AI Generate**: dialog with natural language prompt → calls `/workflows/generate`
+- **AI Generate**: dialog with natural language prompt → calls `/automations/generate`
 - Navigation to definition view, execution history, and editor
 
-#### Workflow Editor (WorkflowEditorPage)
+#### automation Editor (AutomationEditorPage)
 - **Drag-and-drop** block reordering via @dnd-kit
 - **Nested navigation**: breadcrumb trail for editing blocks inside if/else/loop containers
 - **Panel-based editing**: modal overlay forms for triggers, conditions, and blocks
@@ -710,8 +710,8 @@ Dynamic page title, badge count, and loading indicator set by active page via `u
 - **Unsaved changes protection**: browser `beforeunload` + in-app confirmation dialog
 - Supports both Create and Edit modes
 
-#### Workflow Execution Pages
-- **Execution list**: all runs for a workflow with status badges (running, success, failure, skipped)
+#### automation Execution Pages
+- **Execution list**: all runs for an automation with status badges (running, success, failure, skipped)
 - **Execution detail**: trigger event details, condition results tree, block results tree (hierarchical), timing/duration, error messages
 
 #### Settings Page
@@ -731,13 +731,13 @@ Dynamic page title, badge count, and loading indicator set by active page via `u
 | `GET` | `/scenes` | `RESTScene[]` |
 | `GET` | `/logs?...` | `PaginatedLogsResponse` |
 | `DELETE` | `/logs` | void |
-| `GET` | `/workflows` | `Workflow[]` |
-| `POST` | `/workflows` | `WorkflowDefinition` |
-| `GET` | `/workflows/:id` | `WorkflowDefinition` |
-| `PUT` | `/workflows/:id` | `Workflow` |
-| `DELETE` | `/workflows/:id` | void |
-| `GET` | `/workflows/:id/logs` | `WorkflowExecutionLog[]` |
-| `POST` | `/workflows/generate` | `{ id, name, description }` |
+| `GET` | `/automations` | `automation[]` |
+| `POST` | `/automations` | `WorkflowDefinition` |
+| `GET` | `/automations/:id` | `WorkflowDefinition` |
+| `PUT` | `/automations/:id` | `automation` |
+| `DELETE` | `/automations/:id` | void |
+| `GET` | `/automations/:id/logs` | `WorkflowExecutionLog[]` |
+| `POST` | `/automations/generate` | `{ id, name, description }` |
 
 ### 3.6 Custom Hooks
 
@@ -755,8 +755,8 @@ Types mirror the server's REST response models:
 
 ```typescript
 // homekit-device.ts — RESTDevice, RESTService, RESTCharacteristic, RESTScene
-// workflow-definition.ts — WorkflowDefinition, triggers, conditions, blocks (all variants)
-// workflow-log.ts — WorkflowExecutionLog, BlockResult, ConditionResult, TriggerEvent
+// automation-definition.ts — WorkflowDefinition, triggers, conditions, blocks (all variants)
+// automation-log.ts — WorkflowExecutionLog, BlockResult, ConditionResult, TriggerEvent
 // state-change-log.ts — StateChangeLog, LogCategory enum
 // api-response.ts — PaginatedLogsResponse, query parameter types
 ```
@@ -810,7 +810,7 @@ The DeviceRegistryService generates stable UUIDs for every device, service, and 
 | REST API responses | Device, service, and characteristic `id` fields |
 | MCP tool responses | Same |
 | WebSocket events | `deviceId`, `serviceId`, `characteristicId` |
-| Workflow definitions | Trigger/condition/action device references |
+| automation definitions | Trigger/condition/action device references |
 | Web app state | Device registry cache keys |
 | Outgoing webhooks | `deviceId`, `serviceId` in payload |
 
@@ -828,7 +828,7 @@ The `permissions` array on each characteristic is the **universal contract** for
 
 **Settings controlling visibility:**
 - `enabled` — Whether the characteristic appears in API responses at all
-- `observed` — Whether the characteristic is actively monitored (requires `enabled=true` AND HomeKit notify capability). Controls: WebSocket broadcasts, webhook notifications, workflow trigger eligibility, `notify` permission in API responses
+- `observed` — Whether the characteristic is actively monitored (requires `enabled=true` AND HomeKit notify capability). Controls: WebSocket broadcasts, webhook notifications, automation trigger eligibility, `notify` permission in API responses
 
 ### 4.3 Temperature Unit System
 
@@ -837,8 +837,8 @@ A global setting (`celsius` or `fahrenheit`) controls temperature representation
 | Direction | Behavior |
 |-----------|----------|
 | **Outgoing** (API responses, WebSocket, logs) | Convert from Celsius → configured unit |
-| **Incoming** (control_device, workflow actions) | Accept in configured unit → convert to Celsius for HomeKit |
-| **Workflows** | Auto-migrate all temperature thresholds when unit changes |
+| **Incoming** (control_device, automation actions) | Accept in configured unit → convert to Celsius for HomeKit |
+| **automations** | Auto-migrate all temperature thresholds when unit changes |
 | **Logs** | Stored in unit active at creation time (not retroactively converted) |
 
 Affected fields: `value`, `minValue`, `maxValue`, `stepValue`, `units`
@@ -850,7 +850,7 @@ Affected fields: `value`, `minValue`, `maxValue`, `stepValue`, `units`
 - **REST/MCP**: `Authorization: Bearer <token>` header
 - **WebSocket**: `?token=<encoded_token>` query parameter
 - **Health check**: `GET /health` is the only unauthenticated endpoint
-- **Dev mode**: `DEV_ENVIRONMENT` flag auto-accepts `dev-token-homekit-mcp`
+- **Dev mode**: `DEV_ENVIRONMENT` flag auto-accepts `dev-token-compai-home`
 
 ### 4.5 Feature Flags
 
@@ -858,10 +858,10 @@ Each API surface is independently toggleable in settings:
 
 | Flag | Controls | When Disabled |
 |------|----------|---------------|
-| REST API enabled | `/devices`, `/scenes`, `/logs`, `/workflows` | 404 |
+| REST API enabled | `/devices`, `/scenes`, `/logs`, `/automations` | 404 |
 | MCP Protocol enabled | `/mcp`, `/sse`, `/messages` | 404 |
 | WebSocket enabled | `/ws` | 404 |
-| Workflows enabled | Workflow REST + MCP tools | 404 |
+| automations enabled | automation REST + MCP tools | 404 |
 | Log Access enabled | `GET /logs` + `get_logs` MCP tool | 404 |
 
 ---
@@ -871,9 +871,9 @@ Each API surface is independently toggleable in settings:
 ### Swift Server Application
 
 ```
-HomeKitMCP/
+CompAI-Home/
 ├── App/
-│   ├── HomeKitMCPApp.swift              # @main entry point
+│   ├── CompAI-HomeApp.swift              # @main entry point
 │   ├── AppDelegate.swift                # UIApplicationDelegate, lifecycle
 │   ├── SceneDelegate.swift              # UIWindowSceneDelegate
 │   ├── ServiceContainer.swift           # DI container, service creation & wiring
@@ -886,12 +886,12 @@ HomeKitMCP/
 │   ├── LoggingService.swift             # Circular log buffer
 │   ├── WebhookService.swift             # Outgoing HTTP POST
 │   ├── KeychainService.swift            # Secure storage
-│   ├── AIWorkflowService.swift          # LLM workflow generation
+│   ├── AIAutomationService.swift          # LLM automation generation
 │   ├── BackupService.swift              # Local backup/restore
 │   ├── CloudBackupService.swift         # iCloud sync
-│   ├── WorkflowStorageService.swift     # Workflow persistence
-│   ├── WorkflowSyncService.swift        # Cloud sync coordination
-│   ├── WorkflowMigrationService.swift   # Schema migration
+│   ├── AutomationStorageService.swift     # automation persistence
+│   ├── AutomationSyncService.swift        # Cloud sync coordination
+│   ├── AutomationMigrationService.swift   # Schema migration
 │   │
 │   ├── MCP/
 │   │   ├── MCPServer.swift              # Vapor HTTP server setup
@@ -899,8 +899,8 @@ HomeKitMCP/
 │   │   ├── MCPModels.swift              # MCP protocol models
 │   │   └── MCPToolDefinitions.swift     # Tool schemas
 │   │
-│   └── Workflows/
-│       ├── WorkflowEngine.swift         # Execution orchestration
+│   └── automations/
+│       ├── AutomationEngine.swift         # Execution orchestration
 │       ├── ConditionEvaluator.swift      # Condition tree evaluation
 │       ├── DeviceStateChangeTriggerEvaluator.swift
 │       ├── ScheduleTriggerManager.swift  # Cron-like scheduling
@@ -909,27 +909,27 @@ HomeKitMCP/
 ├── Models/
 │   ├── DeviceModel.swift                # Device/Service/Characteristic
 │   ├── SceneModel.swift                 # HomeKit scenes
-│   ├── WorkflowModels.swift             # Workflow/Trigger/Block/Condition
+│   ├── AutomationModels.swift             # automation/Trigger/Block/Condition
 │   ├── StateChangeLog.swift             # Log entry + payloads
 │   ├── RESTModels.swift                 # REST response types
 │   ├── BackupModels.swift               # Backup/restore types
-│   ├── WorkflowEditorDraft.swift        # Editor draft state
+│   ├── AutomationEditorDraft.swift        # Editor draft state
 │   └── AnyCodable.swift                 # Type-erased Codable wrapper
 │
 ├── ViewModels/
 │   ├── HomeKitViewModel.swift           # Device browsing + filtering
 │   ├── LogViewModel.swift               # Log viewing + filtering
-│   ├── WorkflowViewModel.swift          # Workflow management
+│   ├── AutomationViewModel.swift          # automation management
 │   └── SettingsViewModel.swift          # Settings coordination
 │
 ├── Views/
 │   ├── DeviceListView.swift
 │   ├── SceneListView.swift
 │   ├── LogViewerView.swift
-│   ├── WorkflowListView.swift
-│   ├── WorkflowDetailView.swift
-│   ├── WorkflowBuilderView.swift
-│   ├── WorkflowEditorView.swift
+│   ├── AutomationListView.swift
+│   ├── AutomationDetailView.swift
+│   ├── AutomationBuilderView.swift
+│   ├── AutomationEditorView.swift
 │   ├── SettingsView.swift
 │   ├── Settings/                        # Settings sub-views
 │   └── Components/                      # Reusable UI components
@@ -950,7 +950,7 @@ HomeKitMCP/
 ### Web Application
 
 ```
-log-viewer-web/
+webclient/
 ├── src/
 │   ├── App.tsx                          # Root component with context providers
 │   ├── router.tsx                       # React Router with lazy loading
@@ -960,8 +960,8 @@ log-viewer-web/
 │   ├── pages/
 │   │   ├── DevicesPage.tsx              # Device browsing + scenes
 │   │   ├── LogsPage.tsx                 # Activity log viewer
-│   │   ├── WorkflowsPage.tsx            # Workflow list + management
-│   │   ├── WorkflowDefinitionPage.tsx   # Read-only workflow view
+│   │   ├── AutomationsPage.tsx            # automation list + management
+│   │   ├── AutomationDefinitionPage.tsx   # Read-only automation view
 │   │   ├── WorkflowExecutionListPage.tsx
 │   │   ├── WorkflowExecutionDetailPage.tsx
 │   │   └── SettingsPage.tsx             # Server configuration
@@ -969,19 +969,19 @@ log-viewer-web/
 │   ├── features/
 │   │   ├── devices/                     # DeviceCard, CharacteristicsTable, etc.
 │   │   ├── logs/                        # LogRow, LogDetailPanel, FilterBar
-│   │   └── workflows/
-│   │       ├── WorkflowCard.tsx
+│   │   └── automations/
+│   │       ├── AutomationCard.tsx
 │   │       ├── BlockResultTree.tsx
 │   │       ├── ConditionResultTree.tsx
-│   │       └── editor/                  # Full visual workflow editor
-│   │           ├── WorkflowEditorPage.tsx
+│   │       └── editor/                  # Full visual automation editor
+│   │           ├── AutomationEditorPage.tsx
 │   │           ├── BlockCard.tsx
 │   │           ├── BlockEditor.tsx
 │   │           ├── TriggerEditor.tsx
 │   │           ├── ConditionEditor.tsx
 │   │           ├── DevicePicker.tsx
-│   │           ├── useWorkflowDraft.ts
-│   │           └── workflow-editor-validation.ts
+│   │           ├── useAutomationDraft.ts
+│   │           └── automation-editor-validation.ts
 │   │
 │   ├── components/                      # Shared UI (Icon, ConfirmDialog, etc.)
 │   ├── contexts/                        # 6 React Context providers

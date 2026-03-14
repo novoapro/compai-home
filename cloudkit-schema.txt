@@ -1,0 +1,49 @@
+DEFINE SCHEMA
+
+    RECORD TYPE Backup (
+        "___createTime" TIMESTAMP,
+        "___createdBy"  REFERENCE,
+        "___etag"       STRING,
+        "___modTime"    TIMESTAMP,
+        "___modifiedBy" REFERENCE,
+        "___recordID"   REFERENCE QUERYABLE,
+        appVersion      STRING,
+        backupData      ASSET,
+        backupId        STRING QUERYABLE,
+        createdAt       TIMESTAMP QUERYABLE SORTABLE,
+        deviceName      STRING QUERYABLE,
+        formatVersion   INT64,
+        GRANT WRITE TO "_creator",
+        GRANT CREATE TO "_icloud",
+        GRANT READ TO "_world"
+    );
+
+    RECORD TYPE SyncedWorkflow (
+        "___createTime" TIMESTAMP,
+        "___createdBy"  REFERENCE,
+        "___etag"       STRING,
+        "___modTime"    TIMESTAMP,
+        "___modifiedBy" REFERENCE,
+        "___recordID"   REFERENCE,
+        isDeleted       INT64 QUERYABLE SORTABLE,
+        originDeviceId  STRING QUERYABLE SEARCHABLE SORTABLE,
+        syncVersion     INT64 QUERYABLE SORTABLE,
+        updatedAt       TIMESTAMP QUERYABLE SORTABLE,
+        workflowData    ASSET,
+        workflowId      STRING QUERYABLE SEARCHABLE SORTABLE,
+        GRANT WRITE TO "_creator",
+        GRANT CREATE TO "_icloud",
+        GRANT READ TO "_world"
+    );
+
+    RECORD TYPE Users (
+        "___createTime" TIMESTAMP,
+        "___createdBy"  REFERENCE,
+        "___etag"       STRING,
+        "___modTime"    TIMESTAMP,
+        "___modifiedBy" REFERENCE,
+        "___recordID"   REFERENCE,
+        roles           LIST<INT64>,
+        GRANT WRITE TO "_creator",
+        GRANT READ TO "_world"
+    );

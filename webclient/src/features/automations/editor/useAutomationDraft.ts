@@ -1,0 +1,205 @@
+import { useReducer, useCallback, useRef } from 'react';
+import { produce } from 'immer';
+import type {
+  AutomationDraft,
+  AutomationTriggerDraft,
+  AutomationConditionDraft,
+  AutomationBlockDraft,
+} from './automation-editor-types';
+import { emptyDraft, newUUID } from './automation-editor-types';
+
+// --- Action types ---
+
+type DraftAction =
+  | { type: 'RESET'; draft: AutomationDraft }
+  | { type: 'PATCH'; changes: Partial<AutomationDraft> }
+  | { type: 'SET_TRIGGER'; index: number; trigger: AutomationTriggerDraft }
+  | { type: 'ADD_TRIGGER'; trigger: AutomationTriggerDraft }
+  | { type: 'REMOVE_TRIGGER'; index: number }
+  | { type: 'SET_CONDITION'; path: number[]; condition: AutomationConditionDraft }
+  | { type: 'SET_ROOT_CONDITIONS'; conditions: AutomationConditionDraft[] }
+  | { type: 'SET_BLOCK'; index: number; block: AutomationBlockDraft }
+  | { type: 'ADD_BLOCK'; block: AutomationBlockDraft }
+  | { type: 'REMOVE_BLOCK'; index: number }
+  | { type: 'MOVE_BLOCK'; fromIndex: number; toIndex: number }
+  | { type: 'SET_NESTED_BLOCKS'; path: number[]; field: string; blocks: AutomationBlockDraft[] };
+
+function draftReducer(state: AutomationDraft, action: DraftAction): AutomationDraft {
+  return produce(state, (draft) => {
+    switch (action.type) {
+      case 'RESET':
+        return action.draft;
+
+      case 'PATCH':
+        Object.assign(draft, action.changes);
+        break;
+
+      case 'SET_TRIGGER':
+        draft.triggers[action.index] = action.trigger;
+        break;
+
+      case 'ADD_TRIGGER':
+        draft.triggers.push(action.trigger);
+        break;
+
+      case 'REMOVE_TRIGGER':
+        draft.triggers.splice(action.index, 1);
+        break;
+
+      case 'SET_ROOT_CONDITIONS':
+        draft.conditions = action.conditions;
+        break;
+
+      case 'SET_CONDITION': {
+        // Navigate to the condition at the given path and replace it
+        const { path, condition } = action;
+        if (path.length === 1) {
+          draft.conditions[path[0]!] = condition;
+        } else {
+          let current = draft.conditions[path[0]!]!;
+          for (let i = 1; i < path.length - 1; i++) {
+            if (current.conditions) {
+              current = current.conditions[path[i]!]!;
+            } else if (current.condition) {
+              current = current.condition;
+            }
+          }
+          const lastIdx = path[path.length - 1]!;
+          if (current.conditions) {
+            current.conditions[lastIdx] = condition;
+          }
+        }
+        break;
+      }
+
+      case 'SET_BLOCK':
+        draft.blocks[action.index] = action.block;
+        break;
+
+      case 'ADD_BLOCK':
+        draft.blocks.push(action.block);
+        break;
+
+      case 'REMOVE_BLOCK':
+        draft.blocks.splice(action.index, 1);
+        break;
+
+      case 'MOVE_BLOCK': {
+        const { fromIndex, toIndex } = action;
+        const [moved] = draft.blocks.splice(fromIndex, 1);
+        if (moved) draft.blocks.splice(toIndex, 0, moved);
+        break;
+      }
+
+      case 'SET_NESTED_BLOCKS': {
+        // Navigate path to reach the right block, then set the field
+        let target: AutomationBlockDraft = draft.blocks[action.path[0]!]!;
+        for (let i = 1; i < action.path.length; i++) {
+          const container =
+            (target as AutomationBlockDraft).thenBlocks ??
+            (target as AutomationBlockDraft).elseBlocks ??
+            (target as AutomationBlockDraft).blocks ??
+            [];
+          target = container[action.path[i]!]!;
+        }
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (target as any)[action.field] = action.blocks;
+        break;
+      }
+    }
+  });
+}
+
+export function useAutomationDraft(initial?: AutomationDraft) {
+  const [draft, rawDispatch] = useReducer(draftReducer, initial ?? emptyDraft());
+  const changeCountRef = useRef(0);
+  const savedCountRef = useRef(0);
+
+  // Wrap dispatch to track changes for dirty detection
+  const dispatch = useCallback((action: DraftAction) => {
+    if (action.type !== 'RESET') {
+      changeCountRef.current++;
+    }
+    rawDispatch(action);
+  }, []);
+
+  const isDirty = changeCountRef.current !== savedCountRef.current;
+
+  const reset = useCallback((d: AutomationDraft) => {
+    rawDispatch({ type: 'RESET', draft: d });
+    changeCountRef.current = 0;
+    savedCountRef.current = 0;
+  }, []);
+
+  const markSaved = useCallback(() => {
+    savedCountRef.current = changeCountRef.current;
+  }, []);
+
+  const patchDraft = useCallback((changes: Partial<AutomationDraft>) => dispatch({ type: 'PATCH', changes }), []);
+
+  const setTrigger = useCallback(
+    (index: number, trigger: AutomationTriggerDraft) => dispatch({ type: 'SET_TRIGGER', index, trigger }),
+    [],
+  );
+
+  const addTrigger = useCallback(
+    (type: AutomationTriggerDraft['type'] = 'deviceStateChange') =>
+      dispatch({
+        type: 'ADD_TRIGGER',
+        trigger: {
+          _draftId: newUUID(),
+          type,
+          ...(type === 'schedule' ? { scheduleType: 'daily' } : {}),
+          ...(type === 'sunEvent' ? { event: 'sunrise' as const, offsetMinutes: 0 } : {}),
+        },
+      }),
+    [],
+  );
+
+  const removeTrigger = useCallback((index: number) => dispatch({ type: 'REMOVE_TRIGGER', index }), []);
+
+  const setRootConditions = useCallback(
+    (conditions: AutomationConditionDraft[]) => dispatch({ type: 'SET_ROOT_CONDITIONS', conditions }),
+    [],
+  );
+
+  const setCondition = useCallback(
+    (path: number[], condition: AutomationConditionDraft) => dispatch({ type: 'SET_CONDITION', path, condition }),
+    [],
+  );
+
+  const setBlock = useCallback(
+    (index: number, block: AutomationBlockDraft) => dispatch({ type: 'SET_BLOCK', index, block }),
+    [],
+  );
+
+  const addBlock = useCallback(
+    (block: AutomationBlockDraft) => dispatch({ type: 'ADD_BLOCK', block }),
+    [],
+  );
+
+  const removeBlock = useCallback((index: number) => dispatch({ type: 'REMOVE_BLOCK', index }), []);
+
+  const moveBlock = useCallback(
+    (fromIndex: number, toIndex: number) => dispatch({ type: 'MOVE_BLOCK', fromIndex, toIndex }),
+    [],
+  );
+
+  return {
+    draft,
+    isDirty,
+    dispatch,
+    reset,
+    markSaved,
+    patchDraft,
+    setTrigger,
+    addTrigger,
+    removeTrigger,
+    setRootConditions,
+    setCondition,
+    setBlock,
+    addBlock,
+    removeBlock,
+    moveBlock,
+  };
+}

@@ -27,7 +27,7 @@ class MenuBarPlugin: NSObject {
                 NSLog("MenuBarPlugin: Custom menu bar icon loaded from asset catalog")
             } else {
                 // Fallback to SF Symbol if custom icon not found
-                image = NSImage(systemSymbolName: "house.fill", accessibilityDescription: "HomeKit MCP")
+                image = NSImage(systemSymbolName: "house.fill", accessibilityDescription: "CompAI - Home")
                 NSLog("MenuBarPlugin: Falling back to system symbol 'house.fill'")
             }
             button.image = image
@@ -65,7 +65,7 @@ class MenuBarPlugin: NSObject {
 
         menu.addItem(NSMenuItem.separator())
 
-        let quitItem = NSMenuItem(title: "Quit HomeKit MCP", action: #selector(quit), keyEquivalent: "q")
+        let quitItem = NSMenuItem(title: "Quit CompAI - Home", action: #selector(quit), keyEquivalent: "q")
         quitItem.target = self
         menu.addItem(quitItem)
 

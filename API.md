@@ -1,4 +1,4 @@
-# HomeKit MCP — API Reference
+# CompAI - Home — API Reference
 
 ## Table of Contents
 
@@ -10,7 +10,7 @@
   - [Devices](#devices)
   - [Scenes](#scenes)
   - [Logs](#logs)
-  - [Workflows](#workflows)
+  - [automations](#automations)
   - [Webhook Trigger](#webhook-trigger)
 - [MCP Protocol (JSON-RPC 2.0)](#mcp-protocol-json-rpc-20)
   - [Streamable HTTP Transport](#streamable-http-transport)
@@ -25,7 +25,7 @@
 
 ## Overview
 
-The HomeKit MCP server exposes Apple HomeKit devices, scenes, logs, and automation workflows through two complementary interfaces:
+The CompAI - Home server exposes Apple HomeKit devices, scenes, logs, and automations through two complementary interfaces:
 
 - **REST API** — standard HTTP endpoints for CRUD operations
 - **MCP Protocol** — JSON-RPC 2.0 over HTTP (Streamable HTTP or legacy SSE) for AI/LLM tool use
@@ -42,9 +42,9 @@ The HomeKit MCP server exposes Apple HomeKit devices, scenes, logs, and automati
 A global temperature unit preference controls how temperature values are exposed across all surfaces. When set to `fahrenheit`, all temperature characteristics (Current Temperature, Target Temperature) have their `value`, `minValue`, `maxValue`, and `stepValue` converted from Celsius to Fahrenheit, and the `units` field reads `"fahrenheit"` instead of `"celsius"`. This applies to REST API responses, MCP tool results, WebSocket broadcasts, and the native app UI.
 
 - **Outgoing values** (device state, logs, WebSocket events): Converted from Celsius to the configured unit at the point of creation/output.
-- **Incoming values** (`control_device`, workflow actions): Accepted in the configured unit and converted back to Celsius before sending to HomeKit.
+- **Incoming values** (`control_device`, automation actions): Accepted in the configured unit and converted back to Celsius before sending to HomeKit.
 - **Logs**: Persisted in the unit active at the time of creation. Changing the unit does not retroactively convert existing log entries.
-- **Workflows**: When the unit preference changes, all workflow definitions are automatically migrated — temperature thresholds in triggers, conditions, and actions are converted to the new unit.
+- **automations**: When the unit preference changes, all automation definitions are automatically migrated — temperature thresholds in triggers, conditions, and actions are converted to the new unit.
 
 ### Feature Flags
 
@@ -52,9 +52,9 @@ Each API surface is independently toggleable in the app settings:
 
 | Flag | Controls |
 |---|---|
-| REST API enabled | All `/devices`, `/scenes`, `/logs`, `/workflows` endpoints |
+| REST API enabled | All `/devices`, `/scenes`, `/logs`, `/automations` endpoints |
 | MCP Protocol enabled | `/mcp`, `/sse`, `/messages` endpoints |
-| Workflows enabled | Workflow REST endpoints and MCP workflow tools |
+| automations enabled | automation REST endpoints and MCP automation tools |
 | Log Access enabled | `GET /logs` endpoint and `get_logs` MCP tool |
 | WebSocket enabled | `GET /ws` WebSocket endpoint for real-time push |
 
@@ -92,7 +92,7 @@ Tokens are managed in the app's settings (stored in Keychain). Multiple tokens a
 
 ## WebSocket (Real-time Updates)
 
-The server provides a WebSocket endpoint for pushing real-time log and workflow execution log updates to connected clients.
+The server provides a WebSocket endpoint for pushing real-time log and automation execution log updates to connected clients.
 
 ### Connection
 
@@ -114,15 +114,15 @@ All messages are JSON objects with a `type` field.
 |---|---|---|
 | `connected` | Sent on successful connection | `{"type":"connected","connectionId":"<UUID>"}` |
 | `log` | New state-change log entry | `{"type":"log","data":{...StateChangeLog...}}` |
-| `workflow_log` | New workflow execution started | `{"type":"workflow_log","data":{...WorkflowExecutionLog...}}` |
-| `workflow_log_updated` | Existing workflow execution updated (completed/failed) | `{"type":"workflow_log_updated","data":{...WorkflowExecutionLog...}}` |
-| `workflows_updated` | Workflow definitions changed (created/updated/deleted/enabled/disabled) | `{"type":"workflows_updated","data":[{...Workflow...}]}` |
+| `automation_log` | New automation execution started | `{"type":"automation_log","data":{...WorkflowExecutionLog...}}` |
+| `automation_log_updated` | Existing automation execution updated (completed/failed) | `{"type":"automation_log_updated","data":{...WorkflowExecutionLog...}}` |
+| `workflows_updated` | automation definitions changed (created/updated/deleted/enabled/disabled) | `{"type":"workflows_updated","data":[{...automation...}]}` |
 | `devices_updated` | Structural device/scene change (added/removed/renamed/reachability) | `{"type":"devices_updated"}` |
 | `characteristic_updated` | Single characteristic value changed (only for `observed` characteristics) | `{"type":"characteristic_updated","data":{"deviceId":"...","serviceId":"...","characteristicId":"...","characteristicType":"...","value":...,"timestamp":"..."}}` |
 | `logs_cleared` | All logs have been cleared on the server | `{"type":"logs_cleared"}` |
 | `pong` | Response to client ping | `{"type":"pong"}` |
 
-The `data` field in `log` messages has the same shape as items in the `GET /logs` response. The `data` field in `workflow_log` / `workflow_log_updated` messages has the same shape as items in the `GET /workflows/:id/logs` response. The `data` field in `workflows_updated` messages is an array with the same shape as the `GET /workflows` response. The `data` field in `characteristic_updated` messages contains: `deviceId` (stable registry ID), `serviceId` (stable registry ID), `characteristicId` (stable registry ID), `characteristicType` (HomeKit type string), `value` (the new value), and `timestamp` (ISO 8601). This event is only sent for characteristics marked as `observed` in the device registry, and is batched with a 100ms window.
+The `data` field in `log` messages has the same shape as items in the `GET /logs` response. The `data` field in `automation_log` / `automation_log_updated` messages has the same shape as items in the `GET /automations/:id/logs` response. The `data` field in `workflows_updated` messages is an array with the same shape as the `GET /automations` response. The `data` field in `characteristic_updated` messages contains: `deviceId` (stable registry ID), `serviceId` (stable registry ID), `characteristicId` (stable registry ID), `characteristicType` (HomeKit type string), `value` (the new value), and `timestamp` (ISO 8601). This event is only sent for characteristics marked as `observed` in the device registry, and is batched with a 100ms window.
 
 #### Client → Server
 
@@ -144,14 +144,14 @@ ws.onmessage = (event) => {
     case 'log':
       console.log('New log:', msg.data);
       break;
-    case 'workflow_log':
-      console.log('Workflow started:', msg.data);
+    case 'automation_log':
+      console.log('automation started:', msg.data);
       break;
-    case 'workflow_log_updated':
-      console.log('Workflow updated:', msg.data);
+    case 'automation_log_updated':
+      console.log('automation updated:', msg.data);
       break;
     case 'workflows_updated':
-      console.log('Workflows changed:', msg.data);
+      console.log('automations changed:', msg.data);
       break;
   }
 };
@@ -240,13 +240,13 @@ Requires: **REST API enabled** + **Log Access enabled**
 | Method | Path | Description | Response |
 |---|---|---|---|
 | `GET` | `/logs` | Get filtered, paginated logs | Paginated log object |
-| `DELETE` | `/logs` | Clear all logs (state-change + workflow execution) | `{"cleared": true}` |
+| `DELETE` | `/logs` | Clear all logs (state-change + automation execution) | `{"cleared": true}` |
 
 **Query Parameters:**
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
-| `categories` | string (comma-separated) | all | Filter by category. Values: `state_change`, `webhook_call`, `webhook_error`, `mcp_call`, `rest_call`, `server_error`, `workflow_execution`, `workflow_error`, `scene_execution`, `scene_error`, `backup_restore` |
+| `categories` | string (comma-separated) | all | Filter by category. Values: `state_change`, `webhook_call`, `webhook_error`, `mcp_call`, `rest_call`, `server_error`, `automation_execution`, `automation_error`, `scene_execution`, `scene_error`, `backup_restore` |
 | `device_name` | string | — | Case-insensitive substring filter on device name |
 | `date` | string | — | Single day filter (`yyyy-MM-dd`). Mutually exclusive with `from`/`to` |
 | `from` | string | — | Range start (ISO 8601: `yyyy-MM-dd` or full datetime) |
@@ -265,17 +265,17 @@ Requires: **REST API enabled** + **Log Access enabled**
 }
 ```
 
-Each log entry is a polymorphic JSON object — the `category` field determines which fields are present (see [StateChangeLog](#statechangelog) in Data Models). Running (in-progress) workflow executions are included in the response.
+Each log entry is a polymorphic JSON object — the `category` field determines which fields are present (see [StateChangeLog](#statechangelog) in Data Models). Running (in-progress) automation executions are included in the response.
 
 ---
 
-### Workflow Runtime
+### automation Runtime
 
 Requires: **REST API enabled**
 
 | Method | Path | Description | Response |
 |---|---|---|---|
-| `GET` | `/workflow-runtime` | Get workflow runtime information (sun events) | `WorkflowRuntimeResponse` |
+| `GET` | `/automation-runtime` | Get automation runtime information (sun events) | `WorkflowRuntimeResponse` |
 
 **Response (200):**
 
@@ -296,39 +296,39 @@ Requires: **REST API enabled**
 
 ---
 
-### Workflows
+### automations
 
-Requires: **REST API enabled** + **Workflows enabled**
+Requires: **REST API enabled** + **automations enabled**
 
 | Method | Path | Description | Status | Response |
 |---|---|---|---|---|
-| `GET` | `/workflows` | List all workflows | 200 | `Workflow[]` |
-| `GET` | `/workflows/:workflowId` | Get a single workflow | 200 | `Workflow` |
-| `POST` | `/workflows` | Create a workflow | 201 | `Workflow` |
-| `PUT` | `/workflows/:workflowId` | Update a workflow (partial) | 200 | `Workflow` |
-| `DELETE` | `/workflows/:workflowId` | Delete a workflow | 200 | `{"deleted": true}` |
-| `POST` | `/workflows/:workflowId/trigger` | Trigger a workflow | 202 | `TriggerResult` |
-| `GET` | `/workflows/:workflowId/logs` | Get execution history | 200 | `WorkflowExecutionLog[]` |
-| `POST` | `/workflows/generate` | Generate a workflow using AI | 201 | `GenerateResult` |
-| `POST` | `/workflows/:workflowId/improve` | Improve a workflow using AI (preview only) | 200 | `Workflow` |
+| `GET` | `/automations` | List all automations | 200 | `automation[]` |
+| `GET` | `/automations/:workflowId` | Get a single automation | 200 | `automation` |
+| `POST` | `/automations` | Create an automation | 201 | `automation` |
+| `PUT` | `/automations/:workflowId` | Update an automation (partial) | 200 | `automation` |
+| `DELETE` | `/automations/:workflowId` | Delete an automation | 200 | `{"deleted": true}` |
+| `POST` | `/automations/:workflowId/trigger` | Trigger an automation | 202 | `TriggerResult` |
+| `GET` | `/automations/:workflowId/logs` | Get execution history | 200 | `WorkflowExecutionLog[]` |
+| `POST` | `/automations/generate` | Generate an automation using AI | 201 | `GenerateResult` |
+| `POST` | `/automations/:workflowId/improve` | Improve an automation using AI (preview only) | 200 | `automation` |
 
-**GET /workflows/:workflowId/logs query params:**
+**GET /automations/:workflowId/logs query params:**
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
 | `limit` | integer | `50` | Max entries to return |
 
-**POST /workflows — Create**
+**POST /automations — Create**
 
-Send a full `Workflow` JSON body. The following fields are auto-generated and should be omitted: `id`, `createdAt`, `updatedAt`, `metadata`. Defaults: `isEnabled = true`, `continueOnError = false`, `retriggerPolicy = "ignoreNew"`.
+Send a full `automation` JSON body. The following fields are auto-generated and should be omitted: `id`, `createdAt`, `updatedAt`, `metadata`. Defaults: `isEnabled = true`, `continueOnError = false`, `retriggerPolicy = "ignoreNew"`.
 
-**PUT /workflows/:workflowId — Update**
+**PUT /automations/:workflowId — Update**
 
 Send a partial JSON body. Only included top-level fields are updated; omitted fields are preserved. Arrays (`triggers`, `conditions`, `blocks`) are replaced wholesale when provided.
 
 Updatable fields: `name`, `description`, `isEnabled`, `continueOnError`, `retriggerPolicy`, `triggers`, `conditions`, `blocks`.
 
-See [Workflow](#workflow) in Data Models for the full schema.
+See [automation](#automation) in Data Models for the full schema.
 
 ---
 
@@ -351,27 +351,27 @@ Valid values: `"celsius"`, `"fahrenheit"`. Returns **400** for invalid values.
 
 ### Webhook Trigger
 
-Requires: **REST API enabled** + **Workflows enabled**
+Requires: **REST API enabled** + **automations enabled**
 
 | Method | Path | Description | Status | Response |
 |---|---|---|---|---|
-| `POST` | `/workflows/webhook/:token` | Trigger workflows by webhook token | 202 | `TriggerResult[]` |
+| `POST` | `/automations/webhook/:token` | Trigger automations by webhook token | 202 | `TriggerResult[]` |
 
-Finds all enabled workflows that have a webhook trigger matching the given token and triggers each one. Returns an array of results.
+Finds all enabled automations that have a webhook trigger matching the given token and triggers each one. Returns an array of results.
 
-**404** if no workflows match the token.
+**404** if no automations match the token.
 
 ---
 
-### AI Workflow Generation
+### AI automation Generation
 
-Requires: **REST API enabled** + **Workflows enabled** + **AI enabled** (with a valid API key configured in settings)
+Requires: **REST API enabled** + **automations enabled** + **AI enabled** (with a valid API key configured in settings)
 
 | Method | Path | Description | Status | Response |
 |---|---|---|---|---|
-| `POST` | `/workflows/generate` | Generate a workflow from a natural language prompt | 201 | `GenerateResult` |
+| `POST` | `/automations/generate` | Generate an automation from a natural language prompt | 201 | `GenerateResult` |
 
-The MCP server acts as a proxy — it enriches the prompt with device context, calls the configured LLM (Claude, OpenAI, or Gemini), parses the response into a workflow, saves it, and returns a summary.
+The MCP server acts as a proxy — it enriches the prompt with device context, calls the configured LLM (Claude, OpenAI, or Gemini), parses the response into an automation, saves it, and returns a summary.
 
 **Request body:**
 
@@ -404,23 +404,23 @@ The MCP server acts as a proxy — it enriches the prompt with device context, c
 | Status | Reason |
 |---|---|
 | 400 | Missing or empty prompt |
-| 404 | REST API, Workflows, or AI features disabled |
+| 404 | REST API, automations, or AI features disabled |
 | 422 | Vague prompt or model refused to generate |
-| 500 | AI response could not be parsed into a valid workflow |
+| 500 | AI response could not be parsed into a valid automation |
 | 502 | LLM API network or upstream error |
 | 503 | AI not configured (no API key set) |
 
 Error body: `{ "error": "Human-readable error message" }`
 
-### Improve Workflow with AI
+### Improve automation with AI
 
-Requires: **REST API enabled** + **Workflows enabled** + **AI enabled** (with a valid API key configured in settings)
+Requires: **REST API enabled** + **automations enabled** + **AI enabled** (with a valid API key configured in settings)
 
 | Method | Path | Description | Status | Response |
 |---|---|---|---|---|
-| `POST` | `/workflows/:workflowId/improve` | Improve an existing workflow using AI | 200 | `Workflow` |
+| `POST` | `/automations/:workflowId/improve` | Improve an existing automation using AI | 200 | `automation` |
 
-Analyzes the existing workflow structure, fixes labels/titles that don't match their configuration, and applies the requested improvements. The response is a **preview only** — the workflow is **not saved** until you apply it with `PUT /workflows/:workflowId`.
+Analyzes the existing automation structure, fixes labels/titles that don't match their configuration, and applies the requested improvements. The response is a **preview only** — the automation is **not saved** until you apply it with `PUT /automations/:workflowId`.
 
 **Request body:**
 
@@ -432,20 +432,20 @@ Analyzes the existing workflow structure, fixes labels/titles that don't match t
 
 | Field | Type | Required | Description |
 |---|---|---|---|
-| `prompt` | string | no | Instructions for how to improve the workflow. When omitted or empty, the AI performs an automatic review and optimization (fixes labels, suggests structural improvements). |
+| `prompt` | string | no | Instructions for how to improve the automation. When omitted or empty, the AI performs an automatic review and optimization (fixes labels, suggests structural improvements). |
 
 **Success response (200):**
 
-Returns the full improved `Workflow` JSON (same schema as `GET /workflows/:workflowId`). The workflow retains its original `id`, `createdAt`, and `metadata`. The `updatedAt` field is set to the current time.
+Returns the full improved `automation` JSON (same schema as `GET /automations/:workflowId`). The automation retains its original `id`, `createdAt`, and `metadata`. The `updatedAt` field is set to the current time.
 
-**To apply the improvements**, send the response body (or relevant fields) to `PUT /workflows/:workflowId`.
+**To apply the improvements**, send the response body (or relevant fields) to `PUT /automations/:workflowId`.
 
 **Error responses:**
 
 | Status | Reason |
 |---|---|
-| 400 | Invalid workflow ID |
-| 404 | Workflow not found, or REST API / Workflows / AI features disabled |
+| 400 | Invalid automation ID |
+| 404 | automation not found, or REST API / automations / AI features disabled |
 | 422 | Vague prompt or model refused |
 | 500 | AI response could not be parsed |
 | 502 | LLM API network or upstream error |
@@ -463,7 +463,7 @@ Requires: **MCP Protocol enabled**
 |---|---|
 | Protocol version | `2025-03-26` |
 | Supported versions | `2025-03-26`, `2024-11-05` |
-| Server name | `HomeKitMCP` |
+| Server name | `CompAI-Home` |
 | Server version | `1.0.0` |
 
 ### JSON-RPC Request
@@ -709,7 +709,7 @@ Returns success message with scene name, or error with reason.
 
 #### Metadata Tools
 
-Always available. These tools help AI agents discover valid type names and workflow schema before making requests.
+Always available. These tools help AI agents discover valid type names and automation schema before making requests.
 
 ##### list_device_categories
 
@@ -729,139 +729,139 @@ Example entry: `- Sensor — Environmental or state sensor (motion, temperature,
 
 ---
 
-##### get_workflow_schema
+##### get_automation_schema
 
-Get a structured JSON schema for workflow creation and updates.
+Get a structured JSON schema for automation creation and updates.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | *(none)* | | | |
 
-Returns a JSON object describing the full workflow definition format including:
-- Top-level workflow fields
+Returns a JSON object describing the full automation definition format including:
+- Top-level automation fields
 - All trigger types with their fields and valid values
 - All block types (action and flow control) with fields
 - All condition types with comparison operators
 - Valid enum values for policies, execution modes, etc.
 - Important rules and restrictions
 
-Use this schema to reliably generate workflows for `create_workflow` and `update_workflow`.
+Use this schema to reliably generate automations for `create_automation` and `update_automation`.
 
 ---
 
-#### Workflow Tools
+#### automation Tools
 
-Requires **Workflows enabled**.
+Requires **automations enabled**.
 
-##### list_workflows
+##### list_automations
 
-List all workflows with status and stats.
+List all automations with status and stats.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | *(none)* | | | |
 
-Returns markdown text with workflow name, enabled status, trigger/block counts, execution stats, and failure counts.
+Returns markdown text with automation name, enabled status, trigger/block counts, execution stats, and failure counts.
 
 ---
 
-##### get_workflow
+##### get_automation
 
-Get the full definition of a workflow.
+Get the full definition of an automation.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
-| `workflow_id` | string | yes | UUID of the workflow |
+| `automation_id` | string | yes | UUID of the automation |
 
-Returns complete JSON `Workflow` object.
+Returns complete JSON `automation` object.
 
 ---
 
-##### create_workflow
+##### create_automation
 
-Create a new workflow.
+Create a new automation.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
-| `workflow` | object | yes | Complete workflow definition (see [Workflow schema](#workflow)) |
+| `automation` | object | yes | Complete automation definition (see [automation schema](#automation)) |
 
 Auto-generated fields (omit from input): `id`, `createdAt`, `updatedAt`, `metadata`.
 
 Defaults: `isEnabled = true`, `continueOnError = false`, `retriggerPolicy = "ignoreNew"`.
 
-Returns success message with the new workflow's ID and name.
+Returns success message with the new automation's ID and name.
 
 ---
 
-##### update_workflow
+##### update_automation
 
-Update an existing workflow (partial update).
+Update an existing automation (partial update).
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
-| `workflow_id` | string | yes | UUID of the workflow |
-| `workflow` | object | yes | Partial or full workflow JSON |
+| `automation_id` | string | yes | UUID of the automation |
+| `automation` | object | yes | Partial or full automation JSON |
 
 Only top-level fields present in the object are replaced. Arrays (`triggers`, `conditions`, `blocks`) are replaced wholesale.
 
 ---
 
-##### delete_workflow
+##### delete_automation
 
-Delete a workflow permanently.
+Delete an automation permanently.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
-| `workflow_id` | string | yes | UUID of the workflow |
+| `automation_id` | string | yes | UUID of the automation |
 
 ---
 
-##### enable_workflow
+##### enable_automation
 
-Toggle a workflow on or off.
+Toggle an automation on or off.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
-| `workflow_id` | string | yes | UUID of the workflow |
+| `automation_id` | string | yes | UUID of the automation |
 | `enabled` | boolean | yes | `true` to enable, `false` to disable |
 
 ---
 
-##### get_workflow_logs
+##### get_automation_logs
 
-Get execution history for workflows.
+Get execution history for automations.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
-| `workflow_id` | string | no | Filter to a specific workflow |
+| `automation_id` | string | no | Filter to a specific automation |
 | `limit` | integer | no | Max entries (default: 20) |
 
 Returns formatted text with timestamp, status, duration, trigger info, errors, and block results.
 
 ---
 
-##### trigger_workflow
+##### trigger_automation
 
-Manually trigger a workflow (fire-and-forget).
+Manually trigger an automation (fire-and-forget).
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
-| `workflow_id` | string | yes | UUID of the workflow |
+| `automation_id` | string | yes | UUID of the automation |
 
 Returns the scheduling outcome based on the retrigger policy. See [TriggerResult](#triggerresult).
 
 ---
 
-##### improve_workflow
+##### improve_automation
 
-Use AI to analyze and improve an existing workflow. Returns the improved workflow JSON **without saving it**. Review the result and use `update_workflow` to apply the changes.
+Use AI to analyze and improve an existing automation. Returns the improved automation JSON **without saving it**. Review the result and use `update_automation` to apply the changes.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
-| `workflow_id` | string | yes | UUID of the workflow to improve |
-| `prompt` | string | no | Instructions for how to improve the workflow. When omitted, performs automatic review and optimization. |
+| `automation_id` | string | yes | UUID of the automation to improve |
+| `prompt` | string | no | Instructions for how to improve the automation. When omitted, performs automatic review and optimization. |
 
-Returns the full improved workflow JSON as text. The workflow retains its original ID, creation date, and metadata. Use `update_workflow` with the returned JSON to persist the changes.
+Returns the full improved automation JSON as text. The automation retains its original ID, creation date, and metadata. Use `update_automation` with the returned JSON to persist the changes.
 
 Requires AI to be configured (API key set in settings). Returns an error if AI is not available.
 
@@ -979,20 +979,20 @@ Private IP ranges are blocked by default (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0
 
 ---
 
-### Workflow
+### automation
 
 | Field | Type | Nullable | Description |
 |---|---|---|---|
 | `id` | UUID | no | Auto-generated |
-| `name` | string | no | Workflow name |
+| `name` | string | no | automation name |
 | `description` | string | yes | Optional description |
-| `isEnabled` | boolean | no | Whether the workflow is active |
-| `triggers` | WorkflowTrigger[] | no | What starts the workflow |
-| `conditions` | WorkflowCondition[] | yes | Execution guards (all must pass for workflow to run). Evaluated after any trigger fires. Failure logs as `conditionNotMet`. |
-| `blocks` | WorkflowBlock[] | no | Sequence of actions/flow control |
+| `isEnabled` | boolean | no | Whether the automation is active |
+| `triggers` | AutomationTrigger[] | no | What starts the automation |
+| `conditions` | AutomationCondition[] | yes | Execution guards (all must pass for automation to run). Evaluated after any trigger fires. Failure logs as `conditionNotMet`. |
+| `blocks` | AutomationBlock[] | no | Sequence of actions/flow control |
 | `continueOnError` | boolean | no | Skip failed blocks instead of stopping |
 | `retriggerPolicy` | string | no | Default concurrent execution policy (see below) |
-| `metadata` | WorkflowMetadata | no | Execution statistics |
+| `metadata` | AutomationMetadata | no | Execution statistics |
 | `createdAt` | string (ISO 8601) | no | Creation timestamp |
 | `updatedAt` | string (ISO 8601) | no | Last update timestamp |
 
@@ -1005,7 +1005,7 @@ Private IP ranges are blocked by default (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0
 | `queueAndExecute` | Queue new trigger, execute after current finishes |
 | `cancelOnly` | Cancel current execution, don't restart |
 
-**WorkflowMetadata:**
+**AutomationMetadata:**
 
 | Field | Type | Description |
 |---|---|---|
@@ -1017,15 +1017,15 @@ Private IP ranges are blocked by default (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0
 
 ---
 
-### WorkflowTrigger
+### AutomationTrigger
 
-Each trigger has a `type` discriminator, an optional `retriggerPolicy` that overrides the workflow-level default, and an optional `conditions` array for per-trigger guard conditions.
+Each trigger has a `type` discriminator, an optional `retriggerPolicy` that overrides the automation-level default, and an optional `conditions` array for per-trigger guard conditions.
 
-**Per-trigger guards** are evaluated after the trigger matches but before the workflow is considered triggered. If per-trigger guards fail, the trigger is **silently skipped** (as if it never matched). No execution log entry is created. Only `deviceState` and `timeCondition` condition types are allowed (no `blockResult`). Per-trigger guards use the same `WorkflowCondition` format as execution guards.
+**Per-trigger guards** are evaluated after the trigger matches but before the automation is considered triggered. If per-trigger guards fail, the trigger is **silently skipped** (as if it never matched). No execution log entry is created. Only `deviceState` and `timeCondition` condition types are allowed (no `blockResult`). Per-trigger guards use the same `AutomationCondition` format as execution guards.
 
 #### deviceStateChange
 
-Fires when a device characteristic changes. **The referenced characteristic must have `"notify"` permission** — only characteristics that support HomeKit event notifications can trigger workflows. The server validates this on create/update and returns an error if the characteristic lacks notify permission.
+Fires when a device characteristic changes. **The referenced characteristic must have `"notify"` permission** — only characteristics that support HomeKit event notifications can trigger automations. The server validates this on create/update and returns an error if the characteristic lacks notify permission.
 
 | Field | Type | Required | Description |
 |---|---|---|---|
@@ -1038,7 +1038,7 @@ Fires when a device characteristic changes. **The referenced characteristic must
 | `characteristicId` | string | yes | Stable characteristic ID (resolvable via device registry) |
 | `condition` | object | no | Trigger condition (see below) |
 | `retriggerPolicy` | string | no | Override policy |
-| `conditions` | WorkflowCondition[] | no | Per-trigger guard conditions (silently skip trigger if not met) |
+| `conditions` | AutomationCondition[] | no | Per-trigger guard conditions (silently skip trigger if not met) |
 
 **Trigger condition types:**
 
@@ -1063,7 +1063,7 @@ Time-based trigger.
 | `name` | string | no | |
 | `scheduleType` | object | yes | Schedule definition (see below) |
 | `retriggerPolicy` | string | no | |
-| `conditions` | WorkflowCondition[] | no | Per-trigger guard conditions |
+| `conditions` | AutomationCondition[] | no | Per-trigger guard conditions |
 
 **Schedule types:**
 
@@ -1085,7 +1085,7 @@ Sunrise/sunset trigger.
 | `event` | `"sunrise"` or `"sunset"` | yes | |
 | `offsetMinutes` | integer | no | Negative = before, positive = after, 0 = exact |
 | `retriggerPolicy` | string | no | |
-| `conditions` | WorkflowCondition[] | no | Per-trigger guard conditions |
+| `conditions` | AutomationCondition[] | no | Per-trigger guard conditions |
 
 #### webhook
 
@@ -1097,22 +1097,22 @@ External HTTP trigger with a unique token.
 | `name` | string | no | |
 | `token` | string | yes | Unique webhook token |
 | `retriggerPolicy` | string | no | |
-| `conditions` | WorkflowCondition[] | no | Per-trigger guard conditions |
+| `conditions` | AutomationCondition[] | no | Per-trigger guard conditions |
 
-#### workflow
+#### automation
 
-Makes this workflow callable by other workflows.
+Makes this automation callable by other automations.
 
 | Field | Type | Required | Description |
 |---|---|---|---|
-| `type` | `"workflow"` | yes | |
+| `type` | `"automation"` | yes | |
 | `name` | string | no | |
 | `retriggerPolicy` | string | no | |
-| `conditions` | WorkflowCondition[] | no | Per-trigger guard conditions |
+| `conditions` | AutomationCondition[] | no | Per-trigger guard conditions |
 
 ---
 
-### WorkflowBlock
+### AutomationBlock
 
 Blocks use a two-level discriminator: `block` (`"action"` or `"flowControl"`) and `type`.
 
@@ -1132,7 +1132,7 @@ All blocks accept an optional `name` field.
 | `characteristicId` | string | yes | Stable characteristic ID (resolvable via device registry) |
 | `value` | any | yes | Value to set |
 
-**Permission requirement:** The referenced characteristic must have `"write"` permission. The server validates this on workflow create/update.
+**Permission requirement:** The referenced characteristic must have `"write"` permission. The server validates this on automation create/update.
 
 ##### runScene
 
@@ -1173,19 +1173,19 @@ All blocks accept an optional `name` field.
 | Field | Type | Required | Description |
 |---|---|---|---|
 | `type` | `"waitForState"` | yes | |
-| `condition` | WorkflowCondition | yes | Condition to wait for (same format as conditional/repeatWhile — supports AND/OR/NOT groups, deviceState, timeCondition) |
+| `condition` | AutomationCondition | yes | Condition to wait for (same format as conditional/repeatWhile — supports AND/OR/NOT groups, deviceState, timeCondition) |
 | `timeoutSeconds` | number | yes | Max wait time in seconds |
 
-> **Backward compatibility:** The old flat format (`deviceId`, `characteristicId`, `condition` as ComparisonOperator) is still accepted for decoding and automatically converted to a `WorkflowCondition.deviceState`.
+> **Backward compatibility:** The old flat format (`deviceId`, `characteristicId`, `condition` as ComparisonOperator) is still accepted for decoding and automatically converted to a `AutomationCondition.deviceState`.
 
 ##### conditional
 
 | Field | Type | Required | Description |
 |---|---|---|---|
 | `type` | `"conditional"` | yes | |
-| `condition` | WorkflowCondition | yes | Condition to evaluate |
-| `thenBlocks` | WorkflowBlock[] | yes | Blocks to run if true |
-| `elseBlocks` | WorkflowBlock[] | no | Blocks to run if false |
+| `condition` | AutomationCondition | yes | Condition to evaluate |
+| `thenBlocks` | AutomationBlock[] | yes | Blocks to run if true |
+| `elseBlocks` | AutomationBlock[] | no | Blocks to run if false |
 
 ##### repeat
 
@@ -1193,7 +1193,7 @@ All blocks accept an optional `name` field.
 |---|---|---|---|
 | `type` | `"repeat"` | yes | |
 | `count` | integer | yes | Number of iterations |
-| `blocks` | WorkflowBlock[] | yes | Blocks to repeat |
+| `blocks` | AutomationBlock[] | yes | Blocks to repeat |
 | `delayBetweenSeconds` | number | no | Delay between iterations |
 
 ##### repeatWhile
@@ -1201,8 +1201,8 @@ All blocks accept an optional `name` field.
 | Field | Type | Required | Description |
 |---|---|---|---|
 | `type` | `"repeatWhile"` | yes | |
-| `condition` | WorkflowCondition | yes | Continue condition (no `blockResult` allowed) |
-| `blocks` | WorkflowBlock[] | yes | Blocks to repeat |
+| `condition` | AutomationCondition | yes | Continue condition (no `blockResult` allowed) |
+| `blocks` | AutomationBlock[] | yes | Blocks to repeat |
 | `maxIterations` | integer | yes | Safety limit |
 | `delayBetweenSeconds` | number | no | Delay between iterations |
 
@@ -1212,7 +1212,7 @@ All blocks accept an optional `name` field.
 |---|---|---|---|
 | `type` | `"group"` | yes | |
 | `label` | string | no | Group label |
-| `blocks` | WorkflowBlock[] | yes | Nested blocks |
+| `blocks` | AutomationBlock[] | yes | Nested blocks |
 
 ##### return
 
@@ -1222,21 +1222,21 @@ All blocks accept an optional `name` field.
 | `outcome` | string | yes | `"success"`, `"error"`, or `"cancelled"` |
 | `message` | string | no | Optional message |
 
-Exits the current scope (group, repeat, conditional). At top level, terminates the entire workflow.
+Exits the current scope (group, repeat, conditional). At top level, terminates the entire automation.
 
 ##### executeWorkflow
 
 | Field | Type | Required | Description |
 |---|---|---|---|
 | `type` | `"executeWorkflow"` | yes | |
-| `targetWorkflowId` | string (UUID) | yes | Workflow to execute |
+| `targetWorkflowId` | string (UUID) | yes | automation to execute |
 | `executionMode` | string | yes | `"inline"`, `"parallel"`, or `"delegate"` |
 
 ---
 
-### WorkflowCondition
+### AutomationCondition
 
-Conditions are used in workflow-level guards, conditional blocks, and repeatWhile blocks. They support arbitrary nesting via `and`/`or`/`not`.
+Conditions are used in automation-level guards, conditional blocks, and repeatWhile blocks. They support arbitrary nesting via `and`/`or`/`not`.
 
 #### deviceState
 
@@ -1267,7 +1267,7 @@ Conditions are used in workflow-level guards, conditional blocks, and repeatWhil
 
 #### blockResult
 
-Only valid inside `conditional` block conditions. Not allowed in workflow-level guards or `repeatWhile`.
+Only valid inside `conditional` block conditions. Not allowed in automation-level guards or `repeatWhile`.
 
 | Field | Type | Required | Description |
 |---|---|---|---|
@@ -1276,21 +1276,21 @@ Only valid inside `conditional` block conditions. Not allowed in workflow-level 
 | `blockId` | string (UUID) | for `specific` | Must reference an earlier block |
 | `expectedStatus` | string | yes | `"success"`, `"failure"`, or `"cancelled"` |
 
-Requires `continueOnError = true` on the workflow.
+Requires `continueOnError = true` on the automation.
 
 #### Logical operators
 
 | Type | Field | Description |
 |---|---|---|
-| `and` | `conditions: WorkflowCondition[]` | All must pass |
-| `or` | `conditions: WorkflowCondition[]` | Any must pass |
-| `not` | `condition: WorkflowCondition` | Negates inner condition |
+| `and` | `conditions: AutomationCondition[]` | All must pass |
+| `or` | `conditions: AutomationCondition[]` | Any must pass |
+| `not` | `condition: AutomationCondition` | Negates inner condition |
 
 ---
 
 ### TriggerResult
 
-Returned by workflow trigger endpoints. Encoded as flat JSON.
+Returned by automation trigger endpoints. Encoded as flat JSON.
 
 | Status | HTTP Code | Description |
 |---|---|---|
@@ -1299,9 +1299,9 @@ Returned by workflow trigger endpoints. Encoded as flat JSON.
 | `queued` | 202 | Queued behind current execution |
 | `cancelled` | 202 | Current execution cancelled, no restart |
 | `ignored` | 409 | Already running, trigger ignored |
-| `not_found` | 404 | Workflow not found |
-| `disabled` | 503 | Workflows feature disabled |
-| `workflow_disabled` | 503 | Specific workflow is disabled |
+| `not_found` | 404 | automation not found |
+| `disabled` | 503 | automations feature disabled |
+| `workflow_disabled` | 503 | Specific automation is disabled |
 
 **JSON shape:**
 
@@ -1310,7 +1310,7 @@ Returned by workflow trigger endpoints. Encoded as flat JSON.
   "status": "scheduled",
   "workflowId": "...",
   "workflowName": "...",
-  "message": "Workflow 'Morning Routine' execution scheduled."
+  "message": "automation 'Morning Routine' execution scheduled."
 }
 ```
 
@@ -1371,11 +1371,11 @@ Same device fields as `state_change` (including `unit`), plus:
 |---|---|---|---|
 | `errorDetails` | string | no | Error description |
 
-**`workflow_execution`** / **`workflow_error`** — Workflow executed/failed
+**`automation_execution`** / **`automation_error`** — automation executed/failed
 
 | Field | Type | Description |
 |---|---|---|
-| `workflowExecution` | WorkflowExecutionLog | Full workflow execution data |
+| `workflowExecution` | WorkflowExecutionLog | Full automation execution data |
 
 **`scene_execution`** / **`scene_error`** — Scene executed/failed
 
@@ -1394,7 +1394,7 @@ Same device fields as `state_change` (including `unit`), plus:
 | `subtype` | string | Operation subtype (e.g. `"backup"`, `"restore"`, `"orphan-detection"`) |
 | `summary` | string | Operation summary |
 
-**`ai_interaction`** / **`ai_interaction_error`** — AI workflow operation
+**`ai_interaction`** / **`ai_interaction_error`** — AI automation operation
 
 | Field | Type | Description |
 |---|---|---|
@@ -1424,23 +1424,23 @@ Same device fields as `state_change` (including `unit`), plus:
 | `mcp_call` | MCP tool/resource call |
 | `rest_call` | REST API call |
 | `server_error` | Server error |
-| `workflow_execution` | Workflow executed (includes success, running, skipped/conditionNotMet, and cancelled statuses) |
-| `workflow_error` | Workflow execution failed (only `failure` status) |
+| `automation_execution` | automation executed (includes success, running, skipped/conditionNotMet, and cancelled statuses) |
+| `automation_error` | automation execution failed (only `failure` status) |
 | `scene_execution` | Scene executed |
 | `scene_error` | Scene execution failed |
 | `backup_restore` | Backup/restore operation |
-| `ai_interaction` | AI workflow operation succeeded |
-| `ai_interaction_error` | AI workflow operation failed |
+| `ai_interaction` | AI automation operation succeeded |
+| `ai_interaction_error` | AI automation operation failed |
 
 ### WorkflowExecutionLog
 
-Embedded in `StateChangeLog` entries with `workflow_execution` or `workflow_error` category. Also returned directly by `GET /workflows/:id/logs`.
+Embedded in `StateChangeLog` entries with `automation_execution` or `automation_error` category. Also returned directly by `GET /automations/:id/logs`.
 
 | Field | Type | Nullable | Description |
 |---|---|---|---|
 | `id` | UUID | no | Execution log ID |
-| `workflowId` | UUID | no | Parent workflow ID |
-| `workflowName` | string | no | Workflow name at time of execution |
+| `workflowId` | UUID | no | Parent automation ID |
+| `workflowName` | string | no | automation name at time of execution |
 | `triggeredAt` | string (ISO 8601) | no | When the execution was triggered |
 | `completedAt` | string (ISO 8601) | yes | When the execution finished (null if still running) |
 | `triggerEvent` | TriggerEvent | yes | What triggered the execution |
@@ -1457,14 +1457,14 @@ Embedded in `StateChangeLog` entries with `workflow_execution` or `workflow_erro
 | `success` | Completed successfully |
 | `failure` | Failed with an error |
 | `skipped` | Skipped (e.g. condition not met for a block) |
-| `conditionNotMet` | Execution guards not met (displayed as "Skipped"). The `errorMessage` field describes which conditions failed. When the "Log Skipped Workflows" setting is disabled, workflows with this status are not logged. Per-trigger guard failures are not logged — the trigger is silently skipped. |
+| `conditionNotMet` | Execution guards not met (displayed as "Skipped"). The `errorMessage` field describes which conditions failed. When the "Log Skipped automations" setting is disabled, automations with this status are not logged. Per-trigger guard failures are not logged — the trigger is silently skipped. |
 | `cancelled` | Cancelled (by retrigger policy, return block, or user request). The `errorMessage` field describes the cancellation reason. |
 
 #### TriggerEvent
 
 | Field | Type | Nullable | Description |
 |---|---|---|---|
-| `deviceId` | string | yes | Device that triggered the workflow |
+| `deviceId` | string | yes | Device that triggered the automation |
 | `deviceName` | string | yes | Device name |
 | `serviceId` | string | yes | Service ID |
 | `characteristicType` | string | yes | Characteristic that changed |
@@ -1506,13 +1506,13 @@ Embedded in `StateChangeLog` entries with `workflow_execution` or `workflow_erro
 | Code | Meaning |
 |---|---|
 | 200 | Success |
-| 201 | Created (POST /workflows) |
-| 202 | Accepted (workflow triggers, MCP notifications) |
+| 201 | Created (POST /automations) |
+| 202 | Accepted (automation triggers, MCP notifications) |
 | 400 | Bad request (invalid params, malformed JSON) |
 | 401 | Unauthorized (missing/invalid Bearer token) |
 | 404 | Not found (resource missing or feature disabled) |
 | 405 | Method not allowed |
-| 409 | Conflict (trigger ignored — workflow already running) |
+| 409 | Conflict (trigger ignored — automation already running) |
 | 500 | Internal server error |
 | 503 | Service unavailable (server starting/stopping, feature disabled) |
 

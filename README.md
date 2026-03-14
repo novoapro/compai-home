@@ -1,11 +1,11 @@
 <p align="center">
-  <img src="screenshots/logo-nobg.png" alt="HomeKit MCP" width="120" />
+  <img src="screenshots/logo-nobg.png" alt="CompAI - Home" width="120" />
 </p>
 
-<h1 align="center">HomeKit MCP Server</h1>
+<h1 align="center">CompAI - Home</h1>
 
 <p align="center">
-A macOS menu bar app that exposes your Apple HomeKit devices through the <a href="https://modelcontextprotocol.io">Model Context Protocol (MCP)</a>. Connect AI assistants like Claude to your smart home — query device states, control accessories, create automation workflows, and receive real-time updates when things change.
+A macOS menu bar app that exposes your Apple HomeKit devices through the <a href="https://modelcontextprotocol.io">Model Context Protocol (MCP)</a>. Connect AI assistants like Claude to your smart home — query device states, control accessories, create automations, and receive real-time updates when things change.
 </p>
 
 ---
@@ -19,34 +19,34 @@ The companion web dashboard provides a responsive interface that adapts from mob
 <p align="center">
   <img src="screenshots/web-devices-mobile.png" alt="Device list on mobile" width="260" />
   &nbsp;&nbsp;
-  <img src="screenshots/web-workflows-mobile.png" alt="Workflow list on mobile" width="260" />
+  <img src="screenshots/web-automations-mobile.png" alt="automation list on mobile" width="260" />
   &nbsp;&nbsp;
   <img src="screenshots/web-activity-log-mobile.png" alt="Activity log on mobile" width="260" />
 </p>
 
-<p align="center"><em>Mobile layout — Device list, Workflows, and real-time Activity Log with room tags and state change details.</em></p>
+<p align="center"><em>Mobile layout — Device list, automations, and real-time Activity Log with room tags and state change details.</em></p>
 
 <br/>
 
 <p align="center">
-  <img src="screenshots/web-workflow-detail-mobile.png" alt="Workflow detail on mobile" width="280" />
+  <img src="screenshots/web-automation-detail-mobile.png" alt="automation detail on mobile" width="280" />
   &nbsp;&nbsp;&nbsp;
-  <img src="screenshots/web-workflow-detail-desktop.png" alt="Workflow detail on desktop" width="560" />
+  <img src="screenshots/web-automation-detail-desktop.png" alt="automation detail on desktop" width="560" />
 </p>
 
-<p align="center"><em>Workflow detail view — mobile (left) and desktop (right) showing triggers, conditional blocks with then/else branches, execution stats, and the sidebar navigation.</em></p>
+<p align="center"><em>automation detail view — mobile (left) and desktop (right) showing triggers, conditional blocks with then/else branches, execution stats, and the sidebar navigation.</em></p>
 
 ### Native macOS App
 
-The Mac Catalyst app runs in the menu bar and provides full device management, workflow editing, server configuration, and activity logging.
+The Mac Catalyst app runs in the menu bar and provides full device management, automation editing, server configuration, and activity logging.
 
 <p align="center">
-  <img src="screenshots/app-workflows.png" alt="Workflow list in native app" width="420" />
+  <img src="screenshots/app-automations.png" alt="automation list in native app" width="420" />
   &nbsp;&nbsp;
-  <img src="screenshots/app-workflow-editor.png" alt="Workflow editor in native app" width="420" />
+  <img src="screenshots/app-automation-editor.png" alt="automation editor in native app" width="420" />
 </p>
 
-<p align="center"><em>Workflows list with room-based sidebar navigation (left). Visual workflow editor with execution guards, conditional blocks, and inline editing (right).</em></p>
+<p align="center"><em>automations list with room-based sidebar navigation (left). Visual automation editor with execution guards, conditional blocks, and inline editing (right).</em></p>
 
 <br/>
 
@@ -62,21 +62,21 @@ The Mac Catalyst app runs in the menu bar and provides full device management, w
 
 ## Features
 
-- **MCP Server** — JSON-RPC over Streamable HTTP and legacy SSE, exposing device resources, control tools, and workflow automation tools
-- **REST API** — Full HTTP REST interface for devices, scenes, logs, and workflows
+- **MCP Server** — JSON-RPC over Streamable HTTP and legacy SSE, exposing device resources, control tools, and automation tools
+- **REST API** — Full HTTP REST interface for devices, scenes, logs, and automations
 - **Real-time monitoring** — Observes HomeKit accessory state changes via `HMAccessoryDelegate` with optional polling fallback
 - **Device control** — Turn lights on/off, adjust brightness, set thermostats, lock/unlock doors, and more
 - **Scene support** — List and execute HomeKit scenes
-- **Workflow automation** — Create, manage, and execute automation workflows with triggers (device state, schedule, sun events, webhooks), conditions (device state, time, scene), and action blocks (device control, delays, conditionals, loops, groups, HTTP calls, scene execution, sub-workflow calls)
-- **AI workflow generation** — Generate workflows from natural language using Claude, OpenAI, or Gemini
-- **WebSocket push** — Real-time broadcast of log entries, workflow executions, and device updates to connected clients
+- **automation** — Create, manage, and execute automations with triggers (device state, schedule, sun events, webhooks), conditions (device state, time, scene), and action blocks (device control, delays, conditionals, loops, groups, HTTP calls, scene execution, sub-automation calls)
+- **AI automation generation** — Generate automations from natural language using Claude, OpenAI, or Gemini
+- **WebSocket push** — Real-time broadcast of log entries, automation executions, and device updates to connected clients
 - **Webhook notifications** — HTTP POST callbacks on state changes with HMAC-SHA256 signing and exponential backoff retry
-- **State logging** — Configurable circular buffer of activity logs (state changes, API calls, webhook events, workflow executions), persisted to disk
-- **iCloud sync** — Optional CloudKit-based workflow sync and backup across devices
+- **State logging** — Configurable circular buffer of activity logs (state changes, API calls, webhook events, automation executions), persisted to disk
+- **iCloud sync** — Optional CloudKit-based automation sync and backup across devices
 - **Stable device IDs** — App-generated stable identifiers that survive HomeKit re-pairing
 - **Per-characteristic access control** — Configure which characteristics are exposed externally and to webhooks
 - **Multi-token auth** — Multiple Bearer tokens for different clients, stored in Keychain
-- **Web dashboard** — Companion React web app for viewing logs, managing workflows, and monitoring devices (see [log-viewer-web/](log-viewer-web/))
+- **Web dashboard** — Companion React web app for viewing logs, managing automations, and monitoring devices (see [webclient/](webclient/))
 - **Menu bar app** — Runs unobtrusively in the macOS menu bar (no Dock icon)
 
 ## Requirements
@@ -102,7 +102,7 @@ make web-install
 make web-dev
 ```
 
-In **dev mode**, the bearer token `dev-token-homekit-mcp` is automatically accepted — no manual Keychain setup needed.
+In **dev mode**, the bearer token `dev-token-compai-home` is automatically accepted — no manual Keychain setup needed.
 
 ## Make Commands
 
@@ -121,7 +121,7 @@ In **dev mode**, the bearer token `dev-token-homekit-mcp` is automatically accep
 | `make web-prod` | Build and run web dashboard via Docker |
 | `make web-install` | Install web dashboard npm dependencies |
 | `make clean` | Clean Xcode build artifacts |
-| `make kill` | Kill running HomeKitMCP process |
+| `make kill` | Kill running CompAI-Home process |
 
 ## Build Configurations
 
@@ -129,12 +129,12 @@ The project uses [XcodeGen](https://github.com/yonaskolb/XcodeGen) (`project.yml
 
 | Configuration | Scheme | Use Case |
 |---------------|--------|----------|
-| **Dev Debug** | `HomeKitMCP` | Local development with debugger (`make dev`) |
-| **Dev Release** | `HomeKitMCP` | Optimized dev build |
-| **Prod Debug** | `HomeKitMCP-Prod` | Production behavior with debugger (`make prod`) |
-| **Prod Release** | `HomeKitMCP-Prod` | Distribution build |
+| **Dev Debug** | `CompAI-Home` | Local development with debugger (`make dev`) |
+| **Dev Release** | `CompAI-Home` | Optimized dev build |
+| **Prod Debug** | `CompAI-Home-Prod` | Production behavior with debugger (`make prod`) |
+| **Prod Release** | `CompAI-Home-Prod` | Distribution build |
 
-**Dev** builds compile with the `DEV_ENVIRONMENT` flag, which injects a well-known dev token (`dev-token-homekit-mcp`) so you don't need to configure Keychain tokens during development.
+**Dev** builds compile with the `DEV_ENVIRONMENT` flag, which injects a well-known dev token (`dev-token-compai-home`) so you don't need to configure Keychain tokens during development.
 
 **Prod** builds behave like the final app — tokens must be created and stored in the Keychain through the app's settings UI.
 
@@ -151,7 +151,7 @@ make test-swift
 make test-web
 
 # Web tests in watch mode
-cd log-viewer-web && npm run test:watch
+cd webclient && npm run test:watch
 ```
 
 ## CI/CD
@@ -168,10 +168,10 @@ See [.github/workflows/ci.yml](.github/workflows/ci.yml) for details. GitHub Act
 ### Build
 
 ```bash
-xcodebuild -scheme HomeKitMCP -destination 'platform=macOS,variant=Mac Catalyst' build
+xcodebuild -scheme CompAI-Home -destination 'platform=macOS,variant=Mac Catalyst' build
 ```
 
-Or open `HomeKitMCP.xcodeproj` in Xcode and build with **Cmd+B**.
+Or open `CompAI-Home.xcodeproj` in Xcode and build with **Cmd+B**.
 
 ### Run
 
@@ -209,7 +209,7 @@ Settings are available in the app's Settings view:
 | MCP Server Port | `3000` | HTTP port for the MCP and REST server |
 | Bind Address | `127.0.0.1` | Network interface to listen on (`127.0.0.1` or `0.0.0.0`) |
 | MCP Protocol | `true` | Enable MCP JSON-RPC endpoints (`/mcp`, `/sse`) |
-| REST API | `true` | Enable REST endpoints (`/devices`, `/workflows`, etc.) |
+| REST API | `true` | Enable REST endpoints (`/devices`, `/automations`, etc.) |
 | WebSocket | `true` | Enable real-time WebSocket push at `/ws` |
 | CORS | `true` | Enable CORS headers with configurable allowed origins |
 | API Tokens | — | Manage multiple Bearer tokens for authentication |
@@ -229,34 +229,34 @@ Settings are available in the app's Settings view:
 | Device State Logging | `true` | Log HomeKit state changes |
 | Detailed Logs | `false` | Log full request/response JSON bodies |
 | Log Access via API | `true` | Expose logs through MCP `get_logs` tool and REST `/logs` endpoint |
-| Log Skipped Workflows | `true` | Log workflow executions that were skipped (e.g. guard conditions not met) |
+| Log Skipped automations | `true` | Log automation executions that were skipped (e.g. guard conditions not met) |
 | Log Only Webhook Devices | `false` | Only log changes for webhook-configured devices |
 | Log Buffer Size | `500` | Maximum number of log entries to keep in memory (100–5000) |
 
-### Workflows
+### automations
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| Enable Workflows | `true` | Enable the workflow automation engine |
-| iCloud Sync | `false` | Sync workflows across devices via CloudKit |
+| Enable automations | `true` | Enable the automation engine |
+| iCloud Sync | `false` | Sync automations across devices via CloudKit |
 | Sun Event Location | — | Zip/postal code for sunrise/sunset calculations |
 
 ### AI Assistant
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| Enable AI | `false` | Enable AI-powered workflow generation |
+| Enable AI | `false` | Enable AI-powered automation generation |
 | AI Provider | Claude | LLM provider (Claude, OpenAI, or Gemini) |
 | Model ID | — | Specific model to use (auto-detected per provider) |
 | API Key | — | Provider API key (stored in Keychain) |
-| System Prompt | — | Custom instructions for AI workflow generation |
+| System Prompt | — | Custom instructions for AI automation generation |
 
 ### Account & Backup
 
 | Setting | Default | Description |
 |---------|---------|-------------|
 | Sign In with Apple | — | Apple ID authentication for cloud features |
-| Auto-Backup to iCloud | `false` | Automatically back up workflows to CloudKit |
+| Auto-Backup to iCloud | `false` | Automatically back up automations to CloudKit |
 | Backup Frequency | `24h` | Hours between automatic backups (1–48) |
 
 ### Polling
@@ -303,19 +303,19 @@ The server implements the [Model Context Protocol](https://modelcontextprotocol.
 |------|-------------|
 | `get_logs` | Get recent logs with filtering by device, category, date/date range, and pagination |
 
-### Workflow Tools
+### automation Tools
 
 | Tool | Description |
 |------|-------------|
-| `list_workflows` | List all workflows with status and execution stats |
-| `get_workflow` | Get full workflow definition as JSON |
-| `create_workflow` | Create a new workflow from a JSON definition |
-| `update_workflow` | Update an existing workflow (partial updates supported) |
-| `delete_workflow` | Delete a workflow |
-| `enable_workflow` | Enable or disable a workflow |
-| `trigger_workflow` | Manually trigger a workflow for testing |
-| `get_workflow_logs` | Get execution history, optionally filtered by workflow |
-| `get_workflow_schema` | Get structured JSON schema for workflow creation/updates |
+| `list_automations` | List all automations with status and execution stats |
+| `get_automation` | Get full automation definition as JSON |
+| `create_automation` | Create a new automation from a JSON definition |
+| `update_automation` | Update an existing automation (partial updates supported) |
+| `delete_automation` | Delete an automation |
+| `enable_automation` | Enable or disable an automation |
+| `trigger_automation` | Manually trigger an automation for testing |
+| `get_automation_logs` | Get execution history, optionally filtered by automation |
+| `get_automation_schema` | Get structured JSON schema for automation creation/updates |
 
 ### Tool Details
 
@@ -346,7 +346,7 @@ Use the `characteristic_id` from `list_devices` or `get_device_details` to targe
 All parameters are optional. Filter by:
 
 - **`device_name`** — case-insensitive substring match on device name
-- **`categories`** — array of log category values: `state_change`, `webhook_call`, `webhook_error`, `mcp_call`, `rest_call`, `server_error`, `workflow_execution`, `workflow_error`, `scene_execution`, `scene_error`, `backup_restore`
+- **`categories`** — array of log category values: `state_change`, `webhook_call`, `webhook_error`, `mcp_call`, `rest_call`, `server_error`, `automation_execution`, `automation_error`, `scene_execution`, `scene_error`, `backup_restore`
 - **`date`** — single calendar day (e.g. `2025-01-15`). Mutually exclusive with `from`/`to`
 - **`from`** / **`to`** — date range (ISO 8601, e.g. `2025-01-01` or `2025-01-01T00:00:00Z`)
 - **`limit`** — page size (default 50)
@@ -354,11 +354,11 @@ All parameters are optional. Filter by:
 
 Requires the "Log Access via API" setting to be enabled.
 
-#### `create_workflow`
+#### `create_automation`
 
 ```json
 {
-  "workflow": {
+  "automation": {
     "name": "Night motion comfort",
     "description": "When motion detected, turn on bedroom light at 30%",
     "triggers": [
@@ -410,7 +410,7 @@ Requires the "Log Access via API" setting to be enabled.
 }
 ```
 
-#### Workflow Block Types
+#### automation Block Types
 
 **Action blocks** (atomic operations):
 
@@ -432,7 +432,7 @@ Requires the "Log Access via API" setting to be enabled.
 | `repeatWhile` | `condition`, `blocks`, `maxIterations`, `delayBetweenSeconds?` | Condition-based loop (safety-capped) |
 | `group` | `label?`, `blocks` | Named sub-sequence |
 | `return` | `outcome`, `message?` | Exit current scope with success/error/cancelled |
-| `executeWorkflow` | `targetWorkflowId`, `executionMode` | Call another workflow (inline/parallel/delegate) |
+| `executeAutomation` | `targetAutomationId`, `executionMode` | Call another automation (inline/parallel/delegate) |
 
 #### Trigger Types
 
@@ -442,7 +442,7 @@ Requires the "Log Access via API" setting to be enabled.
 | `schedule` | `scheduleType` | Time-based (once, daily, weekly, interval) |
 | `sunEvent` | `event`, `offsetMinutes?` | Sunrise/sunset with optional offset |
 | `webhook` | `token` | External HTTP trigger with unique token |
-| `workflow` | — | Makes this workflow callable by other workflows |
+| `automation` | — | Makes this automation callable by other automations |
 
 **Trigger conditions:** `changed`, `equals`, `notEquals`, `transitioned` (from/to), `greaterThan`, `lessThan`, `greaterThanOrEqual`, `lessThanOrEqual`
 
@@ -493,19 +493,19 @@ All endpoints return JSON. The server runs on the same port as MCP (default `300
 | `GET` | `/logs` | Get filtered, paginated logs |
 | `DELETE` | `/logs` | Clear all logs |
 
-### Workflow Endpoints
+### automation Endpoints
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/workflows` | List all workflows |
-| `GET` | `/workflows/:workflowId` | Get a specific workflow |
-| `POST` | `/workflows` | Create a new workflow |
-| `PUT` | `/workflows/:workflowId` | Update a workflow (partial) |
-| `DELETE` | `/workflows/:workflowId` | Delete a workflow |
-| `POST` | `/workflows/:workflowId/trigger` | Manually trigger a workflow |
-| `GET` | `/workflows/:workflowId/logs` | Get execution logs |
-| `POST` | `/workflows/generate` | AI-generate a workflow from prompt |
-| `POST` | `/workflows/webhook/:token` | Trigger workflows by webhook token |
+| `GET` | `/automations` | List all automations |
+| `GET` | `/automations/:automationId` | Get a specific automation |
+| `POST` | `/automations` | Create a new automation |
+| `PUT` | `/automations/:automationId` | Update an automation (partial) |
+| `DELETE` | `/automations/:automationId` | Delete an automation |
+| `POST` | `/automations/:automationId/trigger` | Manually trigger an automation |
+| `GET` | `/automations/:automationId/logs` | Get execution logs |
+| `POST` | `/automations/generate` | AI-generate an automation from prompt |
+| `POST` | `/automations/webhook/:token` | Trigger automations by webhook token |
 
 ### Settings Endpoints
 
@@ -519,7 +519,7 @@ All endpoints return JSON. The server runs on the same port as MCP (default `300
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/health` | Health check (no auth required) |
-| `GET` | `/workflow-runtime` | Get workflow runtime info (sunrise/sunset times) |
+| `GET` | `/automation-runtime` | Get automation runtime info (sunrise/sunset times) |
 
 ### WebSocket
 
@@ -527,9 +527,9 @@ All endpoints return JSON. The server runs on the same port as MCP (default `300
 GET /ws?token=<bearer-token>
 ```
 
-Real-time push of log entries, workflow executions, workflow definition changes, and device updates. See [API.md](API.md) for the full message protocol.
+Real-time push of log entries, automation executions, automation definition changes, and device updates. See [API.md](API.md) for the full message protocol.
 
-**Server → Client message types:** `connected`, `log`, `workflow_log`, `workflow_log_updated`, `workflows_updated`, `devices_updated`, `characteristic_updated`, `logs_cleared`, `pong`
+**Server → Client message types:** `connected`, `log`, `automation_log`, `automation_log_updated`, `automations_updated`, `devices_updated`, `characteristic_updated`, `logs_cleared`, `pong`
 
 **Client → Server:** `ping` (application-level keepalive)
 
@@ -561,16 +561,16 @@ When a device state changes and webhooks are enabled, the server sends an HTTP P
 
 ## Web Dashboard
 
-A companion React web application for monitoring and managing your HomeKit MCP server. See [log-viewer-web/](log-viewer-web/) for setup instructions and details.
+A companion React web application for monitoring and managing your CompAI - Home server. See [webclient/](webclient/) for setup instructions and details.
 
 Features include:
 - Device and scene browsing with room-based navigation
 - Real-time activity log viewer with filtering and search
-- Workflow management (create, edit, duplicate, delete)
-- Visual workflow editor with drag-and-drop block reordering
-- Workflow execution history and detailed block-level results
-- AI-powered workflow generation from natural language
-- WebSocket-based live updates (logs, device state, workflow events)
+- automation management (create, edit, duplicate, delete)
+- Visual automation editor with drag-and-drop block reordering
+- automation execution history and detailed block-level results
+- AI-powered automation generation from natural language
+- WebSocket-based live updates (logs, device state, automation events)
 - Responsive layout adapting from mobile to desktop
 - Configurable server connection with Bearer token auth
 
@@ -597,11 +597,11 @@ graph TD
     WS --> Server
 
     Server --> HK["HomeKitManager<br/>(HMHome)"]
-    Server --> WE["WorkflowEngine"]
+    Server --> WE["AutomationEngine"]
     Server --> Log["LoggingService"]
 
     WE --> HK
-    WE --> Storage["WorkflowStorage"]
+    WE --> Storage["AutomationStorage"]
 
     HK --> Webhook["WebhookService"]
     HK --> Registry["DeviceRegistry"]
@@ -609,10 +609,10 @@ graph TD
 
 **Layers:**
 
-1. **Views** (SwiftUI) — DeviceListView, SceneListView, LogViewerView, SettingsView (with sub-views for Server, Webhooks, General, Workflows, AI, Account), WorkflowListView, WorkflowDetailView, WorkflowEditorView, WorkflowBuilderView, WorkflowExecutionLogDetailView, AIInteractionLogView, CloudBackupListView
-2. **ViewModels** — HomeKitViewModel, LogViewModel, SettingsViewModel, WorkflowViewModel — bridge services to UI via `@Published` properties
-3. **Services** — HomeKitManager, MCPServer, MCPRequestHandler, WorkflowEngine, WorkflowStorageService, ScheduleTriggerManager, SolarCalculator, ConditionEvaluator, WebhookService, LoggingService, StorageService, DeviceRegistryService, AIWorkflowService, AppleSignInService, BackupService, CloudBackupService, WorkflowSyncService, WorkflowMigrationService, KeychainService
-4. **Models** — DeviceModel, Workflow, WorkflowBlock, WorkflowTrigger, WorkflowCondition, StateChangeLog, SceneModel, RESTModels
+1. **Views** (SwiftUI) — DeviceListView, SceneListView, LogViewerView, SettingsView (with sub-views for Server, Webhooks, General, automations, AI, Account), AutomationListView, AutomationDetailView, AutomationEditorView, AutomationBuilderView, AutomationExecutionLogDetailView, AIInteractionLogView, CloudBackupListView
+2. **ViewModels** — HomeKitViewModel, LogViewModel, SettingsViewModel, AutomationViewModel — bridge services to UI via `@Published` properties
+3. **Services** — HomeKitManager, MCPServer, MCPRequestHandler, AutomationEngine, AutomationStorageService, ScheduleTriggerManager, SolarCalculator, ConditionEvaluator, WebhookService, LoggingService, StorageService, DeviceRegistryService, AIAutomationService, AppleSignInService, BackupService, CloudBackupService, AutomationSyncService, AutomationMigrationService, KeychainService
+4. **Models** — DeviceModel, automation, AutomationBlock, AutomationTrigger, AutomationCondition, StateChangeLog, SceneModel, RESTModels
 
 ## Tech Stack
 

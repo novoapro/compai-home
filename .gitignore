@@ -30,10 +30,7 @@ Package.resolved
 
 # Build artifacts / exported apps
 *.app
-HomeKitMCP 2026-*/
+CompAI-Home 2026-*/
 
 # Claude Code
 .claude/
-
-# Project planning docs (generated, not source)
-homekit-mcp-implementation-plan.md

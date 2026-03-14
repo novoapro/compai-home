@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-HomeKit MCP Server — a macOS Mac Catalyst application that exposes HomeKit devices through the Model Context Protocol (MCP). It provides real-time state monitoring, device control via MCP tools, and webhook notifications for state changes. Runs as a background menu bar app.
+CompAI - Home — a macOS Mac Catalyst application that exposes HomeKit devices through the Model Context Protocol (MCP). It provides real-time state monitoring, device control via MCP tools, and webhook notifications for state changes. Runs as a background menu bar app.
 
 ## Technology Stack
 
@@ -17,10 +17,10 @@ HomeKit MCP Server — a macOS Mac Catalyst application that exposes HomeKit dev
 
 ## Applications
 
-Keep in mind that there are two applications withing this project. A swift application called HomeKitMCP and a web application called log-viewer-web. The web application is used to view the logs of the swift application. The web application is not part of the swift application. The web application is a separate application that is run independently of the swift application. The web application is run using the following command:
+Keep in mind that there are two applications withing this project. A swift application called CompAI-Home and a web application called webclient. The web application is used to view the logs of the swift application. The web application is not part of the swift application. The web application is a separate application that is run independently of the swift application. The web application is run using the following command:
 
 ```bash
-cd log-viewer-web
+cd webclient
 npm run dev
 ```
 
@@ -52,8 +52,8 @@ This is an Xcode project (Mac Catalyst). Use the Makefile targets to build and r
 
 ### After completing changes, rebuild only what you changed:
 
-- **Swift-only changes** (files under `HomeKitMCP/`): run `make dev` — builds and relaunches the MCP server app.
-- **Web-only changes** (files under `log-viewer-web/`): no build step needed if the Vite dev server is already running (HMR auto-updates the browser). If the dev server is not running, run `make web-dev`.
+- **Swift-only changes** (files under `CompAI-Home/`): run `make dev` — builds and relaunches the MCP server app.
+- **Web-only changes** (files under `webclient/`): no build step needed if the Vite dev server is already running (HMR auto-updates the browser). If the dev server is not running, run `make web-dev`.
 - **Both Swift and web changes**: run `make dev` for the server app. The web app updates automatically via HMR if the dev server is running; otherwise run `make web-dev` as well.
 - **Full rebuild of both apps**: run `make dev-all` — builds the Swift app, starts the web dev server (if not already running), and opens the browser.
 
@@ -77,8 +77,8 @@ vapor/vapor 4.89.0+
 **Very Important:**
 Everytime you complete a task that changes in any way the model that we expose through the MCP server, you need to update the documentation at `API.md` file to reflect the changes.
 
-Everytime we add something new to the workflow definition, you need to update a few things: 
-- How we display and edit workflows including the new fields, blocks, and options in the MCP server app and in the web app
+Everytime we add something new to the automation definition, you need to update a few things: 
+- How we display and edit automations including the new fields, blocks, and options in the MCP server app and in the web app
 - update how we log them. 
-- update how we expose the new update to the workflow schema externally via MCP or REST server.
+- update how we expose the new update to the automation schema externally via MCP or REST server.
 - Update the documentation at `API.md` file to reflect the changes.

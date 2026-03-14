@@ -33,7 +33,7 @@ jobs:
 
       - name: Resolve SPM Dependencies
         run: |
-          xcodebuild -scheme HomeKitMCP \
+          xcodebuild -scheme CompAI-Home \
             -destination 'platform=macOS,variant=Mac Catalyst' \
             -configuration 'Dev Debug' \
             -resolvePackageDependencies \
@@ -41,7 +41,7 @@ jobs:
 
       - name: Build
         run: |
-          xcodebuild -scheme HomeKitMCP \
+          xcodebuild -scheme CompAI-Home \
             -destination 'platform=macOS,variant=Mac Catalyst' \
             -configuration 'Dev Debug' \
             build \
@@ -49,7 +49,7 @@ jobs:
 
       - name: Test
         run: |
-          xcodebuild -scheme HomeKitMCP \
+          xcodebuild -scheme CompAI-Home \
             -destination 'platform=macOS,variant=Mac Catalyst' \
             -configuration 'Dev Debug' \
             test \
@@ -61,7 +61,7 @@ jobs:
     timeout-minutes: 10
     defaults:
       run:
-        working-directory: log-viewer-web
+        working-directory: webclient
     steps:
       - uses: actions/checkout@v4
 
@@ -69,7 +69,7 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: log-viewer-web/package-lock.json
+          cache-dependency-path: webclient/package-lock.json
 
       - name: Install Dependencies
         run: npm ci

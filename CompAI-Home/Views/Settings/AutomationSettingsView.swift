@@ -1,0 +1,101 @@
+import SwiftUI
+
+struct AutomationSettingsView: View {
+    @ObservedObject var viewModel: SettingsViewModel
+
+    var body: some View {
+        Form {
+            Section {
+                Toggle("Enable Automations", isOn: $viewModel.automationsEnabled)
+            } header: {
+                Label("Automation+", systemImage: "bolt.fill")
+            } footer: {
+                Text("When disabled, all automation tools, REST endpoints, triggers, and scheduled automations are deactivated. Existing automation definitions are preserved.")
+            }
+
+            Section {
+                Toggle("Sync Automations via iCloud", isOn: $viewModel.automationSyncEnabled)
+            } header: {
+                Label("Cross-Device Sync", systemImage: "icloud")
+            } footer: {
+                Text("When enabled, automations are synced across all your devices via iCloud. Automations use stable device identifiers — if a device isn't found on this Mac, its references remain intact until matched.")
+            }
+
+            Section {
+                HStack {
+                    TextField("Zip / Postal Code", text: $viewModel.sunEventZipCode)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(maxWidth: 160)
+                        .onSubmit {
+                            viewModel.geocodeZipCode()
+                        }
+
+                    Spacer()
+
+                    if viewModel.isGeocoding {
+                        ProgressView()
+                            .controlSize(.small)
+                    } else {
+                        Button("Save") {
+                            viewModel.geocodeZipCode()
+                        }
+                        .buttonStyle(.borderless)
+                        .disabled(viewModel.sunEventZipCode.trimmingCharacters(in: .whitespaces).isEmpty)
+                    }
+                }
+
+                if let error = viewModel.geocodingError {
+                    Label(error, systemImage: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.red)
+                        .font(.footnote)
+                }
+
+                if viewModel.hasValidCoordinates {
+                    HStack {
+                        Label(viewModel.sunEventCityName.isEmpty ? "Location set" : viewModel.sunEventCityName,
+                              systemImage: "mappin.and.ellipse")
+                        Spacer()
+
+                        HStack(spacing: 12) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "sunrise.fill")
+                                    .foregroundStyle(.orange)
+                                if let sunrise = viewModel.todaySunrise {
+                                    Text(sunrise, format: .dateTime.hour().minute())
+                                } else {
+                                    Text("—")
+                                }
+                            }
+
+                            HStack(spacing: 4) {
+                                Image(systemName: "sunset.fill")
+                                    .foregroundStyle(.orange)
+                                if let sunset = viewModel.todaySunset {
+                                    Text(sunset, format: .dateTime.hour().minute())
+                                } else {
+                                    Text("—")
+                                }
+                            }
+                        }
+                        .foregroundStyle(.secondary)
+                        .font(.subheadline)
+                    }
+                }
+            } header: {
+                Label("Location", systemImage: "location")
+            } footer: {
+                Text("Enter your zip or postal code and tap Save. Sunrise and sunset times update automatically on launch and at midnight.")
+            }
+        }
+        .formStyle(.grouped)
+        .scrollContentBackground(.hidden)
+        .background(Theme.mainBackground)
+        .navigationTitle("Automation+")
+    }
+}
+
+#Preview {
+    NavigationStack {
+        AutomationSettingsView(viewModel: PreviewData.settingsViewModel)
+    }
+}

@@ -1,6 +1,6 @@
-name: HomeKitMCP
+name: CompAI-Home
 options:
-  bundleIdPrefix: com.novoa
+  bundleIdPrefix: com.mnplab
   deploymentTarget:
     iOS: "16.0"
     macOS: "13.0"
@@ -19,42 +19,42 @@ packages:
     from: "4.89.0"
 
 schemes:
-  HomeKitMCP:
+  CompAI-Home:
     build:
       targets:
-        HomeKitMCP: all
-        HomeKitMCPTests: [test]
+        CompAI-Home: all
+        CompAI-HomeTests: [test]
     run:
       config: Dev Debug
     test:
       config: Dev Debug
       targets:
-        - HomeKitMCPTests
-  HomeKitMCP-Prod:
+        - CompAI-HomeTests
+  CompAI-Home-Prod:
     build:
       targets:
-        HomeKitMCP: all
+        CompAI-Home: all
     run:
       config: Prod Debug
 
 targets:
-  HomeKitMCP:
+  CompAI-Home:
     type: application
     platform: iOS
     supportedDestinations: [macCatalyst]
     sources:
-      - HomeKitMCP
+      - CompAI-Home
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.novoa.HomeKitMCP
-        PRODUCT_NAME: HomeKitMCP
+        PRODUCT_BUNDLE_IDENTIFIER: com.mnplab.compai-home
+        PRODUCT_NAME: CompAI-Home
         MARKETING_VERSION: "1.0.0"
         CURRENT_PROJECT_VERSION: "1"
         SWIFT_VERSION: "5.9"
         SUPPORTS_MACCATALYST: "YES"
         DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER: "NO"
-        INFOPLIST_FILE: HomeKitMCP/Resources/Info.plist
-        CODE_SIGN_ENTITLEMENTS: HomeKitMCP/Resources/HomeKitMCP.entitlements
+        INFOPLIST_FILE: CompAI-Home/Resources/Info.plist
+        CODE_SIGN_ENTITLEMENTS: CompAI-Home/Resources/CompAI-Home.entitlements
         CODE_SIGN_STYLE: Automatic
         DEVELOPMENT_TEAM: KT7JRD4C5Y
         ENABLE_HARDENED_RUNTIME: "YES"
@@ -72,32 +72,34 @@ targets:
       - package: Vapor
       - target: MenuBarPlugin
     entitlements:
-      path: HomeKitMCP/Resources/HomeKitMCP.entitlements
+      path: CompAI-Home/Resources/CompAI-Home.entitlements
       properties:
+        com.apple.developer.applesignin:
+          - Default
         com.apple.developer.homekit: true
         com.apple.developer.icloud-container-identifiers:
-          - iCloud.com.novoa.HomeKitMCP
+          - iCloud.com.mnplab.compai-home
         com.apple.developer.icloud-services:
           - CloudKit
         com.apple.security.network.client: true
         com.apple.security.network.server: true
 
-  HomeKitMCPTests:
+  CompAI-HomeTests:
     type: bundle.unit-test
     platform: iOS
     supportedDestinations: [macCatalyst]
     sources:
-      - HomeKitMCPTests
+      - CompAI-HomeTests
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.novoa.HomeKitMCPTests
+        PRODUCT_BUNDLE_IDENTIFIER: com.mnplab.compai-home-tests
         SWIFT_VERSION: "5.9"
         SUPPORTS_MACCATALYST: "YES"
         DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER: "NO"
         DEVELOPMENT_TEAM: KT7JRD4C5Y
         GENERATE_INFOPLIST_FILE: "YES"
     dependencies:
-      - target: HomeKitMCP
+      - target: CompAI-Home
 
   MenuBarPlugin:
     type: bundle
@@ -106,7 +108,7 @@ targets:
       - MenuBarPlugin
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.novoa.HomeKitMCP.MenuBarPlugin
+        PRODUCT_BUNDLE_IDENTIFIER: com.mnplab.compai-home.MenuBarPlugin
         PRODUCT_NAME: MenuBarPlugin
         MARKETING_VERSION: "1.0.0"
         CURRENT_PROJECT_VERSION: "1"
