@@ -36,7 +36,7 @@ struct ConditionEvaluator {
             }
             let descriptions = subResults.map(\.conditionDescription)
             return ConditionResult(
-                conditionDescription: "AND(\(descriptions.joined(separator: ", ")))",
+                conditionDescription: "(\(descriptions.joined(separator: ", ")))",
                 passed: allPassed,
                 subResults: subResults,
                 logicOperator: "AND"
@@ -51,7 +51,7 @@ struct ConditionEvaluator {
             }
             let descriptions = subResults.map(\.conditionDescription)
             return ConditionResult(
-                conditionDescription: "OR(\(descriptions.joined(separator: ", ")))",
+                conditionDescription: "(\(descriptions.joined(separator: ", ")))",
                 passed: anyPassed,
                 subResults: subResults,
                 logicOperator: "OR"
@@ -59,7 +59,7 @@ struct ConditionEvaluator {
         case .not(let inner):
             let innerResult = await evaluate(inner)
             return ConditionResult(
-                conditionDescription: "NOT(\(innerResult.conditionDescription))",
+                conditionDescription: "(\(innerResult.conditionDescription))",
                 passed: !innerResult.passed,
                 subResults: [innerResult],
                 logicOperator: "NOT"
