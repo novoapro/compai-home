@@ -13,51 +13,61 @@ A macOS menu bar app that exposes your Apple HomeKit devices through the <a href
 
 ## Screenshots
 
-### Web Dashboard
-
-The companion web dashboard provides a responsive interface that adapts from mobile to desktop layouts.
-
-<p align="center">
-  <img src="screenshots/web-devices-mobile.png" alt="Device list on mobile" width="260" />
-  &nbsp;&nbsp;
-  <img src="screenshots/web-automations-mobile.png" alt="automation list on mobile" width="260" />
-  &nbsp;&nbsp;
-  <img src="screenshots/web-activity-log-mobile.png" alt="Activity log on mobile" width="260" />
-</p>
-
-<p align="center"><em>Mobile layout — Device list, automations, and real-time Activity Log with room tags and state change details.</em></p>
-
-<br/>
-
-<p align="center">
-  <img src="screenshots/web-automation-detail-mobile.png" alt="automation detail on mobile" width="280" />
-  &nbsp;&nbsp;&nbsp;
-  <img src="screenshots/web-automation-detail-desktop.png" alt="automation detail on desktop" width="560" />
-</p>
-
-<p align="center"><em>automation detail view — mobile (left) and desktop (right) showing triggers, conditional blocks with then/else branches, execution stats, and the sidebar navigation.</em></p>
-
 ### Native macOS App
 
 The Mac Catalyst app runs in the menu bar and provides full device management, automation editing, server configuration, and activity logging.
 
 <p align="center">
-  <img src="screenshots/app-automations.png" alt="automation list in native app" width="420" />
+  <img src="screenshots/app-devices.png" alt="Devices view" width="420" />
   &nbsp;&nbsp;
-  <img src="screenshots/app-automation-editor.png" alt="automation editor in native app" width="420" />
+  <img src="screenshots/app-automations.png" alt="Automations list" width="420" />
 </p>
 
-<p align="center"><em>automations list with room-based sidebar navigation (left). Visual automation editor with execution guards, conditional blocks, and inline editing (right).</em></p>
+<p align="center"><em>Device list with room sidebar, filters, and per-characteristic details (left). Automations list with triggers, execution stats, and enable/disable toggles (right).</em></p>
 
 <br/>
 
 <p align="center">
-  <img src="screenshots/app-server-settings.png" alt="Server settings in native app" width="420" />
+  <img src="screenshots/app-logs.png" alt="Activity logs" width="420" />
   &nbsp;&nbsp;
-  <img src="screenshots/app-logs.png" alt="Activity logs in native app" width="420" />
+  <img src="screenshots/app-settings.png" alt="Settings" width="420" />
 </p>
 
-<p align="center"><em>Server settings — port, CORS origins, binding interface, and API token management (left). Activity logs with device, room, and service type filters (right).</em></p>
+<p align="center"><em>Activity logs with category, device, and service filters (left). Settings overview — server, webhooks, automations, AI assistant, and account (right).</em></p>
+
+<br/>
+
+<p align="center">
+  <img src="screenshots/app-ai-builder.png" alt="AI Automation Builder" width="420" />
+  &nbsp;&nbsp;
+  <img src="screenshots/app-automation-editor.png" alt="Automation editor" width="420" />
+</p>
+
+<p align="center"><em>AI Automation Builder — describe what you want in plain English and the AI generates the automation (left). Visual automation editor with triggers, execution guards, and action blocks (right).</em></p>
+
+<br/>
+
+<p align="center">
+  <img src="screenshots/app-automation-blocks.png" alt="Automation blocks" width="420" />
+  &nbsp;&nbsp;
+  <img src="screenshots/app-automation-execution.png" alt="Automation execution" width="420" />
+</p>
+
+<p align="center"><em>Automation block definitions with conditionals, delays, loops, and nested branches (left). Live execution view showing step-by-step results with timing (right).</em></p>
+
+### Web Dashboard
+
+The companion web dashboard provides a responsive dark-themed interface that adapts from mobile to desktop layouts.
+
+<p align="center">
+  <img src="screenshots/web-devices-mobile.png" alt="Device list on mobile" width="260" />
+  &nbsp;&nbsp;
+  <img src="screenshots/web-automations-mobile.png" alt="Automation list on mobile" width="260" />
+  &nbsp;&nbsp;
+  <img src="screenshots/web-automation-detail-mobile.png" alt="Automation detail on mobile" width="260" />
+</p>
+
+<p align="center"><em>Mobile layout — Device list with room indicators (left), automations with trigger types and execution stats (center), and automation detail with triggers, guards, and blocks (right).</em></p>
 
 ---
 
