@@ -1,10 +1,10 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback } from 'react';
 import { Switch } from '@headlessui/react';
 import { useConfig } from '@/contexts/ConfigContext';
 import { useSetTopBar } from '@/contexts/TopBarContext';
 import { useWebSocket } from '@/contexts/WebSocketContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { Icon } from '@/components/Icon';
-import { createApiClient } from '@/lib/api';
 import { OAuthCredentials } from '@/components/settings/OAuthCredentials';
 import './SettingsPage.css';
 
@@ -13,6 +13,8 @@ export function SettingsPage() {
   const ws = useWebSocket();
   useSetTopBar('Settings');
 
+  const { api } = useAuth();
+
   const [localState, setLocalState] = useState({
     serverAddress: config.serverAddress,
     serverPort: config.serverPort,
@@ -20,12 +22,10 @@ export function SettingsPage() {
     pollingInterval: config.pollingInterval,
     websocketEnabled: config.websocketEnabled,
     useHTTPS: config.useHTTPS,
+    authMethod: config.authMethod,
+    oauthClientId: config.oauthClientId,
+    oauthClientSecret: config.oauthClientSecret,
   });
-
-  const api = useMemo(() => {
-    const protocol = localState.useHTTPS ? 'https' : 'http';
-    return createApiClient(`${protocol}://${localState.serverAddress}:${localState.serverPort}`, localState.bearerToken);
-  }, [localState.serverAddress, localState.serverPort, localState.bearerToken, localState.useHTTPS]);
 
   const [connectionStatus, setConnectionStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
   const [saved, setSaved] = useState(false);
@@ -34,27 +34,18 @@ export function SettingsPage() {
     setLocalState(prev => ({ ...prev, [key]: value }));
   }, []);
 
-  const applyToConfig = useCallback(() => {
-    setConfig(localState);
-  }, [localState, setConfig]);
-
   const testConnection = useCallback(async () => {
-    applyToConfig();
     setConnectionStatus('testing');
     try {
       const protocol = localState.useHTTPS ? 'https' : 'http';
       const url = `${protocol}://${localState.serverAddress}:${localState.serverPort}/health`;
-      const headers: Record<string, string> = {};
-      if (localState.bearerToken) {
-        headers['Authorization'] = `Bearer ${localState.bearerToken}`;
-      }
-      const res = await fetch(url, { headers });
+      const res = await fetch(url);
       setConnectionStatus(res.ok ? 'success' : 'error');
     } catch {
       setConnectionStatus('error');
     }
     setTimeout(() => setConnectionStatus('idle'), 3000);
-  }, [applyToConfig, localState.serverAddress, localState.serverPort, localState.bearerToken]);
+  }, [localState.serverAddress, localState.serverPort, localState.useHTTPS]);
 
   const [validationError, setValidationError] = useState<string | null>(null);
 
@@ -71,8 +62,16 @@ export function SettingsPage() {
     }
     setValidationError(null);
 
-    applyToConfig();
-    save(localState);
+    const stateToSave = { ...localState };
+    if (stateToSave.authMethod === 'oauth') {
+      stateToSave.bearerToken = '';
+    } else {
+      stateToSave.oauthClientId = '';
+      stateToSave.oauthClientSecret = '';
+    }
+
+    setConfig(stateToSave);
+    save(stateToSave);
 
     // Reconnect or disconnect WebSocket based on new settings
     if (localState.websocketEnabled) {
@@ -83,7 +82,7 @@ export function SettingsPage() {
 
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
-  }, [applyToConfig, save, localState, ws]);
+  }, [setConfig, save, localState, ws]);
 
   return (
     <div className="settings-page">
@@ -137,18 +136,68 @@ export function SettingsPage() {
         </div>
 
         <div className="form-group">
-          <label htmlFor="bearerToken">Bearer Token</label>
-          <input
-            id="bearerToken"
-            type="password"
-            value={localState.bearerToken}
-            onChange={e => updateField('bearerToken', e.target.value)}
-            placeholder="Enter your API token"
-            className="form-input"
-            maxLength={512}
-          />
-          <span className="hint">Found in the CompAI - Home app settings under API tokens</span>
+          <label>Authentication Method</label>
+          <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+            <button
+              className={`btn ${localState.authMethod === 'bearer' ? 'btn-primary' : 'btn-secondary'}`}
+              style={{ flex: 1 }}
+              onClick={() => updateField('authMethod', 'bearer')}
+            >
+              Bearer Token
+            </button>
+            <button
+              className={`btn ${localState.authMethod === 'oauth' ? 'btn-primary' : 'btn-secondary'}`}
+              style={{ flex: 1 }}
+              onClick={() => updateField('authMethod', 'oauth')}
+            >
+              OAuth
+            </button>
+          </div>
         </div>
+
+        {localState.authMethod === 'bearer' ? (
+          <div className="form-group">
+            <label htmlFor="bearerToken">Bearer Token</label>
+            <input
+              id="bearerToken"
+              type="password"
+              value={localState.bearerToken}
+              onChange={e => updateField('bearerToken', e.target.value)}
+              placeholder="Enter your API token"
+              className="form-input"
+              maxLength={512}
+            />
+            <span className="hint">Found in the CompAI - Home app settings under API tokens</span>
+          </div>
+        ) : (
+          <>
+            <div className="form-group">
+              <label htmlFor="oauthClientId">Client ID</label>
+              <input
+                id="oauthClientId"
+                type="text"
+                value={localState.oauthClientId}
+                onChange={e => updateField('oauthClientId', e.target.value)}
+                placeholder="Enter OAuth client ID"
+                className="form-input"
+                maxLength={512}
+              />
+            </div>
+            <div className="form-group">
+              <label htmlFor="oauthClientSecret">Client Secret</label>
+              <input
+                id="oauthClientSecret"
+                type="password"
+                value={localState.oauthClientSecret}
+                onChange={e => updateField('oauthClientSecret', e.target.value)}
+                placeholder="Enter OAuth client secret"
+                className="form-input"
+                maxLength={512}
+              />
+              <span className="hint">Generate OAuth credentials in the CompAI - Home app under Server → OAuth Credentials</span>
+            </div>
+          </>
+        )}
 
         <div className="form-group">
           <label htmlFor="pollingInterval">Polling Interval (seconds)</label>
