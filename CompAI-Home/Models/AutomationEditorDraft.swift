@@ -1294,7 +1294,7 @@ extension AutomationDraft {
         let triggerCondRoot = convertConditionTree(trigger.conditions ?? [], devices: devices)
         switch trigger {
         case let .deviceStateChange(t):
-            let (condType, condValue, condFrom) = convertTriggerCondition(t.condition)
+            let (condType, condValue, condFrom) = convertTriggerCondition(t.matchOperator)
             let meta = lookupCharacteristicMeta(deviceId: t.deviceId, characteristicId: t.characteristicId, in: devices)
             var draft = TriggerDraft(
                 id: UUID(),
@@ -1656,7 +1656,7 @@ extension TriggerDraft {
                 deviceId: deviceId,
                 serviceId: serviceId,
                 characteristicId: characteristicId,
-                condition: toTriggerCondition(),
+                matchOperator: toTriggerCondition(),
                 name: name.isEmpty ? nil : name,
                 retriggerPolicy: retriggerPolicy,
                 conditions: triggerConds

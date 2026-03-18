@@ -509,7 +509,7 @@ final class MCPRequestHandler: Sendable {
                         "serviceId": ["type": "string", "required": false, "description": "Service ID (for multi-service devices)"],
                         "characteristicId": ["type": "string", "required": true,
                             "description": "Stable characteristic ID from list_devices."],
-                        "condition": ["type": "object", "required": true, "description": "Trigger condition (see triggerConditions)"],
+                        "matchOperator": ["type": "object", "required": true, "description": "Trigger match operator (see triggerConditions)"],
                         "name": ["type": "string", "required": false],
                         "retriggerPolicy": ["type": "string", "required": false],
                         "conditions": ["type": "array", "required": false,

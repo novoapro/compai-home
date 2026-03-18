@@ -203,7 +203,7 @@ private struct TriggerRow: View {
             }
         )
 
-        Picker("Condition", selection: $trigger.conditionType) {
+        Picker("Match Operator", selection: $trigger.conditionType) {
             ForEach(TriggerConditionType.allCases) { type in
                 Text(type.displayName).tag(type)
             }

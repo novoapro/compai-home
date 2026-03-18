@@ -1421,7 +1421,7 @@ Fires when a device characteristic changes. **The referenced characteristic must
 | `roomName` | string | yes | Room name |
 | `serviceId` | string | no | Specific service |
 | `characteristicId` | string | yes | Stable characteristic ID (resolvable via device registry) |
-| `condition` | object | no | Trigger condition (see below) |
+| `matchOperator` | object | no | Trigger match operator (see below) |
 | `retriggerPolicy` | string | no | Override policy |
 | `conditions` | AutomationCondition[] | no | Per-trigger guard conditions (silently skip trigger if not met) |
 

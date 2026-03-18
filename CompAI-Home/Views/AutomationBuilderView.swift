@@ -443,7 +443,7 @@ private struct AutomationBuilderTriggerRow: View {
                 Text("Characteristic: \(devices.resolvedCharacteristicName(deviceId: t.deviceId, characteristicId: t.characteristicId))")
                     .font(.footnote)
                     .foregroundColor(.secondary)
-                Text("Condition: \(triggerConditionDescription(t.condition))")
+                Text("Match: \(triggerConditionDescription(t.matchOperator))")
                     .font(.footnote)
                     .foregroundColor(.secondary)
             }

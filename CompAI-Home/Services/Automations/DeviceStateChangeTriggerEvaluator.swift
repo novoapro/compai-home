@@ -63,7 +63,7 @@ struct DeviceStateChangeTriggerEvaluator: TriggerEvaluator {
         }
 
         // Evaluate condition
-        return evaluateTriggerCondition(trigger.condition, oldValue: effectiveOld, newValue: effectiveNew)
+        return evaluateTriggerCondition(trigger.matchOperator, oldValue: effectiveOld, newValue: effectiveNew)
     }
 
     private func evaluateTriggerCondition(_ condition: TriggerCondition, oldValue: Any?, newValue: Any?) -> Bool {

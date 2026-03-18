@@ -88,11 +88,11 @@ enum TemperatureConversion {
         switch trigger {
         case .deviceStateChange(let t):
             guard isTemperatureCharId(t.characteristicId, registry: registry) else { return trigger }
-            let newCondition = migrateTriggerCondition(t.condition, convert: convert)
+            let newCondition = migrateTriggerCondition(t.matchOperator, convert: convert)
             return .deviceStateChange(DeviceStateTrigger(
                 deviceId: t.deviceId, deviceName: t.deviceName, roomName: t.roomName,
                 serviceId: t.serviceId, characteristicId: t.characteristicId,
-                condition: newCondition, name: t.name, retriggerPolicy: t.retriggerPolicy
+                matchOperator: newCondition, name: t.name, retriggerPolicy: t.retriggerPolicy
             ))
         default:
             return trigger

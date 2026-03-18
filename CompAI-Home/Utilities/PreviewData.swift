@@ -189,7 +189,7 @@ enum PreviewData {
                 .deviceStateChange(DeviceStateTrigger(
                     deviceId: "device-1",
                     characteristicId: "stable-char-power-1",
-                    condition: .equals(AnyCodable(true)),
+                    matchOperator: .equals(AnyCodable(true)),
                     name: "Light turned on"
                 ))
             ],

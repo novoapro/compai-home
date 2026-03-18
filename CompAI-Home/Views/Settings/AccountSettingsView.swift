@@ -12,14 +12,6 @@ struct AccountSettingsView: View {
     @State private var showingCloudBackupSuccess = false
     @State private var showingBackupError = false
     @State private var backupErrorMessage = ""
-    @State private var showingFileExporter = false
-    @State private var showingFileImporter = false
-    @State private var exportDocument: BackupDocument?
-    @State private var showingExportSuccess = false
-    @State private var showingImportConfirmation = false
-    @State private var pendingImportBundle: BackupBundle?
-    @State private var showingImportSuccess = false
-    @State private var isExporting = false
 
     init(viewModel: SettingsViewModel) {
         self.viewModel = viewModel
@@ -176,44 +168,6 @@ struct AccountSettingsView: View {
                     Text("Backups include settings, automations, device configurations, and API keys.")
                 }
             }
-
-            // Local file backup section (always available)
-            Section {
-                Button {
-                    Task {
-                        isExporting = true
-                        do {
-                            let bundle = try await viewModel.backupService.createBackup()
-                            exportDocument = BackupDocument(bundle: bundle)
-                            showingFileExporter = true
-                        } catch {
-                            backupErrorMessage = error.localizedDescription
-                            showingBackupError = true
-                        }
-                        isExporting = false
-                    }
-                } label: {
-                    HStack {
-                        Label("Export Backup to File...", systemImage: "square.and.arrow.up")
-                        Spacer()
-                        if isExporting {
-                            ProgressView()
-                                .controlSize(.small)
-                        }
-                    }
-                }
-                .disabled(isExporting)
-
-                Button {
-                    showingFileImporter = true
-                } label: {
-                    Label("Import Backup from File...", systemImage: "square.and.arrow.down")
-                }
-            } header: {
-                Label("Local Backup", systemImage: "folder")
-            } footer: {
-                Text("Export your backup to a file you control, or import a previously exported backup. The file includes settings, automations, and API keys.")
-            }
         }
         .formStyle(.grouped)
         .scrollContentBackground(.hidden)
@@ -237,84 +191,7 @@ struct AccountSettingsView: View {
         } message: {
             Text(backupErrorMessage)
         }
-        .fileExporter(
-            isPresented: $showingFileExporter,
-            document: exportDocument,
-            contentType: .compaiBackup,
-            defaultFilename: "CompAI-Home-Backup-\(Self.dateFormatter.string(from: Date()))"
-        ) { result in
-            exportDocument = nil
-            switch result {
-            case .success:
-                showingExportSuccess = true
-            case .failure(let error):
-                backupErrorMessage = error.localizedDescription
-                showingBackupError = true
-            }
-        }
-        .fileImporter(
-            isPresented: $showingFileImporter,
-            allowedContentTypes: [.compaiBackup, .json]
-        ) { result in
-            switch result {
-            case .success(let url):
-                let accessing = url.startAccessingSecurityScopedResource()
-                defer { if accessing { url.stopAccessingSecurityScopedResource() } }
-                do {
-                    let data = try Data(contentsOf: url)
-                    let bundle = try JSONDecoder.iso8601.decode(BackupBundle.self, from: data)
-                    pendingImportBundle = bundle
-                    showingImportConfirmation = true
-                } catch {
-                    backupErrorMessage = "Could not read backup file: \(error.localizedDescription)"
-                    showingBackupError = true
-                }
-            case .failure(let error):
-                backupErrorMessage = error.localizedDescription
-                showingBackupError = true
-            }
-        }
-        .alert("Backup Exported", isPresented: $showingExportSuccess) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text("Your backup has been saved to the selected location.")
-        }
-        .alert("Restore from File?", isPresented: $showingImportConfirmation) {
-            Button("Cancel", role: .cancel) {
-                pendingImportBundle = nil
-            }
-            Button("Restore", role: .destructive) {
-                guard let bundle = pendingImportBundle else { return }
-                pendingImportBundle = nil
-                Task {
-                    do {
-                        try await viewModel.backupService.restoreBackup(bundle)
-                        showingImportSuccess = true
-                    } catch {
-                        backupErrorMessage = error.localizedDescription
-                        showingBackupError = true
-                    }
-                }
-            }
-        } message: {
-            if let bundle = pendingImportBundle {
-                Text("This will replace all current settings, automations, and API keys with the backup from \(bundle.deviceName) created on \(bundle.createdAt.formatted(.dateTime.month().day().year().hour().minute())).")
-            } else {
-                Text("This will replace all current data with the backup.")
-            }
-        }
-        .alert("Backup Restored", isPresented: $showingImportSuccess) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text("Your data has been restored from the backup file.")
-        }
     }
-
-    private static let dateFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.dateFormat = "yyyy-MM-dd"
-        return f
-    }()
 
     private func handleAppleSignIn(credential: ASAuthorizationAppleIDCredential) {
         let userId = credential.user

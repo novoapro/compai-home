@@ -685,7 +685,9 @@ enum AutomationTrigger: Codable {
 
     private enum CodingKeys: String, CodingKey {
         case type, name
-        case deviceId, deviceName, roomName, serviceId, characteristicId, condition
+        case deviceId, deviceName, roomName, serviceId, characteristicId
+        case matchOperator
+        case condition // backward compat decode only
         case scheduleType, token
         case event, offsetMinutes
         case retriggerPolicy
@@ -707,7 +709,8 @@ enum AutomationTrigger: Codable {
                 roomName: container.decodeIfPresent(String.self, forKey: .roomName),
                 serviceId: container.decodeIfPresent(String.self, forKey: .serviceId),
                 characteristicId: charId,
-                condition: container.decode(TriggerCondition.self, forKey: .condition),
+                matchOperator: (try? container.decode(TriggerCondition.self, forKey: .matchOperator))
+                    ?? container.decode(TriggerCondition.self, forKey: .condition),
                 name: name,
                 retriggerPolicy: policy,
                 conditions: triggerConditions
@@ -750,7 +753,7 @@ enum AutomationTrigger: Codable {
             try container.encodeIfPresent(trigger.roomName, forKey: .roomName)
             try container.encodeIfPresent(trigger.serviceId, forKey: .serviceId)
             try container.encode(trigger.characteristicId, forKey: .characteristicId)
-            try container.encode(trigger.condition, forKey: .condition)
+            try container.encode(trigger.matchOperator, forKey: .matchOperator)
             try container.encodeIfPresent(trigger.retriggerPolicy, forKey: .retriggerPolicy)
             try container.encodeIfPresent(trigger.conditions, forKey: .conditions)
         case let .schedule(trigger):
@@ -813,7 +816,7 @@ enum AutomationTrigger: Codable {
             return .deviceStateChange(DeviceStateTrigger(
                 deviceId: t.deviceId, deviceName: t.deviceName, roomName: t.roomName,
                 serviceId: t.serviceId,
-                characteristicId: t.characteristicId, condition: t.condition,
+                characteristicId: t.characteristicId, matchOperator: t.matchOperator,
                 name: t.name, retriggerPolicy: policy, conditions: t.conditions
             ))
         case .schedule(let t):
@@ -835,6 +838,48 @@ enum AutomationTrigger: Codable {
             ))
         }
     }
+
+    /// Wraps bare (non-group) trigger guard conditions in `.and([...])` so the
+    /// root is always a logic group. Returns `self` unchanged if already correct.
+    func withWrappedConditions() -> AutomationTrigger {
+        guard let conds = conditions, !conds.isEmpty else { return self }
+        let needsWrap = conds.contains { cond in
+            switch cond {
+            case .and, .or, .not: return false
+            default: return true
+            }
+        }
+        guard needsWrap else { return self }
+        let wrapped: [AutomationCondition] = [.and(conds)]
+        switch self {
+        case .deviceStateChange(let t):
+            return .deviceStateChange(DeviceStateTrigger(
+                deviceId: t.deviceId, deviceName: t.deviceName, roomName: t.roomName,
+                serviceId: t.serviceId, characteristicId: t.characteristicId,
+                matchOperator: t.matchOperator, name: t.name,
+                retriggerPolicy: t.retriggerPolicy, conditions: wrapped
+            ))
+        case .schedule(let t):
+            return .schedule(ScheduleTrigger(
+                scheduleType: t.scheduleType, name: t.name,
+                retriggerPolicy: t.retriggerPolicy, conditions: wrapped
+            ))
+        case .webhook(let t):
+            return .webhook(WebhookTrigger(
+                token: t.token, name: t.name,
+                retriggerPolicy: t.retriggerPolicy, conditions: wrapped
+            ))
+        case .automation(let t):
+            return .automation(AutomationCallTrigger(
+                name: t.name, retriggerPolicy: t.retriggerPolicy, conditions: wrapped
+            ))
+        case .sunEvent(let t):
+            return .sunEvent(SunEventTrigger(
+                event: t.event, offsetMinutes: t.offsetMinutes,
+                name: t.name, retriggerPolicy: t.retriggerPolicy, conditions: wrapped
+            ))
+        }
+    }
 }
 
 struct DeviceStateTrigger {
@@ -843,18 +888,18 @@ struct DeviceStateTrigger {
     let roomName: String?
     let serviceId: String?
     let characteristicId: String
-    let condition: TriggerCondition
+    let matchOperator: TriggerCondition
     let name: String?
     let retriggerPolicy: ConcurrentExecutionPolicy?
     let conditions: [AutomationCondition]?
 
-    init(deviceId: String, deviceName: String? = nil, roomName: String? = nil, serviceId: String? = nil, characteristicId: String, condition: TriggerCondition, name: String? = nil, retriggerPolicy: ConcurrentExecutionPolicy? = nil, conditions: [AutomationCondition]? = nil) {
+    init(deviceId: String, deviceName: String? = nil, roomName: String? = nil, serviceId: String? = nil, characteristicId: String, matchOperator: TriggerCondition, name: String? = nil, retriggerPolicy: ConcurrentExecutionPolicy? = nil, conditions: [AutomationCondition]? = nil) {
         self.deviceId = deviceId
         self.deviceName = deviceName
         self.roomName = roomName
         self.serviceId = serviceId
         self.characteristicId = characteristicId
-        self.condition = condition
+        self.matchOperator = matchOperator
         self.name = name
         self.retriggerPolicy = retriggerPolicy
         self.conditions = conditions

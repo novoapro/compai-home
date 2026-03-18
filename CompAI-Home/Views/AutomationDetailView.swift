@@ -386,7 +386,7 @@ private struct AutomationTriggerRow: View {
             Text("Characteristic: \(devices.resolvedCharacteristicName(deviceId: t.deviceId, characteristicId: t.characteristicId))")
                 .font(.footnote)
                 .foregroundColor(Theme.Text.secondary)
-            Text("Condition: \(Self.triggerConditionDescription(t.condition))")
+            Text("Match: \(Self.triggerConditionDescription(t.matchOperator))")
                 .font(.footnote)
                 .foregroundColor(Theme.Text.secondary)
         case let .schedule(t):

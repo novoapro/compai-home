@@ -50,7 +50,7 @@ export function TriggerEditor({ draft, onChange, onOpenGuardPanel }: TriggerEdit
   const [copied, setCopied] = useState<'token' | 'url' | null>(null);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const conditionType = (draft.condition as any)?.type ?? 'changed';
+  const conditionType = (draft.matchOperator as any)?.type ?? 'changed';
   const patch = useCallback(
     (changes: Partial<AutomationTriggerDraft>) => onChange({ ...draft, ...changes }),
     [draft, onChange],
@@ -133,7 +133,7 @@ export function TriggerEditor({ draft, onChange, onOpenGuardPanel }: TriggerEdit
               />
             )}
             <div className="editor-field">
-              <label>Condition</label>
+              <label>Match Operator</label>
               <select
                 className="editor-select"
                 value={conditionType}
@@ -143,7 +143,7 @@ export function TriggerEditor({ draft, onChange, onOpenGuardPanel }: TriggerEdit
                   let condition: any = { type };
                   if (type !== 'changed') condition.value = true;
                   if (type === 'transitioned') { delete condition.value; condition.from = undefined; condition.to = true; }
-                  patch({ condition });
+                  patch({ matchOperator: condition });
                 }}
               >
                 {TRIGGER_CONDITIONS.map((c) => (
@@ -156,13 +156,13 @@ export function TriggerEditor({ draft, onChange, onOpenGuardPanel }: TriggerEdit
                 characteristic={draft.deviceId && draft.characteristicId
                   ? registry.lookupCharacteristic(draft.deviceId, draft.characteristicId)
                   : undefined}
-                value={(draft.condition as any)?.value}
+                value={(draft.matchOperator as any)?.value}
                 forceEditable
                 onChange={(val) => {
                   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                  const current = { ...(draft.condition ?? { type: 'equals' }) } as any;
+                  const current = { ...(draft.matchOperator ?? { type: 'equals' }) } as any;
                   current.value = val;
-                  patch({ condition: current });
+                  patch({ matchOperator: current });
                 }}
               />
             )}
@@ -172,30 +172,30 @@ export function TriggerEditor({ draft, onChange, onOpenGuardPanel }: TriggerEdit
                   characteristic={draft.deviceId && draft.characteristicId
                     ? registry.lookupCharacteristic(draft.deviceId, draft.characteristicId)
                     : undefined}
-                  value={(draft.condition as any)?.from}
+                  value={(draft.matchOperator as any)?.from}
                   label="From"
                   allowAny
                   forceEditable
                   onChange={(val) => {
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    const current = { ...(draft.condition ?? { type: 'transitioned' }) } as any;
+                    const current = { ...(draft.matchOperator ?? { type: 'transitioned' }) } as any;
                     current.from = val;
-                    patch({ condition: current });
+                    patch({ matchOperator: current });
                   }}
                 />
                 <CharacteristicValueInput
                   characteristic={draft.deviceId && draft.characteristicId
                     ? registry.lookupCharacteristic(draft.deviceId, draft.characteristicId)
                     : undefined}
-                  value={(draft.condition as any)?.to}
+                  value={(draft.matchOperator as any)?.to}
                   label="To"
                   allowAny
                   forceEditable
                   onChange={(val) => {
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    const current = { ...(draft.condition ?? { type: 'transitioned' }) } as any;
+                    const current = { ...(draft.matchOperator ?? { type: 'transitioned' }) } as any;
                     current.to = val;
-                    patch({ condition: current });
+                    patch({ matchOperator: current });
                   }}
                 />
               </div>

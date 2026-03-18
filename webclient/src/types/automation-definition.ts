@@ -40,7 +40,7 @@ export interface DeviceStateTriggerDef {
   deviceId: string;
   serviceId?: string;
   characteristicId: string;
-  condition: TriggerCondition;
+  matchOperator: TriggerCondition;
   retriggerPolicy?: string;
   conditions?: AutomationConditionDef[];
 }

@@ -156,7 +156,7 @@ function triggerDraftToPayload(t: AutomationTriggerDraft): AutomationTriggerDef 
         deviceId: t.deviceId!,
         serviceId: t.serviceId,
         characteristicId: t.characteristicId!,
-        condition: t.condition ?? { type: 'changed' },
+        matchOperator: t.matchOperator ?? { type: 'changed' },
       };
     case 'schedule':
       return { ...shared, type: 'schedule', scheduleType: buildScheduleType(t) };
@@ -366,7 +366,7 @@ function triggerDefToDraft(t: AutomationTriggerDef): AutomationTriggerDraft {
       base.deviceId = t.deviceId;
       base.serviceId = t.serviceId;
       base.characteristicId = t.characteristicId;
-      base.condition = t.condition;
+      base.matchOperator = t.matchOperator;
       break;
     case 'schedule': {
       const st = t.scheduleType;
@@ -538,7 +538,7 @@ export function triggerAutoName(t: AutomationTriggerDraft, registry: RegistryLik
         const char = registry.lookupCharacteristic(t.deviceId, t.characteristicId);
         parts.push(char?.name || t.characteristicId);
       }
-      const cond = t.condition;
+      const cond = t.matchOperator;
       if (cond) {
         if (cond.type === 'changed') {
           parts.push('Changed');

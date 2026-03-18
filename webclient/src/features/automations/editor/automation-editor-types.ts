@@ -20,7 +20,7 @@ export interface AutomationTriggerDraft {
   deviceId?: string;
   serviceId?: string;
   characteristicId?: string;
-  condition?: TriggerCondition;
+  matchOperator?: TriggerCondition;
   retriggerPolicy?: string;
   // per-trigger guard conditions
   conditions?: AutomationConditionDraft[];

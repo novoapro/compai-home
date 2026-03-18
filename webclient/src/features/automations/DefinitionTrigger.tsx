@@ -55,7 +55,7 @@ export function DefinitionTrigger({ trigger, depth = 0 }: DefinitionTriggerProps
         const charLabel = char?.name || d.characteristicId;
         const parts: string[] = [];
         if (device?.room) parts.push(device.room);
-        parts.push(`${charLabel} ${formatTriggerCondition(d.condition)}`);
+        parts.push(`${charLabel} ${formatTriggerCondition(d.matchOperator)}`);
         return parts.join(' · ');
       }
       case 'schedule': {
