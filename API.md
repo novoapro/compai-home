@@ -170,6 +170,19 @@ Begins the OAuth 2.1 authorization code flow. Since all registered clients are p
 https://your-app.example.com/callback?code=AUTH_CODE&state=ORIGINAL_STATE
 ```
 
+**Success — 200 JSON (programmatic clients):**
+
+When the request includes an `Accept: application/json` header, the server returns the authorization code directly as JSON instead of a 302 redirect. This is intended for programmatic clients such as the web dashboard that cannot follow redirects.
+
+```json
+{
+  "code": "AUTH_CODE",
+  "state": "ORIGINAL_STATE"
+}
+```
+
+The `state` field is omitted if it was not included in the request. The response includes `Cache-Control: no-store`.
+
 **Error — 302 redirect to `redirect_uri`:**
 
 ```

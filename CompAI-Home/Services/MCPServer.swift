@@ -503,6 +503,17 @@ class MCPServer: ObservableObject, MCPServerProtocol, @unchecked Sendable {
                 return Response(status: .found, headers: ["Location": components.string!])
             }
 
+            // If client accepts JSON (programmatic clients like web app), return code directly
+            if req.headers.first(name: .accept)?.contains("application/json") == true {
+                var jsonBody: [String: String] = ["code": authCode.code]
+                if let state { jsonBody["state"] = state }
+                let data = try JSONSerialization.data(withJSONObject: jsonBody)
+                var headers = HTTPHeaders()
+                headers.add(name: .contentType, value: "application/json")
+                headers.add(name: .cacheControl, value: "no-store")
+                return Response(status: .ok, headers: headers, body: .init(data: data))
+            }
+
             guard var components = URLComponents(string: redirectURI) else {
                 return Response(status: .badRequest, body: .init(string: "{\"error\":\"invalid_request\",\"error_description\":\"Invalid redirect_uri\"}"))
             }
