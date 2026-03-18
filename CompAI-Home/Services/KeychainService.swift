@@ -104,6 +104,7 @@ extension KeychainService {
         static let appleSignInUserId = "apple-signin-user-id"
         static let appleSignInEmail = "apple-signin-email"
         static let appleSignInName = "apple-signin-name"
+        static let oauthCredentials = "oauth-credentials"
     }
 
     // MARK: - Multi-Token Management
@@ -188,5 +189,54 @@ extension KeychainService {
         var bytes = [UInt8](repeating: 0, count: 32)
         _ = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
         return bytes.map { String(format: "%02x", $0) }.joined()
+    }
+
+    // MARK: - OAuth Credential Management
+
+    func getOAuthCredentials() -> [OAuthCredential] {
+        guard let json = read(key: Keys.oauthCredentials),
+              let data = json.data(using: .utf8) else { return [] }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return (try? decoder.decode([OAuthCredential].self, from: data)) ?? []
+    }
+
+    @discardableResult
+    func addOAuthCredential(name: String) -> OAuthCredential {
+        var credentials = getOAuthCredentials()
+        let credential = OAuthCredential(
+            clientId: generateSecureToken(),
+            clientSecret: generateSecureToken(),
+            name: name
+        )
+        credentials.append(credential)
+        saveOAuthCredentials(credentials)
+        return credential
+    }
+
+    func updateOAuthCredential(_ credential: OAuthCredential) {
+        var credentials = getOAuthCredentials()
+        if let index = credentials.firstIndex(where: { $0.id == credential.id }) {
+            credentials[index] = credential
+            saveOAuthCredentials(credentials)
+        }
+    }
+
+    func deleteOAuthCredential(id: UUID) {
+        var credentials = getOAuthCredentials()
+        credentials.removeAll { $0.id == id }
+        saveOAuthCredentials(credentials)
+    }
+
+    func getActiveOAuthCredentials() -> [OAuthCredential] {
+        getOAuthCredentials().filter { !$0.isRevoked }
+    }
+
+    private func saveOAuthCredentials(_ credentials: [OAuthCredential]) {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        guard let data = try? encoder.encode(credentials),
+              let json = String(data: data, encoding: .utf8) else { return }
+        _ = save(key: Keys.oauthCredentials, value: json)
     }
 }
