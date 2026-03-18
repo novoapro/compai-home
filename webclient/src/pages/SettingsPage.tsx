@@ -3,17 +3,13 @@ import { Switch } from '@headlessui/react';
 import { useConfig } from '@/contexts/ConfigContext';
 import { useSetTopBar } from '@/contexts/TopBarContext';
 import { useWebSocket } from '@/contexts/WebSocketContext';
-import { useAuth } from '@/contexts/AuthContext';
 import { Icon } from '@/components/Icon';
-import { OAuthCredentials } from '@/components/settings/OAuthCredentials';
 import './SettingsPage.css';
 
 export function SettingsPage() {
   const { config, setConfig, save } = useConfig();
   const ws = useWebSocket();
   useSetTopBar('Settings');
-
-  const { api } = useAuth();
 
   const [localState, setLocalState] = useState({
     serverAddress: config.serverAddress,
@@ -269,9 +265,6 @@ export function SettingsPage() {
         )}
       </div>
 
-      <div className="settings-card">
-        <OAuthCredentials api={api} />
-      </div>
     </div>
   );
 }
