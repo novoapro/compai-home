@@ -23,6 +23,7 @@ export function SettingsPage() {
     oauthClientSecret: config.oauthClientSecret,
   });
 
+  const [pendingAuthSwitch, setPendingAuthSwitch] = useState<'bearer' | 'oauth' | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
   const [saved, setSaved] = useState(false);
 
@@ -137,18 +138,53 @@ export function SettingsPage() {
             <button
               className={`btn ${localState.authMethod === 'bearer' ? 'btn-primary' : 'btn-secondary'}`}
               style={{ flex: 1 }}
-              onClick={() => updateField('authMethod', 'bearer')}
+              onClick={() => {
+                if (localState.authMethod !== 'bearer') setPendingAuthSwitch('bearer');
+              }}
             >
               Bearer Token
             </button>
             <button
               className={`btn ${localState.authMethod === 'oauth' ? 'btn-primary' : 'btn-secondary'}`}
               style={{ flex: 1 }}
-              onClick={() => updateField('authMethod', 'oauth')}
+              onClick={() => {
+                if (localState.authMethod !== 'oauth') setPendingAuthSwitch('oauth');
+              }}
             >
               OAuth
             </button>
           </div>
+          {pendingAuthSwitch && (
+            <div className="status-message" style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <span>
+                Switch to <strong>{pendingAuthSwitch === 'oauth' ? 'OAuth' : 'Bearer Token'}</strong>?
+                Your current {localState.authMethod === 'oauth' ? 'OAuth credentials' : 'Bearer token'} will be cleared.
+              </span>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  className="btn btn-primary"
+                  style={{ fontSize: 12, padding: '4px 12px' }}
+                  onClick={() => {
+                    if (pendingAuthSwitch === 'oauth') {
+                      setLocalState(prev => ({ ...prev, authMethod: 'oauth', bearerToken: '' }));
+                    } else {
+                      setLocalState(prev => ({ ...prev, authMethod: 'bearer', oauthClientId: '', oauthClientSecret: '' }));
+                    }
+                    setPendingAuthSwitch(null);
+                  }}
+                >
+                  Switch
+                </button>
+                <button
+                  className="btn btn-secondary"
+                  style={{ fontSize: 12, padding: '4px 12px' }}
+                  onClick={() => setPendingAuthSwitch(null)}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {localState.authMethod === 'bearer' ? (
