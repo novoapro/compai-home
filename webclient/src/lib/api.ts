@@ -44,16 +44,41 @@ export interface ApiClient {
   getSubscriptionStatus(): Promise<SubscriptionStatus>;
 }
 
+export class AuthenticationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'AuthenticationError';
+  }
+}
+
 const DEFAULT_TIMEOUT = 15_000;
 
-export function createApiClient(baseUrl: string, bearerToken: string): ApiClient {
-  function buildHeaders(path: string, options: RequestInit = {}): Record<string, string> {
+/** Token resolver: a static string or an async function that returns a fresh token. */
+export type TokenResolver = string | (() => Promise<string>);
+
+/** Callback invoked when a token is rejected (401). OAuth clients use this to clear cached tokens. */
+export type OnAuthFailure = () => void;
+
+export function createApiClient(
+  baseUrl: string,
+  tokenResolver: TokenResolver,
+  onAuthFailure?: OnAuthFailure,
+): ApiClient {
+
+  async function resolveToken(): Promise<string> {
+    return typeof tokenResolver === 'function' ? tokenResolver() : tokenResolver;
+  }
+
+  async function buildHeaders(path: string, options: RequestInit = {}): Promise<Record<string, string>> {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       ...((options.headers as Record<string, string>) ?? {}),
     };
-    if (!path.endsWith('/health') && bearerToken) {
-      headers['Authorization'] = `Bearer ${bearerToken}`;
+    if (!path.endsWith('/health')) {
+      const token = await resolveToken();
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
     }
     return headers;
   }
@@ -91,38 +116,36 @@ export function createApiClient(baseUrl: string, bearerToken: string): ApiClient
     }
   }
 
-  async function requestJson<T>(path: string, options: RequestInit = {}, timeoutMs = DEFAULT_TIMEOUT): Promise<T> {
-    const headers = buildHeaders(path, options);
-    const res = await fetchWithTimeout(`${baseUrl}${path}`, { ...options, headers }, timeoutMs);
-
+  async function handleResponse<T>(res: Response, path: string, parse: boolean): Promise<T | void> {
+    if (res.status === 401) {
+      onAuthFailure?.();
+      throw new AuthenticationError(await parseError(res));
+    }
+    if (res.status === 402) {
+      throw new SubscriptionRequiredError(await parseError(res));
+    }
     if (!res.ok) {
-      if (res.status === 402) {
-        const reason = await parseError(res);
-        throw new SubscriptionRequiredError(reason);
-      }
       throw new Error(await parseError(res));
     }
-
+    if (!parse) return;
     const text = await res.text();
     if (!text) {
       console.warn(`[API] Empty response from ${path}`);
       return undefined as unknown as T;
     }
-
     return JSON.parse(text) as T;
   }
 
-  async function requestVoid(path: string, options: RequestInit = {}): Promise<void> {
-    const headers = buildHeaders(path, options);
-    const res = await fetchWithTimeout(`${baseUrl}${path}`, { ...options, headers });
+  async function requestJson<T>(path: string, options: RequestInit = {}, timeoutMs = DEFAULT_TIMEOUT): Promise<T> {
+    const headers = await buildHeaders(path, options);
+    const res = await fetchWithTimeout(`${baseUrl}${path}`, { ...options, headers }, timeoutMs);
+    return handleResponse<T>(res, path, true) as Promise<T>;
+  }
 
-    if (!res.ok) {
-      if (res.status === 402) {
-        const reason = await parseError(res);
-        throw new SubscriptionRequiredError(reason);
-      }
-      throw new Error(await parseError(res));
-    }
+  async function requestVoid(path: string, options: RequestInit = {}): Promise<void> {
+    const headers = await buildHeaders(path, options);
+    const res = await fetchWithTimeout(`${baseUrl}${path}`, { ...options, headers });
+    await handleResponse(res, path, false);
   }
 
   return {
