@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from 'react';
 import { useConfig } from './ConfigContext';
+import { useAuth } from './AuthContext';
 import type { StateChangeLog } from '@/types/state-change-log';
 import type { AutomationExecutionLog, Automation } from '@/types/automation-log';
 import type { CharacteristicUpdateEvent } from '@/types/homekit-device';
@@ -46,6 +47,9 @@ const CONNECT_TIMEOUT = 5000;
 
 export function WebSocketProvider({ children }: { children: ReactNode }) {
   const { config } = useConfig();
+  const { getAccessToken } = useAuth();
+  const getAccessTokenRef = useRef(getAccessToken);
+  getAccessTokenRef.current = getAccessToken;
   const [connectionState, setConnectionState] = useState<WSConnectionState>('disconnected');
 
   const wsRef = useRef<WebSocket | null>(null);
@@ -93,10 +97,22 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clearReconnectTimer]);
 
-  const connect = useCallback(() => {
+  const connect = useCallback(async () => {
     const cfg = configRef.current;
     if (!cfg.websocketEnabled) return;
-    if (!cfg.bearerToken) return;
+
+    let wsToken: string;
+    if (cfg.authMethod === 'oauth') {
+      try {
+        wsToken = await getAccessTokenRef.current();
+      } catch {
+        setConnectionState('disconnected');
+        return;
+      }
+    } else {
+      if (!cfg.bearerToken) return;
+      wsToken = cfg.bearerToken;
+    }
 
     const ws = wsRef.current;
     if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
@@ -104,7 +120,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
     intentionalCloseRef.current = false;
     setConnectionState('connecting');
 
-    const token = encodeURIComponent(cfg.bearerToken);
+    const token = encodeURIComponent(wsToken);
     const wsProtocol = cfg.useHTTPS ? 'wss' : 'ws';
     const url = `${wsProtocol}://${cfg.serverAddress}:${cfg.serverPort}/ws?token=${token}`;
 
@@ -225,14 +241,17 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
 
   // Auto-connect on mount and when config changes
   useEffect(() => {
-    if (config.websocketEnabled && config.bearerToken) {
+    const hasAuth = config.authMethod === 'oauth'
+      ? !!(config.oauthClientId && config.oauthClientSecret)
+      : !!config.bearerToken;
+    if (config.websocketEnabled && hasAuth) {
       connect();
     } else {
       disconnect();
     }
     return () => disconnect();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [config.websocketEnabled, config.bearerToken, config.serverAddress, config.serverPort]);
+  }, [config.websocketEnabled, config.bearerToken, config.authMethod, config.oauthClientId, config.oauthClientSecret, config.serverAddress, config.serverPort]);
 
   // iOS standalone (home screen) apps break WebSocket after freeze/thaw:
   // new WebSocket() creates a socket that gets stuck in CONNECTING forever.
@@ -263,9 +282,16 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
 
       probeInFlight = true;
       try {
+        let probeToken: string;
+        try {
+          probeToken = await getAccessTokenRef.current();
+        } catch {
+          probeInFlight = false;
+          return;
+        }
         const resp = await fetch(probeUrl, {
           signal: AbortSignal.timeout(3000),
-          headers: { 'Authorization': `Bearer ${cfg.bearerToken}` },
+          headers: { 'Authorization': `Bearer ${probeToken}` },
         });
 
         if (resp.ok) {
