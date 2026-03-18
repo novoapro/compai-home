@@ -1,9 +1,11 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { Switch } from '@headlessui/react';
 import { useConfig } from '@/contexts/ConfigContext';
 import { useSetTopBar } from '@/contexts/TopBarContext';
 import { useWebSocket } from '@/contexts/WebSocketContext';
 import { Icon } from '@/components/Icon';
+import { createApiClient } from '@/lib/api';
+import { OAuthCredentials } from '@/components/settings/OAuthCredentials';
 import './SettingsPage.css';
 
 export function SettingsPage() {
@@ -19,6 +21,11 @@ export function SettingsPage() {
     websocketEnabled: config.websocketEnabled,
     useHTTPS: config.useHTTPS,
   });
+
+  const api = useMemo(() => {
+    const protocol = localState.useHTTPS ? 'https' : 'http';
+    return createApiClient(`${protocol}://${localState.serverAddress}:${localState.serverPort}`, localState.bearerToken);
+  }, [localState.serverAddress, localState.serverPort, localState.bearerToken, localState.useHTTPS]);
 
   const [connectionStatus, setConnectionStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
   const [saved, setSaved] = useState(false);
@@ -211,6 +218,10 @@ export function SettingsPage() {
             Could not connect. Check the address, port, and that the server is running.
           </div>
         )}
+      </div>
+
+      <div className="settings-card">
+        <OAuthCredentials api={api} />
       </div>
     </div>
   );
