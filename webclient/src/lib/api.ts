@@ -26,6 +26,25 @@ export class SubscriptionRequiredError extends Error {
   }
 }
 
+export interface OAuthCredentialResponse {
+  id: string;
+  clientId: string;
+  name: string;
+  createdAt: string;
+  lastUsedAt: string | null;
+  isRevoked: boolean;
+}
+
+export interface OAuthCredentialCreated {
+  id: string;
+  clientId: string;
+  clientSecret: string;
+  name: string;
+  createdAt: string;
+  tokenEndpoint: string;
+  authorizationEndpoint: string;
+}
+
 export interface ApiClient {
   checkHealth(): Promise<boolean>;
   getLogs(params?: LogQueryParams): Promise<PaginatedLogsResponse>;
@@ -42,6 +61,10 @@ export interface ApiClient {
   getScenes(): Promise<RESTScene[]>;
   getAutomationRuntime(): Promise<AutomationRuntime>;
   getSubscriptionStatus(): Promise<SubscriptionStatus>;
+  getOAuthCredentials(): Promise<OAuthCredentialResponse[]>;
+  createOAuthCredential(name: string): Promise<OAuthCredentialCreated>;
+  revokeOAuthCredential(credentialId: string): Promise<void>;
+  deleteOAuthCredential(credentialId: string): Promise<void>;
 }
 
 const DEFAULT_TIMEOUT = 15_000;
@@ -218,6 +241,25 @@ export function createApiClient(baseUrl: string, bearerToken: string): ApiClient
 
     async getSubscriptionStatus() {
       return requestJson<SubscriptionStatus>('/subscription/status');
+    },
+
+    async getOAuthCredentials() {
+      return requestJson<OAuthCredentialResponse[]>('/oauth/credentials');
+    },
+
+    async createOAuthCredential(name: string) {
+      return requestJson<OAuthCredentialCreated>('/oauth/credentials', {
+        method: 'POST',
+        body: JSON.stringify({ name }),
+      });
+    },
+
+    async revokeOAuthCredential(credentialId: string) {
+      await requestVoid(`/oauth/credentials/${credentialId}/revoke`, { method: 'POST' });
+    },
+
+    async deleteOAuthCredential(credentialId: string) {
+      await requestVoid(`/oauth/credentials/${credentialId}`, { method: 'DELETE' });
     },
   };
 }

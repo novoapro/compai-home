@@ -152,11 +152,13 @@ class SettingsViewModel: ObservableObject {
     @Published var aiTestResult: AITestResult?
     @Published var isTestingAI = false
     @Published var apiTokens: [APIToken] = []
+    @Published var oauthCredentials: [OAuthCredential] = []
 
     let storage: StorageService
     private let webhookService: WebhookService
     private let mcpServer: MCPServer
     let keychainService: KeychainService
+    private let oauthService: OAuthService
     let aiAutomationService: AIAutomationService
     let backupService: BackupService
     let cloudBackupService: CloudBackupService
@@ -181,7 +183,8 @@ class SettingsViewModel: ObservableObject {
         deviceRegistryService: DeviceRegistryService,
         homeKitManager: HomeKitManager,
         automationStorageService: AutomationStorageService,
-        subscriptionService: SubscriptionService
+        subscriptionService: SubscriptionService,
+        oauthService: OAuthService
     ) {
         self.storage = storage
         self.webhookService = webhookService
@@ -195,6 +198,7 @@ class SettingsViewModel: ObservableObject {
         self.homeKitManager = homeKitManager
         self.automationStorageService = automationStorageService
         self.subscriptionService = subscriptionService
+        self.oauthService = oauthService
         self.webhookEnabled = storage.webhookEnabled
         self.hideRoomNameInTheApp = storage.hideRoomNameInTheApp
         self.useServiceTypeAsName = storage.useServiceTypeAsName
@@ -228,6 +232,7 @@ class SettingsViewModel: ObservableObject {
         self.aiSystemPrompt = storedPrompt.isEmpty ? AIAutomationService.defaultSystemPrompt : storedPrompt
         self.aiApiKeyConfigured = keychainService.exists(key: KeychainService.Keys.aiApiKey)
         self.apiTokens = keychainService.getAPITokens()
+        self.oauthCredentials = keychainService.getOAuthCredentials()
 
         webhookService.statusSubject
             .receive(on: DispatchQueue.main)
@@ -326,6 +331,34 @@ class SettingsViewModel: ObservableObject {
     func deleteAPIToken(id: UUID) {
         keychainService.deleteAPIToken(id: id)
         apiTokens.removeAll { $0.id == id }
+    }
+
+    // MARK: - OAuth Credential Methods
+
+    func addOAuthCredential(name: String) -> OAuthCredential {
+        let credential = keychainService.addOAuthCredential(name: name)
+        oauthCredentials.append(credential)
+        return credential
+    }
+
+    func revokeOAuthCredential(id: UUID) {
+        var credentials = keychainService.getOAuthCredentials()
+        if let index = credentials.firstIndex(where: { $0.id == id }) {
+            credentials[index].isRevoked = true
+            keychainService.updateOAuthCredential(credentials[index])
+            oauthCredentials = credentials
+            Task {
+                await oauthService.revokeCredential(id: id)
+            }
+        }
+    }
+
+    func deleteOAuthCredential(id: UUID) {
+        Task {
+            await oauthService.revokeCredential(id: id)
+        }
+        keychainService.deleteOAuthCredential(id: id)
+        oauthCredentials.removeAll { $0.id == id }
     }
 
     func testAIConnection() {
