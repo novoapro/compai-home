@@ -1693,6 +1693,7 @@ class MCPServer: ObservableObject, MCPServerProtocol, @unchecked Sendable {
     private func handleLegacySSE(_ req: Request) -> Response {
         let connectionId = UUID()
         let tracker = connectionTracker
+        let oauthToken = req.storage[OAuthAccessTokenKey.self]
 
         let host = req.headers.first(name: .host) ?? "127.0.0.1:\(port)"
         let messagesURL = "http://\(host)/messages?sessionId=\(connectionId.uuidString)"
@@ -1708,6 +1709,9 @@ class MCPServer: ObservableObject, MCPServerProtocol, @unchecked Sendable {
             body: .init(managedAsyncStream: { [weak self] writer in
                 // Register the connection with its writer
                 await tracker.addSSEConnection(id: connectionId, writer: writer)
+                if let oauthToken {
+                    await tracker.associateToken(oauthToken, withSSE: connectionId)
+                }
                 self?.updateClientCount()
 
                 // Send the endpoint event first
@@ -1726,6 +1730,7 @@ class MCPServer: ObservableObject, MCPServerProtocol, @unchecked Sendable {
                 }
 
                 // Cleanup on disconnect
+                await tracker.dissociateSSE(id: connectionId)
                 await tracker.removeSSEConnection(id: connectionId)
                 self?.updateClientCount()
             })
@@ -1881,12 +1886,16 @@ private struct BearerAuthMiddleware: AsyncMiddleware {
 
     func respond(to request: Request, chainingTo next: any AsyncResponder) async throws -> Response {
         guard let authHeader = request.headers.first(name: .authorization) else {
-            return Response(status: .unauthorized, body: .init(string: "{\"error\":\"Missing Authorization header\"}"))
+            var resp = Response(status: .unauthorized, body: .init(string: "{\"error\":\"Missing Authorization header\"}"))
+            resp.headers.add(name: .wwwAuthenticate, value: "Bearer")
+            return resp
         }
 
         let prefix = "Bearer "
         guard authHeader.hasPrefix(prefix) else {
-            return Response(status: .unauthorized, body: .init(string: "{\"error\":\"Invalid Authorization scheme. Use Bearer.\"}"))
+            var resp = Response(status: .unauthorized, body: .init(string: "{\"error\":\"Invalid Authorization scheme. Use Bearer.\"}"))
+            resp.headers.add(name: .wwwAuthenticate, value: "Bearer")
+            return resp
         }
 
         let token = String(authHeader.dropFirst(prefix.count))
@@ -1902,7 +1911,9 @@ private struct BearerAuthMiddleware: AsyncMiddleware {
             return try await next.respond(to: request)
         }
 
-        return Response(status: .unauthorized, body: .init(string: "{\"error\":\"Invalid API token\"}"))
+        var resp = Response(status: .unauthorized, body: .init(string: "{\"error\":\"Invalid API token\"}"))
+        resp.headers.add(name: .wwwAuthenticate, value: "Bearer")
+        return resp
     }
 }
 

@@ -38,6 +38,9 @@ actor OAuthService {
     // MARK: - Authorization Code
 
     func createAuthorizationCode(clientId: String, codeChallenge: String, redirectURI: String, scopes: Set<String>, state: String?) -> OAuthAuthorizationCode? {
+        // Lazy cleanup of expired codes
+        pendingCodes = pendingCodes.filter { !$0.value.isExpired }
+
         let credentials = keychainService.getActiveOAuthCredentials()
         guard credentials.contains(where: { $0.clientId == clientId }) else { return nil }
 
@@ -186,8 +189,10 @@ actor OAuthService {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         guard let loaded = try? decoder.decode([OAuthToken].self, from: data) else { return }
-        for token in loaded where !token.isExpired {
-            tokens[token.accessToken] = token
+        for token in loaded where !token.isRefreshExpired {
+            if !token.isExpired {
+                tokens[token.accessToken] = token
+            }
             refreshIndex[token.refreshToken] = token
         }
     }

@@ -138,7 +138,7 @@ Returns server metadata JSON describing the supported endpoints and capabilities
   "response_types_supported": ["code"],
   "grant_types_supported": ["authorization_code", "refresh_token"],
   "code_challenge_methods_supported": ["S256"],
-  "token_endpoint_auth_methods_supported": ["client_secret_post", "none"]
+  "token_endpoint_auth_methods_supported": ["client_secret_post"]
 }
 ```
 
@@ -150,7 +150,7 @@ Returns server metadata JSON describing the supported endpoints and capabilities
 |---|---|---|---|
 | `GET` | `/oauth/authorize` | None | Initiate authorization code flow |
 
-Begins the OAuth 2.1 authorization code flow. The server presents a consent screen (or approves automatically for trusted clients). On approval, redirects to `redirect_uri` with a one-time authorization code.
+Begins the OAuth 2.1 authorization code flow. Since all registered clients are pre-authorized (credentials created in Settings), the server immediately redirects to `redirect_uri` with a one-time authorization code. No login or consent screen is shown.
 
 **Query parameters:**
 
@@ -215,7 +215,7 @@ Exchanges an authorization code for tokens, or refreshes an existing access toke
 | `grant_type` | string | yes | `authorization_code` |
 | `code` | string | yes | Authorization code received from `/oauth/authorize` |
 | `client_id` | string | yes | OAuth client ID |
-| `client_secret` | string | no | Client secret (required for confidential clients) |
+| `client_secret` | string | yes | Client secret |
 | `code_verifier` | string | yes | PKCE code verifier (plain text, 43–128 chars) |
 | `redirect_uri` | string | yes | Must match the value used in the authorization request |
 
@@ -224,6 +224,7 @@ curl -X POST http://localhost:3000/oauth/token \
   -d "grant_type=authorization_code" \
   -d "code=AUTH_CODE" \
   -d "client_id=my-client" \
+  -d "client_secret=my-secret" \
   -d "code_verifier=VERIFIER_STRING" \
   -d "redirect_uri=https://your-app.example.com/callback"
 ```
@@ -235,12 +236,13 @@ curl -X POST http://localhost:3000/oauth/token \
 | `grant_type` | string | yes | `refresh_token` |
 | `refresh_token` | string | yes | Previously issued refresh token |
 | `client_id` | string | yes | OAuth client ID |
-| `client_secret` | string | no | Client secret (required for confidential clients) |
+| `client_secret` | string | yes | Client secret |
 
 ```bash
 curl -X POST http://localhost:3000/oauth/token \
   -d "grant_type=refresh_token" \
   -d "refresh_token=REFRESH_TOKEN" \
+  -d "client_secret=my-secret" \
   -d "client_id=my-client"
 ```
 
