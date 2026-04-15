@@ -404,7 +404,9 @@ export function ConditionEditor({ draft, allBlocks, currentBlockDraftId, onChang
                           </>
                         )}
                         {selectedType === 'datetime' && (() => {
-                          const cv = String(compVal ?? '');
+                          // Use dynamicDateValue as the source of truth for the sentinel
+                          const sentinel = draft.dynamicDateValue || (typeof compVal === 'string' && compVal.startsWith('__now') ? compVal : undefined);
+                          const cv = sentinel || '';
                           const isNow = cv === '__now__';
                           const isRelative = !isNow && cv.startsWith('__now') && cv.endsWith('__');
                           const dtMode = isNow ? 'now' : isRelative ? 'relative' : 'specific';
@@ -416,7 +418,13 @@ export function ConditionEditor({ draft, allBlocks, currentBlockDraftId, onChang
                             if (m) { relSign = m[1] || '+'; relAmount = parseFloat(m[2]!); relUnit = m[3]!; }
                           }
                           const buildSentinel = (sign: string, amt: number, unit: string) => `__now${sign}${amt}${unit}__`;
-                          const patchDt = (val: unknown) => patch({ comparison: { type: compType, value: val } as unknown as typeof draft.comparison, dynamicDateValue: typeof val === 'string' && (val === '__now__' || (val.startsWith('__now') && val.endsWith('__'))) ? val : undefined });
+                          const orderedOps = new Set(['greaterThan', 'lessThan', 'greaterThanOrEqual', 'lessThanOrEqual']);
+                          const patchDt = (val: unknown) => {
+                            const isSentinel = typeof val === 'string' && (val === '__now__' || (val.startsWith('__now') && val.endsWith('__')));
+                            // For ordered comparisons, store 0 as placeholder; the sentinel in dynamicDateValue is resolved at runtime
+                            const compValue = isSentinel && orderedOps.has(compType) ? 0 : val;
+                            patch({ comparison: { type: compType, value: compValue } as unknown as typeof draft.comparison, dynamicDateValue: isSentinel ? val as string : undefined });
+                          };
                           return (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1 }}>
                               <select className="editor-select" value={dtMode}

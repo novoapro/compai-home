@@ -223,14 +223,25 @@ function conditionDraftToPayload(c: AutomationConditionDraft): AutomationConditi
       return { type: 'or', conditions: (c.conditions ?? []).map(conditionDraftToPayload) };
     case 'not':
       return { type: 'not', condition: c.condition ? conditionDraftToPayload(c.condition) : undefined! };
-    case 'engineState':
+    case 'engineState': {
+      let comparison = c.comparison ?? { type: 'equals', value: '' };
+      // When dynamicDateValue is set and comparison is an ordered type,
+      // the value must be a numeric placeholder (resolved at runtime by the server).
+      if (c.dynamicDateValue && comparison) {
+        const orderedTypes = new Set(['greaterThan', 'lessThan', 'greaterThanOrEqual', 'lessThanOrEqual']);
+        const compAny = comparison as { type: string; value?: unknown };
+        if (orderedTypes.has(comparison.type) && typeof compAny.value === 'string') {
+          comparison = { ...comparison, value: 0 } as typeof comparison;
+        }
+      }
       return {
         type: 'engineState',
         variableRef: c.variableRef ?? { type: 'byName', name: '' },
-        comparison: c.comparison ?? { type: 'equals', value: '' },
+        comparison,
         ...(c.stateCompareMode === 'stateRef' && c.compareToStateRef && { compareToStateRef: c.compareToStateRef }),
         ...(c.dynamicDateValue && { dynamicDateValue: c.dynamicDateValue }),
       } as AutomationConditionDef;
+    }
   }
 }
 
