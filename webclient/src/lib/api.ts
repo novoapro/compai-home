@@ -38,6 +38,7 @@ export interface ApiClient {
   deleteAutomation(automationId: string): Promise<void>;
   generateAutomation(prompt: string, deviceIds?: string[], sceneIds?: string[]): Promise<{ id: string; name: string; description: string | null }>;
   improveAutomation(automationId: string, prompt?: string): Promise<AutomationDefinition>;
+  triggerAutomation(automationId: string): Promise<{ status: string; message?: string }>;
   getDevices(): Promise<RESTDevice[]>;
   getScenes(): Promise<RESTScene[]>;
   getAutomationRuntime(): Promise<AutomationRuntime>;
@@ -245,6 +246,12 @@ export function createApiClient(
         method: 'POST',
         body: JSON.stringify(body),
       }, 90_000);
+    },
+
+    async triggerAutomation(automationId: string) {
+      return requestJson<{ status: string; message?: string }>(`/automations/${automationId}/trigger`, {
+        method: 'POST',
+      });
     },
 
     async getDevices() {

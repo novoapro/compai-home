@@ -277,7 +277,7 @@ function blockDraftToPayload(b: AutomationBlockDraft, idMap?: Map<string, string
     case 'stateVariable':
       return { ...shared, operation: b.operation };
     case 'delay':
-      return { ...shared, seconds: b.seconds ?? 1 };
+      return { ...shared, seconds: b.seconds ?? 1, ...(b.secondsSource === 'global' && b.secondsRef && { secondsRef: b.secondsRef }) };
     case 'waitForState':
       return {
         ...shared,
@@ -507,6 +507,12 @@ function blockDefToDraft(b: AutomationBlockDef, blockIdMap?: Map<string, string>
       break;
     case 'delay':
       base.seconds = b.seconds;
+      if (b.secondsRef) {
+        base.secondsRef = b.secondsRef;
+        base.secondsSource = 'global';
+      } else {
+        base.secondsSource = 'local';
+      }
       break;
     case 'waitForState':
       base.condition = b.condition ? migrateBlockCondition(conditionDefToDraft(b.condition as AutomationConditionDef)) : undefined;
@@ -817,8 +823,13 @@ export function blockAutoName(b: AutomationBlockDraft, registry: RegistryLike, s
         }
       }
     }
-    case 'delay':
+    case 'delay': {
+      if (b.secondsSource === 'global' && b.secondsRef?.name) {
+        const refLabel = stateNames?.[b.secondsRef.name] || b.secondsRef.name;
+        return `Delay ${refLabel} (Global)`;
+      }
       return `Delay ${b.seconds ?? 1}s`;
+    }
     case 'waitForState': {
       if (!b.condition) return 'Wait for State';
       const desc = conditionAutoName(b.condition, registry);

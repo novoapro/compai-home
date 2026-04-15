@@ -22,6 +22,7 @@ export function AutomationDefinitionPage() {
   const [isLoading, setIsLoading] = useState(true);
   useSetTopBar(automation?.name ?? 'Automation', null, isLoading);
   const [isDuplicating, setIsDuplicating] = useState(false);
+  const [isTriggering, setIsTriggering] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const loadAutomation = useCallback(async () => {
@@ -96,6 +97,18 @@ export function AutomationDefinitionPage() {
     }
   }, [api, automation, navigate]);
 
+  const triggerAutomation = useCallback(async () => {
+    if (!automation) return;
+    setIsTriggering(true);
+    try {
+      await api.triggerAutomation(automation.id);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to trigger automation');
+    } finally {
+      setIsTriggering(false);
+    }
+  }, [api, automation]);
+
   const handleOpenImprovedInEditor = useCallback((improved: AutomationDefinition) => {
     if (!automationId) return;
     setShowImproveDialog(false);
@@ -140,6 +153,9 @@ export function AutomationDefinitionPage() {
               <h2 className="wfd-automation-name">{automation.name}</h2>
               <div className="wfd-header-actions">
                 <div className="wfd-header-actions-row">
+                  <button className="wfd-icon-btn" onClick={triggerAutomation} disabled={isTriggering} title="Run Now">
+                    <Icon name={isTriggering ? 'spinner' : 'play-circle-fill'} size={16} />
+                  </button>
                   <button className="wfd-icon-btn" onClick={() => setShowImproveDialog(true)} title="Improve with AI">
                     <Icon name="sparkles" size={16} />
                   </button>

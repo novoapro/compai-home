@@ -34,7 +34,7 @@ export function BlockEditor({
 
   // Fetch global values for stateVariable, controlDevice (global mode), and engineState blocks
   const [controllerStates, setControllerStates] = useState<{ id: string; name: string; displayName?: string; type: string }[]>([]);
-  const needsGlobalValues = draft.type === 'stateVariable' || draft.type === 'controlDevice';
+  const needsGlobalValues = draft.type === 'stateVariable' || draft.type === 'controlDevice' || draft.type === 'delay';
   useEffect(() => {
     if (!needsGlobalValues) return;
     let cancelled = false;
@@ -474,19 +474,60 @@ export function BlockEditor({
       })()}
 
       {/* delay */}
-      {draft.type === 'delay' && (
-        <div className="editor-field">
-          <label>Duration (seconds)</label>
-          <input
-            className="editor-input"
-            type="number"
-            min={0}
-            step={0.1}
-            value={draft.seconds ?? 1}
-            onChange={(e) => patch({ seconds: +e.target.value })}
-          />
-        </div>
-      )}
+      {draft.type === 'delay' && (() => {
+        const numberStates = controllerStates.filter(s => s.type === 'number');
+        return (
+          <>
+            {numberStates.length > 0 && (
+              <div className="editor-field">
+                <label>Duration Source</label>
+                <div className="char-toggle-wrap">
+                  <button type="button"
+                    className={`char-toggle-option${(draft.secondsSource || 'local') === 'local' ? ' active' : ''}`}
+                    onClick={() => patch({ secondsSource: 'local', secondsRef: undefined })}>
+                    Local
+                  </button>
+                  <button type="button"
+                    className={`char-toggle-option${draft.secondsSource === 'global' ? ' active' : ''}`}
+                    onClick={() => patch({ secondsSource: 'global' })}>
+                    Global
+                  </button>
+                </div>
+              </div>
+            )}
+            {draft.secondsSource === 'global' ? (
+              <>
+                <div className="editor-field">
+                  <label>Global Value</label>
+                  <select className="editor-select"
+                    value={draft.secondsRef?.name || ''}
+                    onChange={(e) => patch({ secondsRef: e.target.value ? { type: 'byName', name: e.target.value } : undefined })}>
+                    <option value="">-- Select global value --</option>
+                    {numberStates.map(s => (
+                      <option key={s.id} value={s.name}>
+                        ({STATE_TYPE_SYMBOL[s.type] || s.type}) {s.displayName || s.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="editor-field">
+                  <label>Default Duration (seconds)</label>
+                  <input className="editor-input" type="number" min={0} step={0.1}
+                    value={draft.seconds ?? 1}
+                    onChange={(e) => patch({ seconds: +e.target.value })} />
+                </div>
+              </>
+            ) : (
+              <div className="editor-field">
+                <label>Duration (seconds)</label>
+                <input className="editor-input" type="number" min={0} step={0.1}
+                  value={draft.seconds ?? 1}
+                  onChange={(e) => patch({ seconds: +e.target.value })} />
+              </div>
+            )}
+          </>
+        );
+      })()}
 
       {/* waitForState */}
       {draft.type === 'waitForState' && (

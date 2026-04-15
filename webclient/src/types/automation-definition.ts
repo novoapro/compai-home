@@ -159,6 +159,7 @@ export interface AutomationBlockDef {
   message?: string;
   sceneId?: string;
   seconds?: number;
+  secondsRef?: { type: string; name?: string; id?: string };
   condition?: unknown;
   timeoutSeconds?: number;
   thenBlocks?: AutomationBlockDef[];

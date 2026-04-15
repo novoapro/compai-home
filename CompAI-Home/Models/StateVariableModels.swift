@@ -613,6 +613,8 @@ enum StateVariableReferenceScanner {
 
     private static func flowControlReferences(stateName: String, fc: FlowControlBlock) -> Bool {
         switch fc {
+        case let .delay(b):
+            if let ref = b.secondsRef, refMatches(ref, name: stateName) { return true }
         case let .conditional(b):
             if conditionReferences(stateName: stateName, condition: b.condition) { return true }
             if blocksReference(stateName: stateName, in: b.thenBlocks) { return true }

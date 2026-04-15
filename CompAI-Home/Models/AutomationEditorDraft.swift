@@ -636,6 +636,9 @@ private extension RunSceneDraft {
 
 private extension DelayDraft {
     func autoName() -> String {
+        if valueSource == .global && !secondsRefName.isEmpty {
+            return "Delay \(secondsRefName) (Global)"
+        }
         return "Delay \(seconds)s"
     }
 }
@@ -1331,6 +1334,8 @@ struct StateVariableDraft {
 struct DelayDraft {
     var name: String = ""
     var seconds: Double = 1.0
+    var valueSource: ControlDeviceDraft.ValueSource = .local
+    var secondsRefName: String = ""
 }
 
 struct WaitForStateDraft {
@@ -2038,7 +2043,12 @@ extension AutomationDraft {
     private static func convertFlowControl(_ fc: FlowControlBlock, blockId: UUID, devices: [DeviceModel] = []) -> BlockDraft {
         switch fc {
         case let .delay(b):
-            return BlockDraft(id: blockId, blockType: .delay(DelayDraft(name: b.name ?? "", seconds: b.seconds)))
+            var draft = DelayDraft(name: b.name ?? "", seconds: b.seconds)
+            if let ref = b.secondsRef {
+                draft.valueSource = .global
+                if case let .byName(name) = ref { draft.secondsRefName = name }
+            }
+            return BlockDraft(id: blockId, blockType: .delay(draft))
         case let .waitForState(b):
             var draft = WaitForStateDraft(name: b.name ?? "")
             draft.conditionRoot = convertConditionTree([b.condition], devices: devices)
@@ -2375,7 +2385,9 @@ extension BlockDraft {
                 name: d.name.isEmpty ? nil : d.name
             )), blockId: id)
         case let .delay(d):
-            return .flowControl(.delay(DelayBlock(seconds: d.seconds, name: d.name.isEmpty ? nil : d.name)), blockId: id)
+            let secondsRef: StateVariableRef? = d.valueSource == .global && !d.secondsRefName.isEmpty
+                ? .byName(d.secondsRefName) : nil
+            return .flowControl(.delay(DelayBlock(seconds: d.seconds, secondsRef: secondsRef, name: d.name.isEmpty ? nil : d.name)), blockId: id)
         case let .waitForState(d):
             let condition = d.conditionRoot.toCondition(devices: devices) ?? .deviceState(DeviceStateCondition(
                 deviceId: "", characteristicId: "", comparison: .equals(AnyCodable(true))

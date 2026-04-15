@@ -1241,11 +1241,20 @@ actor AutomationEngine: AutomationEngineProtocol {
         do {
             switch flowControl {
             case let .delay(block):
-                result.detail = "Waiting \(block.seconds)s..."
+                // Resolve delay duration from Global Value or use static value
+                let delaySecs: Double
+                if let ref = block.secondsRef,
+                   let variable = await stateVariableStorage.resolve(ref),
+                   let numVal = variable.numberValue {
+                    delaySecs = numVal
+                } else {
+                    delaySecs = block.seconds
+                }
+                result.detail = "Waiting \(delaySecs)s..."
                 await onUpdate(result)
 
-                try await Task.sleep(nanoseconds: UInt64(block.seconds * 1_000_000_000))
-                result.detail = "Delayed \(block.seconds)s"
+                try await Task.sleep(nanoseconds: UInt64(max(0, delaySecs) * 1_000_000_000))
+                result.detail = "Delayed \(delaySecs)s"
                 result.status = .success
 
             case let .waitForState(block):

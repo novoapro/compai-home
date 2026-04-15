@@ -292,7 +292,7 @@ extension BlockEditorRow {
 
 extension BlockEditorRow {
     private var delayContent: some View {
-        DelayEditor(block: $block)
+        DelayEditor(block: $block, controllerStates: controllerStates)
     }
 
     private var waitForStateContent: some View {
@@ -766,6 +766,7 @@ private struct StateVariableEditor: View {
 
 private struct DelayEditor: View {
     @Binding var block: BlockDraft
+    var controllerStates: [StateVariable] = []
 
     private var draft: Binding<DelayDraft> {
         Binding(
@@ -777,15 +778,55 @@ private struct DelayEditor: View {
         )
     }
 
+    private var numberStates: [StateVariable] {
+        controllerStates.filter { $0.type == .number }
+    }
+
     var body: some View {
-        HStack {
-            Text("Seconds")
-            Spacer()
-            TextField("1.0", value: draft.seconds, format: .number)
-                .keyboardType(.decimalPad)
-                .multilineTextAlignment(.trailing)
-                .frame(width: 80)
-                .textFieldStyle(.roundedBorder)
+        if !numberStates.isEmpty {
+            Picker("Duration Source", selection: Binding(
+                get: { draft.wrappedValue.valueSource },
+                set: { draft.wrappedValue.valueSource = $0 }
+            )) {
+                Text("Local").tag(ControlDeviceDraft.ValueSource.local)
+                Text("Global").tag(ControlDeviceDraft.ValueSource.global)
+            }
+            .pickerStyle(.segmented)
+        }
+
+        if draft.wrappedValue.valueSource == .global && !numberStates.isEmpty {
+            Picker("Global Value", selection: Binding(
+                get: { draft.wrappedValue.secondsRefName },
+                set: { draft.wrappedValue.secondsRefName = $0 }
+            )) {
+                Text("-- Select --").tag("")
+                ForEach(numberStates) { state in
+                    Label(state.label, systemImage: state.type.icon).tag(state.name)
+                }
+            }
+            Section {
+                HStack {
+                    Text("Default (seconds)")
+                    Spacer()
+                    TextField("1.0", value: draft.seconds, format: .number)
+                        .keyboardType(.decimalPad)
+                        .multilineTextAlignment(.trailing)
+                        .frame(width: 80)
+                        .textFieldStyle(.roundedBorder)
+                }
+            } header: {
+                Text("Fallback if global value is removed")
+            }
+        } else {
+            HStack {
+                Text("Seconds")
+                Spacer()
+                TextField("1.0", value: draft.seconds, format: .number)
+                    .keyboardType(.decimalPad)
+                    .multilineTextAlignment(.trailing)
+                    .frame(width: 80)
+                    .textFieldStyle(.roundedBorder)
+            }
         }
     }
 }

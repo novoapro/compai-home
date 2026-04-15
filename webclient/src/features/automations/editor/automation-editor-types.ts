@@ -81,6 +81,8 @@ export interface AutomationBlockDraft {
   message?: string;
   sceneId?: string;
   seconds?: number;
+  secondsRef?: { type: string; name?: string; id?: string };
+  secondsSource?: 'local' | 'global';
   condition?: AutomationConditionDraft;
   timeoutSeconds?: number;
   thenBlocks?: AutomationBlockDraft[];

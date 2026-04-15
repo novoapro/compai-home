@@ -396,7 +396,7 @@ enum FlowControlBlock: Codable {
 
     private enum CodingKeys: String, CodingKey {
         case type, name
-        case seconds
+        case seconds, secondsRef
         case deviceId, serviceId, characteristicId, condition, timeoutSeconds
         case thenBlocks, elseBlocks
         case count, blocks, delayBetweenSeconds
@@ -414,6 +414,7 @@ enum FlowControlBlock: Codable {
         case .delay:
             self = try .delay(DelayBlock(
                 seconds: container.decode(Double.self, forKey: .seconds),
+                secondsRef: container.decodeIfPresent(StateVariableRef.self, forKey: .secondsRef),
                 name: name
             ))
         case .waitForState:
@@ -487,6 +488,7 @@ enum FlowControlBlock: Codable {
             try container.encode(FlowControlType.delay, forKey: .type)
             try container.encodeIfPresent(block.name, forKey: .name)
             try container.encode(block.seconds, forKey: .seconds)
+            try container.encodeIfPresent(block.secondsRef, forKey: .secondsRef)
         case let .waitForState(block):
             try container.encode(FlowControlType.waitForState, forKey: .type)
             try container.encodeIfPresent(block.name, forKey: .name)
@@ -545,10 +547,14 @@ enum FlowControlBlock: Codable {
 
 struct DelayBlock {
     let seconds: Double
+    /// When set, the delay duration is resolved at runtime from this Global Value (must be a number type).
+    /// Falls back to `seconds` if the referenced Global Value is deleted or unavailable.
+    let secondsRef: StateVariableRef?
     let name: String?
 
-    init(seconds: Double, name: String? = nil) {
+    init(seconds: Double, secondsRef: StateVariableRef? = nil, name: String? = nil) {
         self.seconds = seconds
+        self.secondsRef = secondsRef
         self.name = name
     }
 }
