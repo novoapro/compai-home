@@ -152,6 +152,8 @@ export interface AutomationBlockDef {
   characteristicId?: string;
   value?: unknown;
   valueRef?: { type: string; name?: string; id?: string };
+  awaitConfirmation?: boolean;
+  confirmationTimeout?: number;
   url?: string;
   method?: string;
   headers?: Record<string, string>;

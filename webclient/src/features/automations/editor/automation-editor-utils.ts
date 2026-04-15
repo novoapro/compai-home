@@ -261,6 +261,7 @@ function blockDraftToPayload(b: AutomationBlockDraft, idMap?: Map<string, string
         ...shared,
         deviceId: b.deviceId, serviceId: b.serviceId, characteristicId: b.characteristicId, value: b.value,
         ...(b.valueSource === 'global' && b.valueRef && { valueRef: b.valueRef }),
+        ...(b.awaitConfirmation && { awaitConfirmation: true, confirmationTimeout: b.confirmationTimeout ?? 10 }),
       };
     case 'runScene':
       return { ...shared, sceneId: b.sceneId };
@@ -488,6 +489,10 @@ function blockDefToDraft(b: AutomationBlockDef, blockIdMap?: Map<string, string>
         base.valueSource = 'global';
       } else {
         base.valueSource = 'local';
+      }
+      if (b.awaitConfirmation) {
+        base.awaitConfirmation = true;
+        base.confirmationTimeout = b.confirmationTimeout ?? 10;
       }
       break;
     case 'runScene':

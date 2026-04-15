@@ -437,6 +437,27 @@ private struct ControlDeviceEditor: View {
                 fallbackValidValues: draft.wrappedValue.characteristicValidValues
             )
         }
+
+        // Confirmation toggle
+        Toggle("Confirm State Change", isOn: Binding(
+            get: { draft.wrappedValue.awaitConfirmation },
+            set: { draft.wrappedValue.awaitConfirmation = $0 }
+        ))
+
+        if draft.wrappedValue.awaitConfirmation {
+            HStack {
+                Text("Timeout (seconds)")
+                    .foregroundColor(Theme.Text.secondary)
+                Spacer()
+                TextField("10", value: Binding(
+                    get: { draft.wrappedValue.confirmationTimeout },
+                    set: { draft.wrappedValue.confirmationTimeout = $0 }
+                ), format: .number)
+                    .keyboardType(.decimalPad)
+                    .multilineTextAlignment(.trailing)
+                    .frame(width: 60)
+            }
+        }
     }
 }
 

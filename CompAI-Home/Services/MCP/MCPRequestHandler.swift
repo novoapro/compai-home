@@ -615,6 +615,10 @@ final class MCPRequestHandler: Sendable {
                                 "description": "Value to set. Also serves as the default fallback when valueRef is used."],
                             "valueRef": ["type": "object", "required": false,
                                 "description": "Optional. Reference a global value: {\"type\":\"byName\",\"name\":\"my_value\"}. At runtime the global value is used; if deleted, falls back to the value field. IMPORTANT: The global value type must match the characteristic format — boolean globals for bool characteristics, number globals for numeric characteristics (uint8/uint16/uint32/uint64/int/float), string globals for string characteristics."],
+                            "awaitConfirmation": ["type": "boolean", "required": false,
+                                "description": "When true, waits for the device to confirm the state change before marking the block as successful. Defaults to false (fire-and-forget)."],
+                            "confirmationTimeout": ["type": "number", "required": false,
+                                "description": "Timeout in seconds for confirmation. Only used when awaitConfirmation is true. Defaults to 10."],
                             "name": ["type": "string", "required": false]
                         ] as [String: Any]
                     ],

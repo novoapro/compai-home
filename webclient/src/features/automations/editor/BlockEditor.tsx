@@ -211,6 +211,23 @@ export function BlockEditor({
               onChange={(val) => patch({ value: val })}
             />
           )}
+
+          {/* Confirmation toggle */}
+          <div className="editor-field">
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+              <input type="checkbox" checked={!!draft.awaitConfirmation}
+                onChange={(e) => patch({ awaitConfirmation: e.target.checked, ...(!e.target.checked ? {} : { confirmationTimeout: draft.confirmationTimeout ?? 10 }) })} />
+              Confirm State Change
+            </label>
+          </div>
+          {draft.awaitConfirmation && (
+            <div className="editor-field">
+              <label>Timeout (seconds)</label>
+              <input className="editor-input" type="number" min={1} step={1}
+                value={draft.confirmationTimeout ?? 10}
+                onChange={(e) => patch({ confirmationTimeout: +e.target.value || 10 })} />
+            </div>
+          )}
         </>
       )}
 

@@ -195,7 +195,7 @@ enum AutomationAction: Codable {
 
     private enum CodingKeys: String, CodingKey {
         case type, name
-        case deviceId, deviceName, roomName, serviceId, characteristicId, value, valueRef
+        case deviceId, deviceName, roomName, serviceId, characteristicId, value, valueRef, awaitConfirmation, confirmationTimeout
         case url, method, headers, body
         case message
         case sceneId, sceneName
@@ -217,6 +217,8 @@ enum AutomationAction: Codable {
                 characteristicId: charId,
                 value: container.decode(AnyCodable.self, forKey: .value),
                 valueRef: container.decodeIfPresent(StateVariableRef.self, forKey: .valueRef),
+                awaitConfirmation: container.decodeIfPresent(Bool.self, forKey: .awaitConfirmation) ?? false,
+                confirmationTimeout: container.decodeIfPresent(Double.self, forKey: .confirmationTimeout) ?? 10,
                 name: name
             ))
         case .webhook:
@@ -259,6 +261,10 @@ enum AutomationAction: Codable {
             try container.encode(action.characteristicId, forKey: .characteristicId)
             try container.encode(action.value, forKey: .value)
             try container.encodeIfPresent(action.valueRef, forKey: .valueRef)
+            if action.awaitConfirmation {
+                try container.encode(action.awaitConfirmation, forKey: .awaitConfirmation)
+                try container.encode(action.confirmationTimeout, forKey: .confirmationTimeout)
+            }
         case let .webhook(action):
             try container.encode(ActionType.webhook, forKey: .type)
             try container.encodeIfPresent(action.name, forKey: .name)
@@ -303,9 +309,14 @@ struct ControlDeviceAction {
     /// When set, the value is resolved at runtime from this Global Value reference.
     /// Falls back to `value` if the referenced Global Value is deleted or unavailable.
     let valueRef: StateVariableRef?
+    /// When true, the block waits for the device to confirm the state change before completing.
+    /// If the confirmation doesn't arrive within `confirmationTimeout` seconds, the block fails.
+    let awaitConfirmation: Bool
+    /// Timeout in seconds for confirmation. Only used when `awaitConfirmation` is true. Defaults to 10.
+    let confirmationTimeout: Double
     let name: String?
 
-    init(deviceId: String, deviceName: String? = nil, roomName: String? = nil, serviceId: String? = nil, characteristicId: String, value: AnyCodable, valueRef: StateVariableRef? = nil, name: String? = nil) {
+    init(deviceId: String, deviceName: String? = nil, roomName: String? = nil, serviceId: String? = nil, characteristicId: String, value: AnyCodable, valueRef: StateVariableRef? = nil, awaitConfirmation: Bool = false, confirmationTimeout: Double = 10, name: String? = nil) {
         self.deviceId = deviceId
         self.deviceName = deviceName
         self.roomName = roomName
@@ -313,6 +324,8 @@ struct ControlDeviceAction {
         self.characteristicId = characteristicId
         self.value = value
         self.valueRef = valueRef
+        self.awaitConfirmation = awaitConfirmation
+        self.confirmationTimeout = confirmationTimeout
         self.name = name
     }
 }
