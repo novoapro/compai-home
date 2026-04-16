@@ -144,6 +144,8 @@
   color: var(--text-primary);
   font-size: var(--font-size-xs);
   width: 130px;
+  padding: 10px 14px;
+  box-shadow: var(--shadow-card);
 }
 
 .date-sep {
