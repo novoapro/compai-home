@@ -263,16 +263,7 @@ actor AutomationEngine: AutomationEngineProtocol {
             }
         }
 
-        let manualEvent = TriggerEvent(
-            deviceId: nil,
-            deviceName: nil,
-            serviceName: nil,
-            characteristicName: nil,
-            roomName: nil,
-            oldValue: nil,
-            newValue: nil,
-            triggerDescription: "Manually triggered"
-        )
+        let manualEvent = Self.manualTriggerEvent()
         let task = Task { [weak self] () -> AutomationExecutionLog in
             let result = await self?.executeAutomation(automation, change: nil, triggerEvent: manualEvent) ?? AutomationExecutionLog(automationId: id, automationName: automation.name, triggerEvent: manualEvent)
             if !Task.isCancelled {
@@ -346,6 +337,8 @@ actor AutomationEngine: AutomationEngineProtocol {
         guard storage.readAutomationsEnabled() else { return .disabled }
         guard let automation = await automationStorageService.getAutomation(id: id) else { return .notFound }
 
+        let manualEvent = Self.manualTriggerEvent()
+
         if runningTasks[id] != nil {
             switch automation.retriggerPolicy {
             case .ignoreNew:
@@ -354,10 +347,10 @@ actor AutomationEngine: AutomationEngineProtocol {
                 cancellationReasons[id] = "Cancelled and restarted — manual schedule trigger while running (cancelAndRestart policy)"
                 cancelAutomationTree(id)
                 runningTasks.removeValue(forKey: id)
-                startExecution(automation, change: nil)
+                startExecution(automation, change: nil, triggerEvent: manualEvent)
                 return .replaced(automationId: id, automationName: automation.name)
             case .queueAndExecute:
-                enqueueAutomation(automation, change: nil)
+                enqueueAutomation(automation, change: nil, triggerEvent: manualEvent)
                 return .queued(automationId: id, automationName: automation.name)
             case .cancelOnly:
                 cancellationReasons[id] = "Cancelled — manual schedule trigger while running (cancelOnly policy)"
@@ -367,8 +360,21 @@ actor AutomationEngine: AutomationEngineProtocol {
             }
         }
 
-        startExecution(automation, change: nil)
+        startExecution(automation, change: nil, triggerEvent: manualEvent)
         return .scheduled(automationId: id, automationName: automation.name)
+    }
+
+    private static func manualTriggerEvent() -> TriggerEvent {
+        TriggerEvent(
+            deviceId: nil,
+            deviceName: nil,
+            serviceName: nil,
+            characteristicName: nil,
+            roomName: nil,
+            oldValue: nil,
+            newValue: nil,
+            triggerDescription: "Manually triggered"
+        )
     }
 
     /// Fire-and-forget trigger with a custom event — returns immediately with the scheduling outcome.
