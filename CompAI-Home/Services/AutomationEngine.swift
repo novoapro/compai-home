@@ -867,8 +867,7 @@ actor AutomationEngine: AutomationEngineProtocol {
                     } else {
                         valueDesc = "\(a.value.value)"
                     }
-                    let confirmSuffix = a.awaitConfirmation ? " (confirmed)" : ""
-                    result.detail = "Set \(charName) to \(valueDesc) on \(deviceName)\(svcSuffix)\(confirmSuffix)"
+                    result.detail = "Set \(charName) to \(valueDesc) on \(deviceName)\(svcSuffix)"
                 case let .webhook(a):
                     try await self.executeWebhook(a)
                     result.detail = "\(a.method) \(a.url)"
@@ -948,76 +947,6 @@ actor AutomationEngine: AutomationEngineProtocol {
             value: effectiveValue,
             serviceId: action.serviceId
         )
-
-        // If confirmation is requested, wait for the device to report the new state
-        if action.awaitConfirmation {
-            let confirmed = try await waitForControlDeviceConfirmation(
-                deviceId: action.deviceId,
-                characteristicType: resolvedType,
-                expectedValue: effectiveValue,
-                serviceId: action.serviceId,
-                timeout: action.confirmationTimeout,
-                automationName: automationName
-            )
-            if !confirmed {
-                throw AutomationEngineError.stateVariableError(
-                    "Device did not confirm state change within \(action.confirmationTimeout)s"
-                )
-            }
-        }
-    }
-
-    /// Waits for a device characteristic to report the expected value, using the state change waiter mechanism.
-    private func waitForControlDeviceConfirmation(
-        deviceId: String,
-        characteristicType: String,
-        expectedValue: Any,
-        serviceId: String?,
-        timeout: Double,
-        automationName: String
-    ) async throws -> Bool {
-        // Build a condition that matches the expected state
-        let comparison = ComparisonOperator.equals(AnyCodable(expectedValue))
-        let condition = AutomationCondition.deviceState(DeviceStateCondition(
-            deviceId: deviceId,
-            serviceId: serviceId,
-            characteristicId: characteristicType,
-            comparison: comparison
-        ))
-
-        // Check if already in the expected state
-        let initialResult = await conditionEvaluator.evaluate(condition)
-        if initialResult.passed { return true }
-
-        let key = "\(deviceId):\(characteristicType)"
-        let waiterId = UUID()
-        var timeoutTask: Task<Void, Never>?
-
-        let result = try await withTaskCancellationHandler {
-            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Bool, Error>) in
-                let waiter = StateWaiter(
-                    id: waiterId,
-                    keys: [key],
-                    condition: condition,
-                    continuation: continuation
-                )
-                if stateWaiters[key] == nil { stateWaiters[key] = [] }
-                stateWaiters[key]?.append(waiter)
-
-                timeoutTask = Task { [weak self] in
-                    try? await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
-                    guard !Task.isCancelled else { return }
-                    await self?.timeoutWaiter(waiter, key: key)
-                }
-            }
-        } onCancel: { [weak self] in
-            Task { [weak self] in
-                await self?.cancelWaiter(id: waiterId, key: key)
-            }
-        }
-
-        timeoutTask?.cancel()
-        return result
     }
 
     /// Validates that a URL does not point to a private/internal IP address (SSRF protection).

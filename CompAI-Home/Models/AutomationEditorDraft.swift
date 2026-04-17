@@ -1044,10 +1044,6 @@ struct ControlDeviceDraft {
         case global      // from a Global Value
     }
 
-    // Confirmation
-    var awaitConfirmation: Bool = false
-    var confirmationTimeout: Double = 10
-
     // Cached characteristic metadata for UI rendering when device isn't available
     var characteristicFormat: String?
     var characteristicMinValue: Double?
@@ -2028,8 +2024,6 @@ extension AutomationDraft {
                 draft.valueSource = .global
                 if case let .byName(name) = ref { draft.valueRefName = name }
             }
-            draft.awaitConfirmation = a.awaitConfirmation
-            draft.confirmationTimeout = a.confirmationTimeout
             return BlockDraft(id: blockId, blockType: .controlDevice(draft))
         case let .webhook(a):
             return BlockDraft(id: blockId, blockType: .webhook(WebhookDraft(
@@ -2368,8 +2362,6 @@ extension BlockDraft {
                 characteristicId: d.characteristicId,
                 value: parseValue(d.value),
                 valueRef: valueRef,
-                awaitConfirmation: d.awaitConfirmation,
-                confirmationTimeout: d.confirmationTimeout,
                 name: d.name.isEmpty ? nil : d.name
             )), blockId: id)
         case let .webhook(d):
