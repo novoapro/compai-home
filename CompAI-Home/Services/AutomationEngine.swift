@@ -864,17 +864,32 @@ actor AutomationEngine: AutomationEngineProtocol {
         // Notify that we are starting
         await onUpdate(result)
 
-        // Timed control holds the state for its configured duration, which can exceed the
-        // default blockTimeout. Expand the effective timeout based on the configured fallback.
-        let effectiveTimeout: TimeInterval = {
-            if case let .timedControl(a) = action {
-                return max(blockTimeout, a.durationSeconds + 15)
-            }
-            return blockTimeout
-        }()
-
         do {
-            try await withTimeout(seconds: effectiveTimeout) {
+            // Timed control manages its own duration + cancellation + rollback. It can run
+            // for many minutes (e.g. a sprinkler held on for 10 minutes), so it must NOT be
+            // bound by the per-block withTimeout cap — that would cut the hold short and
+            // interrupt the rollback. Every other action type stays inside the 30s cap.
+            if case let .timedControl(a) = action {
+                let (finalDetail, nested) = try await self.executeTimedControl(
+                    a,
+                    automationId: context.automation.id,
+                    automationName: context.automation.name,
+                    reportProgress: { progressDetail, partialNested in
+                        var interim = result
+                        interim.detail = progressDetail
+                        interim.nestedResults = partialNested
+                        await onUpdate(interim)
+                    }
+                )
+                result.detail = finalDetail
+                result.nestedResults = nested
+                result.status = .success
+                result.completedAt = Date()
+                await onUpdate(result)
+                return result
+            }
+
+            try await withTimeout(seconds: blockTimeout) {
                 switch action {
                 case let .controlDevice(a):
                     try await self.executeControlDevice(a, automationId: context.automation.id, automationName: context.automation.name)
@@ -906,20 +921,9 @@ actor AutomationEngine: AutomationEngineProtocol {
                     if result.blockName == nil {
                         result.blockName = humanized
                     }
-                case let .timedControl(a):
-                    let (finalDetail, nested) = try await self.executeTimedControl(
-                        a,
-                        automationId: context.automation.id,
-                        automationName: context.automation.name,
-                        reportProgress: { progressDetail, partialNested in
-                            var interim = result
-                            interim.detail = progressDetail
-                            interim.nestedResults = partialNested
-                            await onUpdate(interim)
-                        }
-                    )
-                    result.detail = finalDetail
-                    result.nestedResults = nested
+                case .timedControl:
+                    // Handled above the withTimeout block; unreachable here.
+                    break
                 case let .webhook(a):
                     try await self.executeWebhook(a)
                     result.detail = "\(a.method) \(a.url)"
